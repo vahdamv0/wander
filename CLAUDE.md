@@ -90,6 +90,20 @@ Java record → springdoc → `api/build/openapi.json` (written by
   everywhere at once. Repeated shapes live as `.card` / `.field` / `.btn-*` in
   the `@layer components` block; Tailwind 4's `@apply` cannot reference another
   custom class, so variants list the base selector rather than composing it.
+- **A bare `grid` sizes its track to max-content.** Inside a constrained column
+  (the trip page's day list, beside the map) that lets one long address stretch
+  the cards past their column and under the map. Use `grid-cols-1` — which is
+  `minmax(0, 1fr)` — for any single-column grid whose content can be wide, and
+  `min-w-0` on a grid item that must be allowed to shrink.
+- **Leaflet is imported in exactly one file.** `pages/trip/trip-map.ts` owns the
+  map: it creates it in `afterNextRender`, reacts to signals by issuing
+  imperative calls, and removes it in `onDestroy` (Leaflet holds
+  document-level listeners, so a map that is not removed leaks across
+  navigation). Leaflet cannot tell a programmatic move from a gesture — `setView`
+  raises `zoomstart` exactly as a pinch does — so auto-framing is guarded by a
+  flag around our own moves; without it the first frame silently disables
+  itself. Map furniture is styled from the same tokens as everything else, in
+  `@layer components`, because Leaflet builds those nodes outside any template.
 - **`@for` needs a collection from the component, not an inline array literal.**
   `@for (x of [1, 2]; ...)` does not survive the block-syntax parser and fails at
   runtime with `newCollection[Symbol.iterator] is not a function`.
@@ -105,6 +119,16 @@ Java record → springdoc → `api/build/openapi.json` (written by
   get the `XSRF-TOKEN` cookie; an anonymous request that fails the CSRF check
   comes back **401**, not 403, because Spring treats access-denied-while-anonymous
   as "authenticate first".
+
+## Instance configuration reaches the client
+
+`GET /api/config` (authenticated) carries the tile URL, its attribution, and
+whether place search is enabled. Nothing operator-configurable should be
+compiled into the Angular app: self-hosting means the tile server and the
+geocoder are somebody else's decision, and "search off, map off" is a supported
+configuration. `InstanceConfigStore` loads it once when the signed-in shell
+mounts, and features that depend on it treat "not answered yet" as available so
+nothing flickers into existence.
 
 ## Talking to Nominatim
 
@@ -137,6 +161,6 @@ Milestone 0 (accounts, trips, the contract loop, one container) is done, and so
 is most of "days and places": derived days, places with ordering owned by the
 server (`PlaceService` renumbers a day on every move or delete, and the client
 re-reads instead of patching ranks), and Nominatim search behind a proxy that
-caches and rate-limits. Still open in that milestone: the Leaflet map, drag
+caches and rate-limits, and a Leaflet map. Still open in that milestone: drag
 ordering in place of the buttons, and day notes. See the roadmap in README.md. Deliberately **out** of scope until asked:
 plugins, i18n, MCP, offline. Keep v1 small.

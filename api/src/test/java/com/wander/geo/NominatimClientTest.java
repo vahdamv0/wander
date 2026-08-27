@@ -27,7 +27,8 @@ class NominatimClientTest {
 
     private static WanderProperties properties() {
         return new WanderProperties("test", true, new WanderProperties.Admin("", ""),
-                new WanderProperties.Geocoding(true, "http://localhost:1", "", 1000, 2000, 600, 500));
+                new WanderProperties.Geocoding(true, "http://localhost:1", "", 1000, 2000, 600, 500),
+                new WanderProperties.MapTiles(true, "http://localhost:1/{z}/{x}/{y}.png", "test", 19));
     }
 
     @Test

@@ -8,7 +8,9 @@ export { Api } from './api';
 
 export type { CreatePlaceRequest } from './models/create-place-request';
 export type { CreateTripRequest } from './models/create-trip-request';
+export type { InstanceConfig } from './models/instance-config';
 export type { LoginRequest } from './models/login-request';
+export type { MapConfig } from './models/map-config';
 export type { MovePlaceRequest } from './models/move-place-request';
 export type { PlaceSuggestion } from './models/place-suggestion';
 export type { PlaceView } from './models/place-view';
@@ -49,3 +51,5 @@ export type { Health$Params as Health$Params } from './fn/health-controller/heal
 export { health as health } from './fn/health-controller/health';
 export type { SearchPlaces$Params as SearchPlaces$Params } from './fn/geo-controller/search-places';
 export { searchPlaces as searchPlaces } from './fn/geo-controller/search-places';
+export type { GetInstanceConfig$Params as GetInstanceConfig$Params } from './fn/instance-config-controller/get-instance-config';
+export { getInstanceConfig as getInstanceConfig } from './fn/instance-config-controller/get-instance-config';

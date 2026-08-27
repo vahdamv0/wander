@@ -18,7 +18,9 @@ public record WanderProperties(
 
         @DefaultValue Admin admin,
 
-        @DefaultValue Geocoding geocoding) {
+        @DefaultValue Geocoding geocoding,
+
+        @DefaultValue MapTiles map) {
 
     /**
      * First-boot admin. Both blank means the account is still created, with a
@@ -51,5 +53,22 @@ public record WanderProperties(
             @DefaultValue("600") long cacheSeconds,
             /** How many distinct queries to remember. */
             @DefaultValue("500") int cacheSize) {
+    }
+
+    /**
+     * The tile layer the browser draws the map from. Not compiled into the
+     * client: an operator running their own tile server, or one who would rather
+     * their users' browsers not talk to openstreetmap.org at all, changes this
+     * and every client follows — which is also why the attribution travels with
+     * the URL rather than being hardcoded next to the map.
+     *
+     * The default is the OpenStreetMap tile service, whose policy requires the
+     * attribution below to stay visible and asks that heavy users run their own.
+     */
+    public record MapTiles(
+            @DefaultValue("true") boolean enabled,
+            @DefaultValue("https://tile.openstreetmap.org/{z}/{x}/{y}.png") String tileUrl,
+            @DefaultValue("© OpenStreetMap contributors") String attribution,
+            @DefaultValue("19") int maxZoom) {
     }
 }

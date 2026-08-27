@@ -1,4 +1,4 @@
-<div class="mx-auto max-w-3xl px-4 py-8">
+<div class="mx-auto max-w-6xl px-4 py-8">
   <a routerLink="/trips" class="inline-flex items-center gap-1.5 text-sm text-muted hover:text-fg">
     <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
          stroke-linecap="round" aria-hidden="true">
@@ -38,6 +38,33 @@
     </p>
   }
 
+  <!-- Map beside the days on a wide screen, above them on a narrow one. The
+       itinerary is the page; the map is a second view of it. -->
+  <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:items-start">
+    <div class="lg:order-1 lg:col-start-2">
+      @if (mapConfig(); as map) {
+        <section
+          class="card overflow-hidden p-1 lg:sticky lg:top-6"
+          [attr.aria-label]="'Map of ' + (trip()?.name ?? 'this trip')"
+        >
+          <div class="h-64 sm:h-80 lg:h-[26rem]">
+            <app-trip-map
+              [days]="days()"
+              [config]="map"
+              [focus]="focused()"
+              (placePicked)="onMarkerPicked($event)"
+            />
+          </div>
+          @if (placeCount() && mappedCount() < placeCount()) {
+            <p class="px-3 py-2 text-xs text-muted">
+              {{ mappedCount() }} of {{ placeCount() }} places have a location.
+            </p>
+          }
+        </section>
+      }
+    </div>
+
+    <div class="min-w-0 lg:col-start-1 lg:row-start-1">
   @if (loading() && !trip()) {
     <ul class="grid gap-3">
       @for (skeleton of skeletons; track skeleton) {
@@ -48,7 +75,7 @@
       }
     </ul>
   } @else {
-    <ol class="grid gap-3">
+    <ol class="grid grid-cols-1 gap-3">
       @for (day of days(); track day.date) {
         <li class="card p-5">
           <div class="flex items-baseline justify-between gap-3">
@@ -64,9 +91,14 @@
           </div>
 
           @if (day.places.length) {
-            <ol class="mt-4 grid gap-2">
+            <ol class="mt-4 grid grid-cols-1 gap-2">
               @for (place of day.places; track place.id) {
-                <li class="rounded-control border border-border px-3 py-2">
+                <li
+                  class="rounded-control border px-3 py-2 transition-colors"
+                  [class.border-border]="highlighted() !== place.id"
+                  [class.border-accent]="highlighted() === place.id"
+                  [class.bg-accent-soft]="highlighted() === place.id"
+                >
                   <div class="flex items-start gap-3">
                     <span class="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full
                                  bg-accent-soft text-[0.6875rem] font-semibold text-accent">
@@ -75,14 +107,27 @@
                     <div class="min-w-0 flex-1">
                       <p class="truncate text-sm font-medium">{{ place.name }}</p>
                       @if (place.address) {
+                        <!-- Minus the leading name, which the line above already says. -->
                         <p class="truncate text-xs text-muted" [title]="place.address">
-                          {{ place.address }}
+                          {{ withoutLeadingName(place.name, place.address) }}
                         </p>
                       }
                       @if (place.notes) {
                         <p class="mt-0.5 text-sm text-muted">{{ place.notes }}</p>
                       }
                     </div>
+
+                    @if (place.latitude != null && mapConfig()) {
+                      <button type="button" class="btn-ghost shrink-0 px-1.5"
+                              title="Show on the map" (click)="showOnMap(place)">
+                        <span class="sr-only">Show {{ place.name }} on the map</span>
+                        <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                             stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+                          <path d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11Z" />
+                          <circle cx="12" cy="10" r="2.5" />
+                        </svg>
+                      </button>
+                    }
 
                     @if (canEdit()) {
                       <div class="flex shrink-0 items-center gap-0.5">
@@ -243,4 +288,6 @@
       }
     </ol>
   }
+    </div>
+  </div>
 </div>
