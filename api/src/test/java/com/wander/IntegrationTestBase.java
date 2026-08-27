@@ -121,6 +121,15 @@ abstract class IntegrationTestBase {
                 .toEntity(String.class);
     }
 
+    protected ResponseEntity<String> put(Session session, String path, String body) {
+        return http().put().uri(path)
+                .contentType(MediaType.APPLICATION_JSON)
+                .headers(headers -> auth(headers, session))
+                .body(body)
+                .retrieve()
+                .toEntity(String.class);
+    }
+
     protected ResponseEntity<String> delete(Session session, String path) {
         return http().delete().uri(path)
                 .headers(headers -> auth(headers, session))

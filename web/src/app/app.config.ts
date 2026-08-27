@@ -5,7 +5,7 @@ import {
   provideBrowserGlobalErrorListeners,
 } from '@angular/core';
 import { provideHttpClient, withFetch, withXsrfConfiguration } from '@angular/common/http';
-import { provideRouter } from '@angular/router';
+import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { routes } from './app.routes';
 import { provideApiConfiguration } from './api/api-configuration';
 import { SessionStore } from './core/session.store';
@@ -13,7 +13,9 @@ import { SessionStore } from './core/session.store';
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
-    provideRouter(routes),
+    // withComponentInputBinding: a route param arrives as a component input()
+    // rather than through ActivatedRoute, which keeps pages free of router types.
+    provideRouter(routes, withComponentInputBinding()),
     provideHttpClient(
       withFetch(),
       // Matches CookieCsrfTokenRepository on the server. Angular only attaches

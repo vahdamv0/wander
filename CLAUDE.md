@@ -58,6 +58,10 @@ Java record → springdoc → `api/build/openapi.json` (written by
   A public endpoint must also carry `@PublicEndpoint`, which is what
   `EndpointAuthRatchetTest` checks: it fires an anonymous request at every
   handler under `com.wander` and fails if one answers. Do not weaken it.
+- **Operation ids are global on the client.** ng-openapi-gen exports every
+  operation unqualified into one barrel file, so a second controller with a
+  `create` method collides with `TripController`'s. Name them for their
+  resource — `createPlace`, `getItinerary`.
 - **Trip access goes through `TripAccessService`.** `requireMember` for read,
   `requireRole` for write. A non-member gets **404**, not 403; a member with too
   weak a role gets 403. New trip-scoped endpoints must go through it.
@@ -107,6 +111,10 @@ detection still renders, so a status code alone proves nothing.
 
 ## Scope discipline
 
-Milestone 0 (accounts, trips, the contract loop, one container) is done. Next is
-days and places — see the roadmap in README.md. Deliberately **out** of scope
-until asked: plugins, i18n, MCP, offline. Keep v1 small.
+Milestone 0 (accounts, trips, the contract loop, one container) is done, and so
+is the first half of "days and places": derived days plus places, with ordering
+owned by the server (`PlaceService` renumbers a day on every move or delete, and
+the client re-reads instead of patching ranks). Still open in that milestone:
+Nominatim search, the Leaflet map, drag ordering in place of the buttons, and day
+notes. See the roadmap in README.md. Deliberately **out** of scope until asked:
+plugins, i18n, MCP, offline. Keep v1 small.
