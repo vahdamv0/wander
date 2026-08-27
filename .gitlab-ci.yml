@@ -1,0 +1,74 @@
+# Three jobs, all gates. Nothing here is allowed to be "warn" — see README.
+stages: [verify, package]
+
+variables:
+  # Gradle needs a writable home inside the container, and caching it makes the
+  # second pipeline much faster than the first.
+  GRADLE_USER_HOME: "$CI_PROJECT_DIR/.gradle"
+  GRADLE_OPTS: "-Dorg.gradle.daemon=false"
+
+cache:
+  key: "$CI_COMMIT_REF_SLUG"
+  paths:
+    - .gradle/wrapper
+    - .gradle/caches
+    - web/node_modules
+
+test:
+  stage: verify
+  image: eclipse-temurin:21-jdk
+  services:
+    # Testcontainers needs a Docker daemon to start Postgres.
+    - name: docker:27-dind
+      alias: docker
+  variables:
+    DOCKER_HOST: "tcp://docker:2375"
+    DOCKER_TLS_CERTDIR: ""
+    TESTCONTAINERS_HOST_OVERRIDE: "docker"
+  script:
+    - ./gradlew build
+  artifacts:
+    when: always
+    reports:
+      junit: api/build/test-results/test/TEST-*.xml
+    paths:
+      - api/build/openapi.json
+    expire_in: 1 week
+
+# The generated client is committed, so it can drift from the Java contract.
+# This job makes drift a red pipeline instead of a silent inconsistency.
+api-client-drift:
+  stage: verify
+  image: eclipse-temurin:21-jdk
+  services:
+    - name: docker:27-dind
+      alias: docker
+  variables:
+    DOCKER_HOST: "tcp://docker:2375"
+    DOCKER_TLS_CERTDIR: ""
+    TESTCONTAINERS_HOST_OVERRIDE: "docker"
+  script:
+    # The spec is written by OpenApiSpecExportTest.
+    - ./gradlew :api:test
+    - ./gradlew :web:npmInstall
+    - cd web && ../gradlew --quiet -p .. :web:nodeSetup
+    - npx ng-openapi-gen
+    - cd ..
+    - |
+      if ! git diff --quiet -- web/src/app/api; then
+        echo "The committed API client is out of date. Run 'npm run api:gen' in web/ and commit the result:"
+        git --no-pager diff --stat -- web/src/app/api
+        exit 1
+      fi
+
+image:
+  stage: package
+  image: docker:27
+  services:
+    - docker:27-dind
+  variables:
+    DOCKER_TLS_CERTDIR: ""
+  script:
+    - docker build -t "wander:$CI_COMMIT_SHORT_SHA" .
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

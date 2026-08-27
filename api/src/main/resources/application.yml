@@ -1,0 +1,64 @@
+spring:
+  application:
+    name: wander
+
+  datasource:
+    url: ${WANDER_DB_URL:jdbc:postgresql://localhost:5432/wander}
+    username: ${WANDER_DB_USER:wander}
+    password: ${WANDER_DB_PASSWORD:wander}
+
+  jpa:
+    # Flyway owns the schema. `validate` means a drifted entity fails at boot
+    # instead of silently altering tables under a running instance.
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+  # An SPA route like /trips/7 is not a static file; the SPA fallback below
+  # turns it back into index.html.
+  web:
+    resources:
+      add-mappings: true
+
+  threads:
+    virtual:
+      # Virtual threads make plain blocking JDBC code cheap to scale, which is
+      # why none of this project needs to be reactive.
+      enabled: true
+
+server:
+  port: ${WANDER_PORT:8080}
+  servlet:
+    session:
+      cookie:
+        http-only: true
+        same-site: lax
+        # Set WANDER_COOKIE_SECURE=true behind TLS (i.e. always, in production).
+        secure: ${WANDER_COOKIE_SECURE:false}
+      timeout: 30d
+  forward-headers-strategy: framework
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+wander:
+  version: 0.1.0
+  registration-enabled: ${WANDER_REGISTRATION_ENABLED:true}
+  admin:
+    email: ${WANDER_ADMIN_EMAIL:}
+    password: ${WANDER_ADMIN_PASSWORD:}
+
+logging:
+  level:
+    com.wander: ${WANDER_LOG_LEVEL:INFO}

@@ -1,0 +1,27 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Node / Angular
+node_modules/
+.angular/
+web/build/
+
+# The generated API client (web/src/app/api/) IS committed on purpose: it keeps
+# the Docker build and a fresh clone hermetic, with no database needed to
+# produce the spec first. CI regenerates it and fails on any drift, so it cannot
+# quietly diverge from the Java contract. Never hand-edit it.
+
+# Local config
+.env
+*.local
+
+# IDEs
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.iml
+
+# OS
+.DS_Store

@@ -1,0 +1,39 @@
+<main class="card">
+  <h1>wander</h1>
+  <p class="muted">{{ mode() === 'login' ? 'Sign in to your trips' : 'Create an account' }}</p>
+
+  <form (ngSubmit)="submit()">
+    <label>
+      Email
+      <input type="email" name="email" autocomplete="email" required
+             [ngModel]="email()" (ngModelChange)="email.set($event)" />
+    </label>
+
+    @if (mode() === 'register') {
+      <label>
+        Display name
+        <input type="text" name="displayName" autocomplete="name" required
+               [ngModel]="displayName()" (ngModelChange)="displayName.set($event)" />
+      </label>
+    }
+
+    <label>
+      Password
+      <input type="password" name="password" required
+             [attr.autocomplete]="mode() === 'login' ? 'current-password' : 'new-password'"
+             [ngModel]="password()" (ngModelChange)="password.set($event)" />
+    </label>
+
+    @if (error()) {
+      <p class="error" role="alert">{{ error() }}</p>
+    }
+
+    <button type="submit" [disabled]="busy()">
+      {{ busy() ? 'Working…' : mode() === 'login' ? 'Sign in' : 'Create account' }}
+    </button>
+  </form>
+
+  <button type="button" class="link" (click)="toggleMode()">
+    {{ mode() === 'login' ? 'Need an account?' : 'Already have an account?' }}
+  </button>
+</main>

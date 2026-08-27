@@ -1,0 +1,146 @@
+/* Deliberately plain for milestone 0: enough structure to use the app, no
+   design system yet. Tailwind lands with the real UI. */
+:root {
+  --bg: #f6f7f9;
+  --card: #ffffff;
+  --ink: #14171f;
+  --muted: #6b7280;
+  --line: #e5e7eb;
+  --accent: #0d6efd;
+  --error: #b42318;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1116;
+    --card: #171a21;
+    --ink: #e8eaed;
+    --muted: #9aa1ac;
+    --line: #262b34;
+    --accent: #6ea8fe;
+    --error: #ff938a;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+h1, h2 { margin: 0 0 0.25rem; }
+
+.muted { color: var(--muted); }
+
+.error { color: var(--error); }
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 1.25rem;
+}
+
+main.card {
+  max-width: 22rem;
+  margin: 12vh auto;
+}
+
+.page {
+  max-width: 42rem;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 4rem;
+  display: grid;
+  gap: 1.5rem;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--card);
+}
+
+.bar .link { margin-left: auto; }
+
+form {
+  display: grid;
+  gap: 0.75rem;
+  margin: 1rem 0 0.5rem;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+label {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+input {
+  font: inherit;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 0.5rem 0.625rem;
+}
+
+input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+button {
+  font: inherit;
+  border: 0;
+  border-radius: 7px;
+  padding: 0.55rem 0.9rem;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+
+button:disabled { opacity: 0.6; cursor: default; }
+
+button.link {
+  background: none;
+  color: var(--accent);
+  padding: 0.25rem;
+  text-decoration: underline;
+}
+
+ul.trips {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.trip-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.badge {
+  margin-left: auto;
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+  color: var(--muted);
+}

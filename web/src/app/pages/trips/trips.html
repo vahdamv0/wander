@@ -1,0 +1,64 @@
+<header class="bar">
+  <strong>wander</strong>
+  <span class="muted">{{ user()?.displayName }}</span>
+  <button type="button" class="link" (click)="signOut()">Sign out</button>
+</header>
+
+<main class="page">
+  <section class="card">
+    <h2>New trip</h2>
+    <form (ngSubmit)="createTrip()">
+      <label>
+        Name
+        <input type="text" name="name" required [ngModel]="name()" (ngModelChange)="name.set($event)" />
+      </label>
+      <label>
+        Destination <span class="muted">(optional)</span>
+        <input type="text" name="destination" [ngModel]="destination()"
+               (ngModelChange)="destination.set($event)" />
+      </label>
+      <div class="row">
+        <label>
+          Start
+          <input type="date" name="startDate" required [ngModel]="startDate()"
+                 (ngModelChange)="startDate.set($event)" />
+        </label>
+        <label>
+          End
+          <input type="date" name="endDate" required [ngModel]="endDate()"
+                 (ngModelChange)="endDate.set($event)" />
+        </label>
+      </div>
+      @if (error()) {
+        <p class="error" role="alert">{{ error() }}</p>
+      }
+      <button type="submit">Create trip</button>
+    </form>
+  </section>
+
+  <section>
+    <h2>Your trips</h2>
+    @if (loading()) {
+      <p class="muted">Loading…</p>
+    } @else if (trips().length === 0) {
+      <p class="muted">No trips yet. The one above is waiting to be filled in.</p>
+    } @else {
+      <ul class="trips">
+        @for (trip of trips(); track trip.id) {
+          <li class="card">
+            <div class="trip-head">
+              <strong>{{ trip.name }}</strong>
+              <span class="badge">{{ trip.myRole }}</span>
+            </div>
+            @if (trip.destination) {
+              <div class="muted">{{ trip.destination }}</div>
+            }
+            <div class="muted">
+              {{ trip.startDate }} → {{ trip.endDate }} · {{ trip.dayCount }} days
+            </div>
+          </li>
+        }
+      </ul>
+    }
+  </section>
+</main>
