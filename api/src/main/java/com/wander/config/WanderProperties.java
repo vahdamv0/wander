@@ -45,6 +45,12 @@ public record WanderProperties(
             @DefaultValue("https://nominatim.openstreetmap.org") String baseUrl,
             /** Sent in the User-Agent so the operator is contactable before being blocked. */
             @DefaultValue("") String contactEmail,
+            /**
+             * Fallback for callers that send no Accept-Language. Not empty by
+             * design: a geocoder with no language preference answers in the
+             * place's own language, and this application's own UI is English.
+             */
+            @DefaultValue("en") String language,
             /** Minimum gap between two outbound searches, in milliseconds. */
             @DefaultValue("1000") long minIntervalMillis,
             /** How long a caller waits for the gate before getting a 429 instead. */

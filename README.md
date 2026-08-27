@@ -135,6 +135,11 @@ not want their users' browsers talking to openstreetmap.org points it elsewhere.
 The attribution travels with the URL, because the terms attach to the service, not
 to the code.
 
+**Results come back in the browser's language.** The caller's `Accept-Language`
+is forwarded to the geocoder and keyed into the cache with the query, because a
+geocoder given no preference answers in the place's own language and one shared
+cache entry would hand the first caller's language to everyone else.
+
 **A picked location is saved, not re-derived.** The client sends the coordinates
 of the candidate the user chose. Re-geocoding the name server-side would be
 tidier in principle and wrong in practice: searching again can rank a different

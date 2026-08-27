@@ -157,6 +157,14 @@ shared rather than per session — and results cached, which is what makes a
 typeahead affordable at that rate. Debouncing sits in the component, next to the
 keystrokes it throttles.
 
+The caller's `Accept-Language` is forwarded to the geocoder and is **part of the
+cache key**. Without a language Nominatim answers in the place's own language — a
+search for Kyoto returns 京都 — and sharing one cache entry across languages would
+hand the first caller's language to everyone after them. The header is hidden from
+the OpenAPI document (`@Parameter(hidden = true)`): browsers set it themselves and
+JavaScript may not touch it, so a generated client parameter could only be wrong.
+`wander.geocoding.language` is the fallback for callers that send none.
+
 The client sends a picked suggestion's coordinates when creating a place rather
 than having the server re-geocode the name: the user chose one candidate of
 several, and a second search can rank a different one first.

@@ -71,6 +71,11 @@ wander:
     # Sent in the User-Agent. The public instance's policy asks for a way to
     # reach the operator before it has to block them.
     contact-email: ${WANDER_GEOCODING_CONTACT:}
+    # Fallback for a caller that sends no Accept-Language. Browsers always do,
+    # so this mostly covers scripts and curl. Never blank: a geocoder with no
+    # preference answers in the place's own language, and a search for Kyoto
+    # then comes back as 京都.
+    language: ${WANDER_GEOCODING_LANGUAGE:en}
     min-interval-millis: ${WANDER_GEOCODING_MIN_INTERVAL_MS:1000}
   map:
     # Tiles are fetched by the browser, so this is the one thing here that is
