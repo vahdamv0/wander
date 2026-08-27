@@ -6,14 +6,16 @@ container, one Postgres.
 > **Status: days and places, in progress.** The walking skeleton is done, and the
 > itinerary works: days come from the trip's date range, places can be searched
 > for by name over Nominatim, they can be reordered within and across days, and
-> they appear on a map. Drag ordering and day notes are next.
+> they appear on a map, and they can be dragged into order within and across
+> days. Day notes are next.
 
 ## What works today
 
 - Register / sign in / sign out, session-cookie auth with CSRF
 - Create and list trips, scoped to the people who are members of them
 - A trip's days are derived from its date range, never stored
-- Places on a day: add, rename, annotate, delete, reorder, move between days
+- Places on a day: add, rename, annotate, delete, and drag into order — within a
+  day or into another one, with buttons as the keyboard equivalent
 - Place search over Nominatim, proxied and cached, so a place keeps its coordinates
 - A Leaflet map beside the itinerary: a pin per located place, numbered by day
 - Light / dark / follow-the-OS theming, all driven by design tokens
@@ -138,6 +140,17 @@ of the candidate the user chose. Re-geocoding the name server-side would be
 tidier in principle and wrong in practice: searching again can rank a different
 result first, so the place would quietly move.
 
+**Dragging did not replace the buttons.** A drag has no keyboard or
+screen-reader equivalent, so the arrow controls stayed as the accessible path;
+they fade in on hover or focus rather than sitting on every row, and on a device
+with no hover they simply stay visible. Both paths make the same one call.
+
+**One write is optimistic: the move.** Every other write re-reads and lets the
+server's answer win, but a drag has already moved the row under the user's
+finger — waiting for the round trip would snap it back and then move it again. So
+`PlaceRepo.move` reorders its local copy first (renumbering exactly as the server
+does), sends the call, and restores the previous order if it fails.
+
 **The server owns ordering.** Ranks are dense and zero-based, and any move or
 delete renumbers the affected day from scratch inside one transaction. Moving a
 place is one operation — "put it at rank N of day D" — which is both what the
@@ -165,8 +178,8 @@ tables under a running instance. Don't lower a gate to land a change.
 
 1. **Milestone 0 — walking skeleton.** ✅ Accounts, trips, contract loop, one container.
 2. **Days and places.** Days from the date range ✅, places with ordering within
-   and across days ✅, place search over Nominatim ✅, a Leaflet map ✅ — drag
-   ordering in place of the buttons and day notes still to come.
+   and across days ✅, place search over Nominatim ✅, a Leaflet map ✅, drag
+   ordering ✅ — day notes still to come.
 3. **Sharing.** Invites, the member list, roles beyond `OWNER`, and WebSocket
    sync so two people editing one day do not clobber each other.
 4. **Money and stuff.** Expenses with splits, packing lists, reservations.

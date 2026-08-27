@@ -95,6 +95,22 @@ Java record → springdoc → `api/build/openapi.json` (written by
   the cards past their column and under the map. Use `grid-cols-1` — which is
   `minmax(0, 1fr)` — for any single-column grid whose content can be wide, and
   `min-w-0` on a grid item that must be allowed to shrink.
+- **Tailwind utilities beat `@layer components`, whatever the specificity.** A
+  component class cannot override a utility the template also sets — a
+  `border-color` in the components layer loses to `border-border` on the element.
+  Reach for a property nothing else sets (an `outline`), or declare the rule
+  outside any layer, as the dark-mode tile filter does.
+- **Drag-and-drop (Angular CDK) rules.** Every day renders its `cdkDropList`
+  even when empty, or an empty day cannot be dragged into — the first thing
+  anyone tries. Dragging is handle-only, so a touch drag on a row still scrolls
+  the page. `cdkDragLockAxis="y"`, because days are stacked and a full-width
+  preview chasing the pointer sideways trails out over the map. The arrow
+  buttons remain the keyboard path: a drag has no keyboard equivalent, and both
+  paths call the same `PlaceRepo.move`.
+- **`PlaceRepo.move` is the one optimistic write.** It reorders the local copy
+  before calling the server (renumbering the same way the server does) and puts
+  the old order back on failure. The others re-read and let the server win; a
+  drag cannot, because the row has already moved under the user's finger.
 - **Leaflet is imported in exactly one file.** `pages/trip/trip-map.ts` owns the
   map: it creates it in `afterNextRender`, reacts to signals by issuing
   imperative calls, and removes it in `onDestroy` (Leaflet holds
@@ -161,6 +177,6 @@ Milestone 0 (accounts, trips, the contract loop, one container) is done, and so
 is most of "days and places": derived days, places with ordering owned by the
 server (`PlaceService` renumbers a day on every move or delete, and the client
 re-reads instead of patching ranks), and Nominatim search behind a proxy that
-caches and rate-limits, and a Leaflet map. Still open in that milestone: drag
-ordering in place of the buttons, and day notes. See the roadmap in README.md. Deliberately **out** of scope until asked:
+caches and rate-limits, a Leaflet map, and drag ordering. Still open in that
+milestone: day notes. See the roadmap in README.md. Deliberately **out** of scope until asked:
 plugins, i18n, MCP, offline. Keep v1 small.

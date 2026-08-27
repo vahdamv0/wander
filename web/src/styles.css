@@ -170,6 +170,64 @@
     @apply grid gap-1.5 text-[0.8125rem] font-medium text-muted;
   }
 
+  /* Row controls that are present for everyone but loud for nobody: they carry
+     the keyboard path for reordering, so they fade in on hover or focus rather
+     than being hidden. Where there is no hover (touch), they simply stay on —
+     invisible-but-tappable is the worst of both. */
+  .row-actions,
+  .drag-handle {
+    @apply opacity-0 transition-opacity;
+  }
+
+  .group\/place:hover .row-actions,
+  .group\/place:hover .drag-handle,
+  .group\/place:focus-within .row-actions,
+  .group\/place:focus-within .drag-handle {
+    @apply opacity-100;
+  }
+
+  @media (hover: none) {
+    .row-actions,
+    .drag-handle {
+      @apply opacity-100;
+    }
+  }
+
+  /* In the lifted preview the handle stays — it is the thing being held — and the
+     controls go: they cannot be clicked mid-drag, and a wide row of them trails
+     out of the card and over the map. */
+  .cdk-drag-preview .drag-handle {
+    @apply opacity-100;
+  }
+
+  .cdk-drag-preview .row-actions {
+    @apply opacity-0;
+  }
+
+  /* Drag furniture. The preview is the row lifted off the page; the placeholder
+     is the gap it will land in. */
+  /* An outline rather than a border colour: the row itself sets `border-border`
+     as a utility, and utilities beat this layer whatever the specificity — so a
+     border-colour here would silently lose. */
+  .cdk-drag-preview {
+    @apply rounded-control bg-surface px-3 py-2 shadow-raised;
+    outline: 2px solid var(--color-accent);
+    outline-offset: -1px;
+  }
+
+  .cdk-drag-placeholder {
+    @apply opacity-0;
+  }
+
+  .place-drop-gap {
+    @apply h-12 rounded-control border-2 border-dashed border-accent/50 bg-accent-soft/40;
+  }
+
+  .cdk-drag-animating,
+  .cdk-drop-list-dragging .cdk-drag:not(.cdk-drag-placeholder) {
+    transition: transform 180ms cubic-bezier(0, 0, 0.2, 1);
+  }
+
   /* Map furniture. Leaflet builds these nodes itself, outside any template, so
      they are classes here rather than utilities in a component — and they read
      from the same tokens as everything else, which is what keeps the map from

@@ -2,6 +2,8 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import {
   Api,
   CreatePlaceRequest,
+  PlaceView,
+  TripDay,
   TripItinerary,
   UpdatePlaceRequest,
   createPlace,
@@ -68,13 +70,34 @@ export class PlaceRepo {
   }
 
   /**
-   * A target day and rank covers both the up/down buttons and the drag-and-drop
-   * that will replace them. A rank past the end of the day clamps server-side.
+   * A target day and rank — the same call for the arrow buttons and for a drag.
+   * A rank past the end of the day clamps server-side.
+   *
+   * This one is optimistic, unlike the other writes: a drag has already moved
+   * the row under the user's finger, so waiting for the round trip would snap it
+   * back and then move it again. The local list is reordered first, the server
+   * is told, and the re-read afterwards is what makes the ranks canonical. A
+   * failure puts the old order back.
    */
   async move(tripId: number, placeId: number, dayDate: string, position: number): Promise<void> {
-    await this.write(tripId, () =>
-      this.api.invoke(movePlace, { tripId, placeId, body: { dayDate, position } }),
-    );
+    const snapshot = this._itinerary();
+    const optimistic = snapshot && withMovedPlace(snapshot.days, placeId, dayDate, position);
+    if (snapshot && optimistic) {
+      this._itinerary.set({ ...snapshot, days: optimistic });
+    }
+
+    this._saving.set(true);
+    try {
+      await this.api.invoke(movePlace, { tripId, placeId, body: { dayDate, position } });
+      await this.load(tripId);
+    } catch (err) {
+      if (snapshot) {
+        this._itinerary.set(snapshot);
+      }
+      throw err;
+    } finally {
+      this._saving.set(false);
+    }
   }
 
   private async write(tripId: number, call: () => Promise<unknown>): Promise<void> {
@@ -86,4 +109,40 @@ export class PlaceRepo {
       this._saving.set(false);
     }
   }
+}
+
+/**
+ * The move applied to a copy of the days, mirroring what the server does:
+ * take the place out of its day, put it back at the target rank, and renumber
+ * both days densely from zero. Returns null if the place is not there.
+ */
+function withMovedPlace(
+  days: TripDay[],
+  placeId: number,
+  dayDate: string,
+  position: number,
+): TripDay[] | null {
+  const moving = days.flatMap((day) => day.places).find((place) => place.id === placeId);
+  if (!moving) {
+    return null;
+  }
+
+  const withoutIt = days.map((day) => ({
+    ...day,
+    places: day.places.filter((place) => place.id !== placeId),
+  }));
+
+  return withoutIt.map((day) => {
+    if (day.date !== dayDate) {
+      return { ...day, places: renumber(day.places) };
+    }
+    const places = [...day.places];
+    // Clamp like the server does, so the client never has to know the length.
+    places.splice(Math.min(position, places.length), 0, { ...moving, dayDate });
+    return { ...day, places: renumber(places) };
+  });
+}
+
+function renumber(places: PlaceView[]): PlaceView[] {
+  return places.map((place, index) => (place.position === index ? place : { ...place, position: index }));
 }
