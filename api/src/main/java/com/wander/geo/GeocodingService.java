@@ -29,6 +29,11 @@ public class GeocodingService {
 
     /** Below this a query matches half the planet and the ranking is noise. */
     private static final int MIN_QUERY_LENGTH = 3;
+    /**
+     * Cap on the language list. It is caller-supplied and part of the cache key,
+     * so an unbounded one is a way to fill the cache with junk.
+     */
+    private static final int MAX_LANGUAGE_LENGTH = 48;
     private static final int MAX_LIMIT = 10;
     private static final int DEFAULT_LIMIT = 5;
 
@@ -62,7 +67,7 @@ public class GeocodingService {
         return config.enabled();
     }
 
-    public List<PlaceSuggestion> search(String query, Integer limit) {
+    public List<PlaceSuggestion> search(String query, Integer limit, String language) {
         if (!config.enabled()) {
             throw new FeatureDisabledException("Place search is turned off on this instance");
         }
@@ -74,8 +79,11 @@ public class GeocodingService {
         int capped = limit == null ? DEFAULT_LIMIT : Math.clamp(limit, 1, MAX_LIMIT);
 
         // Case and spacing are not part of the question, so they should not split
-        // the cache. The limit is, though: a cached 5 cannot answer a 10.
-        String key = normalize(trimmed) + " " + capped;
+        // the cache. The limit is, though: a cached 5 cannot answer a 10 — and so
+        // is the language, or the first Japanese-speaking caller would hand
+        // Japanese names to everyone after them.
+        String requested = language(language);
+        String key = normalize(trimmed) + " " + capped + " " + requested;
         List<PlaceSuggestion> cached = fromCache(key);
         if (cached != null) {
             return cached;
@@ -90,9 +98,25 @@ public class GeocodingService {
             return raced;
         }
 
-        List<PlaceSuggestion> found = geocoder.search(trimmed, capped);
+        List<PlaceSuggestion> found = geocoder.search(trimmed, capped, requested);
         cache.put(key, new Entry(found, Instant.now()));
         return found;
+    }
+
+    /**
+     * The caller's language list, or the instance default. A geocoder given no
+     * preference answers in the place's own language, which is why this is never
+     * left empty: "Kyoto" comes back as 京都.
+     */
+    private String language(String requested) {
+        String header = requested == null ? "" : requested.trim();
+        // Only what a language list may contain, so nothing caller-supplied
+        // reaches the outbound URL or the cache key unfiltered.
+        String cleaned = header.replaceAll("[^A-Za-z0-9,;=.*\\-]", "");
+        if (cleaned.length() > MAX_LANGUAGE_LENGTH) {
+            cleaned = cleaned.substring(0, MAX_LANGUAGE_LENGTH);
+        }
+        return cleaned.isBlank() ? config.language() : cleaned.toLowerCase(Locale.ROOT);
     }
 
     private static String normalize(String query) {

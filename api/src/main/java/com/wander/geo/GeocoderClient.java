@@ -11,6 +11,12 @@ import com.wander.geo.dto.PlaceSuggestion;
  */
 public interface GeocoderClient {
 
-    /** Forward geocoding: free text in, ranked candidates out. Never null. */
-    List<PlaceSuggestion> search(String query, int limit);
+    /**
+     * Forward geocoding: free text in, ranked candidates out. Never null.
+     *
+     * @param language a browser-style language list ("en-GB,en;q=0.9"). Without
+     *                 one a geocoder answers in whatever the place's own
+     *                 language is, so a search for Kyoto comes back in Japanese.
+     */
+    List<PlaceSuggestion> search(String query, int limit, String language);
 }

@@ -143,8 +143,13 @@ test('search for a place, pick a suggestion, and keep its address', async ({ pag
   page.on('pageerror', (error) => consoleErrors.push(error.message));
 
   let searchCalls = 0;
+  const languages: string[] = [];
   await page.route('**/api/geo/search**', async (route) => {
     searchCalls++;
+    // The server forwards this to the geocoder, which otherwise answers in the
+    // place's own language — a search for Kyoto comes back as 京都. JavaScript
+    // is forbidden from setting it, so the only proof it is really sent is here.
+    languages.push((await route.request().allHeaders())['accept-language'] ?? '');
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -184,6 +189,7 @@ test('search for a place, pick a suggestion, and keep its address', async ({ pag
   const suggestion = day1.getByRole('button', { name: /Basílica de la Sagrada Família/ });
   await expect(suggestion).toBeVisible();
   expect(searchCalls, 'one debounced search, not one per character').toBe(1);
+  expect(languages[0], 'the browser must send Accept-Language').toMatch(/[a-z]{2}/);
 
   await suggestion.click();
   await expect(day1.locator('input[name=name]')).toHaveValue('Basílica de la Sagrada Família');

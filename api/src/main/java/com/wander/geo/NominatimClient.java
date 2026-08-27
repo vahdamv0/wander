@@ -72,11 +72,11 @@ public class NominatimClient implements GeocoderClient {
     }
 
     @Override
-    public List<PlaceSuggestion> search(String query, int limit) {
+    public List<PlaceSuggestion> search(String query, int limit, String language) {
         String body;
         try {
             body = http.get()
-                    .uri(uri -> searchUri(uri, query, limit))
+                    .uri(uri -> searchUri(uri, query, limit, language))
                     .retrieve()
                     .body(String.class);
         } catch (RuntimeException ex) {
@@ -89,8 +89,12 @@ public class NominatimClient implements GeocoderClient {
         return parse(body);
     }
 
-    private static URI searchUri(UriBuilder uri, String query, int limit) {
+    private static URI searchUri(UriBuilder uri, String query, int limit, String language) {
         return uri.path("/search")
+                // As a query parameter rather than the Accept-Language header:
+                // both work, and one that shows up in the URL is one that shows
+                // up in a log when a result comes back in the wrong language.
+                .queryParam("accept-language", language)
                 // jsonv2 is the documented stable format; `format=json` is the
                 // legacy one and names some fields differently.
                 .queryParam("format", "jsonv2")
