@@ -42,6 +42,25 @@ public class ApiExceptionHandler {
                 .body(ApiError.of(401, "Unauthorized", "Invalid email or password"));
     }
 
+    @ExceptionHandler(RateLimitedException.class)
+    public ResponseEntity<ApiError> rateLimited(RateLimitedException ex) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .body(ApiError.of(429, "Too Many Requests", ex.getMessage()));
+    }
+
+    @ExceptionHandler(UpstreamUnavailableException.class)
+    public ResponseEntity<ApiError> upstreamFailed(UpstreamUnavailableException ex) {
+        // 502 rather than 500: this instance is fine, the service it called is not.
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                .body(ApiError.of(502, "Bad Gateway", ex.getMessage()));
+    }
+
+    @ExceptionHandler(FeatureDisabledException.class)
+    public ResponseEntity<ApiError> disabled(FeatureDisabledException ex) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(ApiError.of(503, "Service Unavailable", ex.getMessage()));
+    }
+
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiError> denied(AccessDeniedException ex) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN)

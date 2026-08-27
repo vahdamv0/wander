@@ -44,6 +44,21 @@ public class Place {
     @Column
     private String notes;
 
+    /**
+     * Where the place is, when it came from a search. Null for one typed by
+     * hand, and null in both columns or neither — a database CHECK enforces the
+     * pair, since half a point is not a location.
+     */
+    @Column
+    private Double latitude;
+
+    @Column
+    private Double longitude;
+
+    /** The geocoder's own formatted address line, kept verbatim. */
+    @Column
+    private String address;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt = Instant.now();
 
@@ -58,6 +73,16 @@ public class Place {
         this.name = name;
         this.notes = notes;
         this.createdAt = Instant.now();
+    }
+
+    /** Sets both coordinates or neither, mirroring the CHECK on the table. */
+    public void setLocation(Double latitude, Double longitude, String address) {
+        if ((latitude == null) != (longitude == null)) {
+            throw new IllegalArgumentException("latitude and longitude must be given together");
+        }
+        this.latitude = latitude;
+        this.longitude = longitude;
+        this.address = address;
     }
 
     public Long getId() {
@@ -98,6 +123,18 @@ public class Place {
 
     public void setNotes(String notes) {
         this.notes = notes;
+    }
+
+    public Double getLatitude() {
+        return latitude;
+    }
+
+    public Double getLongitude() {
+        return longitude;
+    }
+
+    public String getAddress() {
+        return address;
     }
 
     public Instant getCreatedAt() {

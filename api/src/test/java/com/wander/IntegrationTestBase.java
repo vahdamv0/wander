@@ -112,6 +112,18 @@ abstract class IntegrationTestBase {
                 .toEntity(String.class);
     }
 
+    /**
+     * For a path whose query string is already percent-encoded.
+     * {@code uri(String)} treats its argument as a template and would encode the
+     * `%` again, so `%20` arrives at the server as a literal "%20".
+     */
+    protected ResponseEntity<String> get(Session session, java.net.URI uri) {
+        return http().get().uri(uri)
+                .headers(headers -> auth(headers, session))
+                .retrieve()
+                .toEntity(String.class);
+    }
+
     protected ResponseEntity<String> post(Session session, String path, String body) {
         return http().post().uri(path)
                 .contentType(MediaType.APPLICATION_JSON)

@@ -62,6 +62,16 @@ springdoc:
 wander:
   version: 0.1.0
   registration-enabled: ${WANDER_REGISTRATION_ENABLED:true}
+  geocoding:
+    # Place search proxies to Nominatim. Set enabled=false on an instance with
+    # no outbound network access; point base-url at your own Nominatim if you
+    # expect real traffic, and then raise min-interval-millis' budget with it.
+    enabled: ${WANDER_GEOCODING_ENABLED:true}
+    base-url: ${WANDER_GEOCODING_URL:https://nominatim.openstreetmap.org}
+    # Sent in the User-Agent. The public instance's policy asks for a way to
+    # reach the operator before it has to block them.
+    contact-email: ${WANDER_GEOCODING_CONTACT:}
+    min-interval-millis: ${WANDER_GEOCODING_MIN_INTERVAL_MS:1000}
   admin:
     email: ${WANDER_ADMIN_EMAIL:}
     password: ${WANDER_ADMIN_PASSWORD:}
