@@ -3,7 +3,9 @@
 
 export type { CreatePlaceRequest } from './models/create-place-request';
 export type { CreateTripRequest } from './models/create-trip-request';
+export type { InstanceConfig } from './models/instance-config';
 export type { LoginRequest } from './models/login-request';
+export type { MapConfig } from './models/map-config';
 export type { MovePlaceRequest } from './models/move-place-request';
 export type { PlaceSuggestion } from './models/place-suggestion';
 export type { PlaceView } from './models/place-view';

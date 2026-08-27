@@ -1,5 +1,6 @@
-import { Injectable, inject, signal } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
 import { Api, PlaceSuggestion, searchPlaces } from '../api';
+import { InstanceConfigStore } from '../core/instance-config.store';
 
 /** Below this the server rejects the query, so there is no point sending it. */
 const MIN_QUERY_LENGTH = 3;
@@ -20,17 +21,25 @@ const MIN_QUERY_LENGTH = 3;
 @Injectable({ providedIn: 'root' })
 export class GeoRepo {
   private readonly api = inject(Api);
+  private readonly config = inject(InstanceConfigStore);
 
   private readonly _results = signal<PlaceSuggestion[]>([]);
   private readonly _searching = signal(false);
   private readonly _error = signal<string | null>(null);
-  private readonly _available = signal(true);
+  /** Set when the server answers 503 — a belt to the config's braces. */
+  private readonly _refused = signal(false);
 
   readonly results = this._results.asReadonly();
   readonly searching = this._searching.asReadonly();
   readonly error = this._error.asReadonly();
-  /** False once the server has said search is disabled here. */
-  readonly available = this._available.asReadonly();
+  /**
+   * Whether to offer search at all. Available until told otherwise: the config
+   * arrives a moment after the shell mounts, and hiding the box in the meantime
+   * would make it flicker into existence.
+   */
+  readonly available = computed(
+    () => !this._refused() && (!this.config.loaded() || this.config.searchEnabled()),
+  );
 
   /** Which request is current. A reply from an older one is dropped. */
   private latest = 0;
@@ -58,7 +67,7 @@ export class GeoRepo {
       this._results.set([]);
       if (status === 503) {
         // Nothing to retry: this instance does not search at all.
-        this._available.set(false);
+        this._refused.set(true);
       } else if (status === 429) {
         this._error.set('Searching a little fast — try again in a moment.');
       } else {

@@ -5,8 +5,8 @@ container, one Postgres.
 
 > **Status: days and places, in progress.** The walking skeleton is done, and the
 > itinerary works: days come from the trip's date range, places can be searched
-> for by name over Nominatim, and they can be reordered within and across days.
-> The map is next.
+> for by name over Nominatim, they can be reordered within and across days, and
+> they appear on a map. Drag ordering and day notes are next.
 
 ## What works today
 
@@ -15,6 +15,7 @@ container, one Postgres.
 - A trip's days are derived from its date range, never stored
 - Places on a day: add, rename, annotate, delete, reorder, move between days
 - Place search over Nominatim, proxied and cached, so a place keeps its coordinates
+- A Leaflet map beside the itinerary: a pin per located place, numbered by day
 - Light / dark / follow-the-OS theming, all driven by design tokens
 - The Angular app and the API ship as a single jar
 
@@ -119,6 +120,19 @@ budget. Search off (`WANDER_GEOCODING_ENABLED=false`) is a supported
 configuration — the itinerary still works, places are typed by hand and simply
 have no coordinates.
 
+**The client asks the instance what it may do.** `GET /api/config` carries the
+tile URL, its attribution, and whether search works. None of it is compiled into
+the client, because all of it is the operator's decision — an instance pointed at
+its own tile server, or one with no outbound network at all, is a supported
+configuration rather than a broken one.
+
+**Tiles are the one request wander does not proxy**, since the browser has to
+fetch a few hundred images and routing those through the jar would make it a
+tile cache. That is the reason the tile URL is configurable: an operator who does
+not want their users' browsers talking to openstreetmap.org points it elsewhere.
+The attribution travels with the URL, because the terms attach to the service, not
+to the code.
+
 **A picked location is saved, not re-derived.** The client sends the coordinates
 of the candidate the user chose. Re-geocoding the name server-side would be
 tidier in principle and wrong in practice: searching again can rank a different
@@ -151,8 +165,8 @@ tables under a running instance. Don't lower a gate to land a change.
 
 1. **Milestone 0 — walking skeleton.** ✅ Accounts, trips, contract loop, one container.
 2. **Days and places.** Days from the date range ✅, places with ordering within
-   and across days ✅, place search over Nominatim ✅ — a Leaflet map, drag
-   ordering in place of the buttons, and day notes still to come.
+   and across days ✅, place search over Nominatim ✅, a Leaflet map ✅ — drag
+   ordering in place of the buttons and day notes still to come.
 3. **Sharing.** Invites, the member list, roles beyond `OWNER`, and WebSocket
    sync so two people editing one day do not clobber each other.
 4. **Money and stuff.** Expenses with splits, packing lists, reservations.

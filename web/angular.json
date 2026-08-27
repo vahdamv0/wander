@@ -27,7 +27,10 @@
             "styles": [
               "src/styles.css"
             ],
-            "outputPath": "build/frontend"
+            "outputPath": "build/frontend",
+            "allowedCommonJsDependencies": [
+              "leaflet"
+            ]
           },
           "configurations": {
             "production": {

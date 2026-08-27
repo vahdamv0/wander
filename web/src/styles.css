@@ -1,4 +1,7 @@
 @import "tailwindcss";
+/* Leaflet's own stylesheet, bundled rather than pulled from a CDN: the whole
+   app has to work from one jar with no external asset host. */
+@import "leaflet/dist/leaflet.css";
 
 /*
  * wander's design tokens.
@@ -166,4 +169,77 @@
   .label {
     @apply grid gap-1.5 text-[0.8125rem] font-medium text-muted;
   }
+
+  /* Map furniture. Leaflet builds these nodes itself, outside any template, so
+     they are classes here rather than utilities in a component — and they read
+     from the same tokens as everything else, which is what keeps the map from
+     being the one light-mode island in a dark UI. */
+  .map-pin {
+    @apply grid size-[26px] place-items-center rounded-full border-2 text-[0.6875rem]
+           font-semibold;
+    background: var(--color-accent);
+    color: var(--color-on-accent);
+    border-color: var(--color-surface);
+    box-shadow: 0 1px 6px rgb(0 0 0 / 0.35);
+  }
+
+  .leaflet-container {
+    background: var(--color-surface-2);
+    /* Leaflet's default is a serif-ish stack that looks nothing like the app. */
+    font: inherit;
+  }
+
+  .leaflet-popup-content-wrapper,
+  .leaflet-popup-tip {
+    background: var(--color-surface);
+    color: var(--color-ink);
+    box-shadow: 0 2px 12px rgb(0 0 0 / 0.28);
+  }
+
+  .leaflet-popup-content {
+    @apply m-3 text-sm;
+  }
+
+  .map-popup-day {
+    @apply text-[0.6875rem] font-semibold uppercase tracking-wide;
+    color: var(--color-accent);
+  }
+
+  .map-popup-name {
+    @apply font-medium;
+  }
+
+  .map-popup-detail {
+    @apply mt-0.5 text-xs;
+    color: var(--color-muted);
+  }
+
+  .leaflet-bar a,
+  .leaflet-control-attribution {
+    background: var(--color-surface);
+    color: var(--color-muted);
+  }
+
+  .leaflet-bar a:hover {
+    background: var(--color-surface-2);
+    color: var(--color-ink);
+  }
+
+  .leaflet-control-attribution a {
+    color: var(--color-accent);
+  }
+}
+
+/* Raster tiles are drawn for light backgrounds. Rather than invert them — which
+   turns land green-on-black and reads as a bug — take the glare off so they sit
+   beside a dark UI. Declared twice, once per way of choosing dark, exactly like
+   the colour tokens above. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .leaflet-tile {
+    filter: brightness(0.72) saturate(0.8) contrast(1.08);
+  }
+}
+
+[data-theme="dark"] .leaflet-tile {
+  filter: brightness(0.72) saturate(0.8) contrast(1.08);
 }

@@ -2,8 +2,10 @@ import { Component, computed, inject, input, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { PlaceSuggestion, PlaceView, TripDay } from '../../api';
+import { InstanceConfigStore } from '../../core/instance-config.store';
 import { GeoRepo } from '../../repo/geo.repo';
 import { PlaceRepo } from '../../repo/place.repo';
+import { TripMap } from './trip-map';
 
 /**
  * How long to sit on a keystroke before searching. The geocoder allows one
@@ -20,12 +22,13 @@ const SEARCH_DEBOUNCE_MS = 400;
  */
 @Component({
   selector: 'app-trip',
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, TripMap],
   templateUrl: './trip.html',
 })
 export class TripPage {
   private readonly repo = inject(PlaceRepo);
   private readonly geo = inject(GeoRepo);
+  private readonly config = inject(InstanceConfigStore);
 
   /** Bound from the route, as a string — coerced once here. */
   readonly tripId = input.required<string>();
@@ -35,6 +38,23 @@ export class TripPage {
   protected readonly loading = this.repo.loading;
   protected readonly saving = this.repo.saving;
   protected readonly canEdit = this.repo.canEdit;
+
+  /** Null until the instance has said where tiles come from; the map waits. */
+  protected readonly mapConfig = computed(() =>
+    this.config.mapEnabled() ? this.config.map() : null,
+  );
+  /** The place the map should pan to. Set by clicking a row's pin button. */
+  protected readonly focused = signal<PlaceView | null>(null);
+  /** Highlighted row, set by clicking a marker. */
+  protected readonly highlighted = signal<number | null>(null);
+
+  protected readonly mappedCount = computed(
+    () =>
+      this.days().reduce(
+        (total, day) => total + day.places.filter((place) => place.latitude != null).length,
+        0,
+      ),
+  );
 
   protected readonly suggestions = this.geo.results;
   protected readonly searching = this.geo.searching;
@@ -143,10 +163,16 @@ export class TripPage {
 
   /** The address of a hit, minus the leading name it repeats. */
   protected addressDetail(suggestion: PlaceSuggestion): string {
-    const address = suggestion.address;
-    return address.startsWith(suggestion.name + ',')
-      ? address.slice(suggestion.name.length + 1).trim()
-      : address;
+    return this.withoutLeadingName(suggestion.name, suggestion.address);
+  }
+
+  /**
+   * A geocoder's address line usually starts with the name of the thing, which
+   * is redundant directly under it — "Carrer de Mallorca, Barcelona" reads
+   * better than the name twice.
+   */
+  protected withoutLeadingName(name: string, address: string): string {
+    return address.startsWith(name + ',') ? address.slice(name.length + 1).trim() : address;
   }
 
   protected async addPlace(date: string): Promise<void> {
@@ -205,6 +231,18 @@ export class TripPage {
 
   protected isLastDay(day: TripDay): boolean {
     return day.index === this.days().length;
+  }
+
+  /** Clicking a row's pin moves the map; clicking the same one again re-centres it. */
+  protected showOnMap(place: PlaceView): void {
+    this.highlighted.set(place.id);
+    // A fresh object each time, so panning to the same place twice still fires.
+    this.focused.set({ ...place });
+  }
+
+  /** A marker was clicked: highlight its row without moving the map again. */
+  protected onMarkerPicked(place: PlaceView): void {
+    this.highlighted.set(place.id);
   }
 
   /** Weekday and day-of-month, e.g. "Mon 3 Nov". */

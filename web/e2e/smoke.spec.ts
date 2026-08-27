@@ -202,3 +202,100 @@ test('search for a place, pick a suggestion, and keep its address', async ({ pag
   await expect(page.locator('[role=alert]')).toHaveCount(0);
   expect(consoleErrors, 'unexpected console errors').toEqual([]);
 });
+
+/**
+ * The map, with tiles blocked.
+ *
+ * Blocking them is deliberate: tile requests go to a third-party service, and a
+ * test suite has no business hammering one or failing when it is unreachable.
+ * Leaflet still builds its DOM, so everything worth asserting — a pin per placed
+ * place, the attribution the tile terms require, a popup on click — is testable
+ * offline.
+ */
+test('places with a location get a pin on the map', async ({ page }) => {
+  const consoleErrors: string[] = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error' && !message.text().includes('401')) {
+      consoleErrors.push(message.text());
+    }
+  });
+  page.on('pageerror', (error) => consoleErrors.push(error.message));
+
+  // No outbound tile traffic from a test run. Answered with a transparent pixel
+  // rather than aborted: an aborted request logs a console error, and the
+  // console-error assertion below is worth more than the shortcut.
+  const TRANSPARENT_PNG = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
+    'base64',
+  );
+  await page.route('**://*.openstreetmap.org/**', (route) =>
+    route.fulfill({ status: 200, contentType: 'image/png', body: TRANSPARENT_PNG }),
+  );
+
+  await page.route('**/api/geo/search**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([
+        {
+          ref: 'way/1',
+          name: 'Park Güell',
+          address: 'Park Güell, Carrer d’Olot, Barcelona, Spain',
+          latitude: 41.4145,
+          longitude: 2.1527,
+          category: 'park',
+        },
+      ]),
+    });
+  });
+
+  await page.goto('/login');
+  await page.getByText('Create one').click();
+  await page.locator('input[name=email]').fill(`e2e-map-${Date.now()}@example.com`);
+  await page.locator('input[name=displayName]').fill('Map Tester');
+  await page.locator('input[name=password]').fill('correct-horse-battery');
+  await page.locator('button[type=submit]').click();
+
+  await page.getByRole('button', { name: 'Plan your first trip' }).click();
+  await page.locator('input[name=name]').fill('Barcelona');
+  await page.locator('input[name=startDate]').fill('2027-11-03');
+  await page.locator('input[name=endDate]').fill('2027-11-05');
+  await page.getByRole('button', { name: 'Create trip' }).click();
+  await page.getByRole('link', { name: /Barcelona/ }).click();
+
+  // The map is drawn from instance config, so its presence also proves
+  // /api/config was fetched and applied.
+  const map = page.locator('.leaflet-container');
+  await expect(map).toBeVisible();
+  // Required by the tile service's terms — worth asserting so a refactor cannot
+  // quietly drop it.
+  await expect(page.locator('.leaflet-control-attribution')).toContainText('OpenStreetMap');
+  await expect(page.locator('.map-pin')).toHaveCount(0);
+
+  const day1 = page.locator('ol > li.card').first();
+  await day1.getByRole('button', { name: 'Add place' }).click();
+  await day1.locator('input[name=name]').fill('park guell');
+  await day1.getByRole('button', { name: /Park Güell/ }).click();
+  await day1.getByRole('button', { name: 'Add place' }).click();
+
+  // One pin, labelled with the day it belongs to.
+  const pin = page.locator('.map-pin');
+  await expect(pin).toHaveCount(1);
+  await expect(pin).toHaveText('1');
+
+  // A place typed by hand gets no pin, which is the case the empty-state hint
+  // exists to explain.
+  await day1.locator('input[name=name]').fill('That cafe we liked');
+  await day1.getByRole('button', { name: 'Add place' }).click();
+  await expect(day1.getByText('That cafe we liked')).toBeVisible();
+  await expect(page.locator('.map-pin')).toHaveCount(1);
+
+  // Clicking a marker highlights its row; clicking a row's pin button moves the
+  // map to it.
+  await pin.click();
+  await expect(page.locator('.leaflet-popup-content')).toContainText('Park Güell');
+  await day1.getByRole('button', { name: /Show Park Güell on the map/ }).click();
+
+  await expect(page.locator('[role=alert]')).toHaveCount(0);
+  expect(consoleErrors, 'unexpected console errors').toEqual([]);
+});

@@ -72,6 +72,14 @@ wander:
     # reach the operator before it has to block them.
     contact-email: ${WANDER_GEOCODING_CONTACT:}
     min-interval-millis: ${WANDER_GEOCODING_MIN_INTERVAL_MS:1000}
+  map:
+    # Tiles are fetched by the browser, so this is the one thing here that is
+    # not proxied. Point it at your own tile server if you would rather your
+    # users' browsers did not talk to openstreetmap.org — and keep the
+    # attribution in step with whatever you point it at.
+    enabled: ${WANDER_MAP_ENABLED:true}
+    tile-url: ${WANDER_MAP_TILE_URL:https://tile.openstreetmap.org/{z}/{x}/{y}.png}
+    attribution: ${WANDER_MAP_ATTRIBUTION:© OpenStreetMap contributors}
   admin:
     email: ${WANDER_ADMIN_EMAIL:}
     password: ${WANDER_ADMIN_PASSWORD:}
