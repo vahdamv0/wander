@@ -299,3 +299,81 @@ test('places with a location get a pin on the map', async ({ page }) => {
   await expect(page.locator('[role=alert]')).toHaveCount(0);
   expect(consoleErrors, 'unexpected console errors').toEqual([]);
 });
+
+/**
+ * Dragging a place, within a day and then into the next one.
+ *
+ * Driven with raw mouse events rather than `dragTo`: the CDK starts a drag only
+ * after the pointer has moved a few pixels, and the drop position depends on
+ * where the pointer is when the button comes up, so the steps matter.
+ */
+test('drag a place within a day and into the next one', async ({ page }) => {
+  const consoleErrors: string[] = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error' && !message.text().includes('401')) {
+      consoleErrors.push(message.text());
+    }
+  });
+  page.on('pageerror', (error) => consoleErrors.push(error.message));
+
+  await page.goto('/login');
+  await page.getByText('Create one').click();
+  await page.locator('input[name=email]').fill(`e2e-drag-${Date.now()}@example.com`);
+  await page.locator('input[name=displayName]').fill('Drag Tester');
+  await page.locator('input[name=password]').fill('correct-horse-battery');
+  await page.locator('button[type=submit]').click();
+
+  await page.getByRole('button', { name: 'Plan your first trip' }).click();
+  await page.locator('input[name=name]').fill('Lisbon');
+  await page.locator('input[name=startDate]').fill('2027-06-01');
+  await page.locator('input[name=endDate]').fill('2027-06-02');
+  await page.getByRole('button', { name: 'Create trip' }).click();
+  await page.getByRole('link', { name: /Lisbon/ }).click();
+
+  const day1 = page.locator('ol > li.card').first();
+  const day2 = page.locator('ol > li.card').nth(1);
+  await day1.getByRole('button', { name: 'Add place' }).click();
+  for (const name of ['Alfama', 'Belém', 'Time Out Market']) {
+    await day1.locator('input[name=name]').fill(name);
+    await day1.getByRole('button', { name: 'Add place' }).click();
+    await expect(day1.getByText(name, { exact: true })).toBeVisible();
+  }
+  await day1.getByRole('button', { name: 'Done' }).click();
+
+  const day1Names = day1.locator('ol > li p.font-medium');
+  await expect(day1Names).toHaveText(['Alfama', 'Belém', 'Time Out Market']);
+
+  /** Presses the row's handle and moves the pointer to `target` in steps. */
+  async function dragTo(rowName: string, target: { x: number; y: number }) {
+    const handle = page.getByRole('button', { name: `Drag ${rowName} to reorder` });
+    const box = (await handle.boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    // A few pixels first: below the CDK's threshold nothing starts.
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + 8, { steps: 4 });
+    await page.mouse.move(target.x, target.y, { steps: 12 });
+    await page.mouse.up();
+  }
+
+  // Within the day: Alfama down past the third row.
+  const third = (await day1.locator('ol > li').nth(2).boundingBox())!;
+  await dragTo('Alfama', { x: third.x + third.width / 2, y: third.y + third.height - 4 });
+  await expect(day1Names).toHaveText(['Belém', 'Time Out Market', 'Alfama']);
+
+  // Ranks are the server's, so a reload proves the move was persisted rather
+  // than only reordered on screen.
+  await page.reload();
+  await expect(day1Names).toHaveText(['Belém', 'Time Out Market', 'Alfama']);
+
+  // Across days: into day 2, which is empty.
+  const day2Box = (await day2.boundingBox())!;
+  await dragTo('Belém', { x: day2Box.x + day2Box.width / 2, y: day2Box.y + day2Box.height / 2 });
+  await expect(day1Names).toHaveText(['Time Out Market', 'Alfama']);
+  await expect(day2.locator('ol > li p.font-medium')).toHaveText(['Belém']);
+
+  await page.reload();
+  await expect(day2.locator('ol > li p.font-medium')).toHaveText(['Belém']);
+
+  await expect(page.locator('[role=alert]')).toHaveCount(0);
+  expect(consoleErrors, 'unexpected console errors').toEqual([]);
+});

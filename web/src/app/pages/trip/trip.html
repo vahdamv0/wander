@@ -75,7 +75,7 @@
       }
     </ul>
   } @else {
-    <ol class="grid grid-cols-1 gap-3">
+    <ol class="grid grid-cols-1 gap-3" cdkDropListGroup>
       @for (day of days(); track day.date) {
         <li class="card p-5">
           <div class="flex items-baseline justify-between gap-3">
@@ -90,16 +90,56 @@
             }
           </div>
 
-          @if (day.places.length) {
-            <ol class="mt-4 grid grid-cols-1 gap-2">
+          <!-- One connected drop list per day, rendered even when the day is empty:
+               an empty day that is not a drop target cannot be dragged into, which
+               is the first thing anyone tries. Dropping into another day's list is
+               the same operation as reordering inside one, so both arrive at
+               onDrop. -->
+          <ol
+            class="mt-4 grid grid-cols-1 gap-2"
+            cdkDropList
+            [cdkDropListData]="day"
+            [cdkDropListDisabled]="!canEdit() || saving()"
+            (cdkDropListDropped)="onDrop($event)"
+          >
               @for (place of day.places; track place.id) {
+                <!-- lockAxis="y": days are stacked, so horizontal movement carries
+                     no meaning — and letting the preview follow the pointer sideways
+                     drags a full-width row out over the map card next to it. -->
                 <li
-                  class="rounded-control border px-3 py-2 transition-colors"
+                  class="group/place rounded-control border bg-surface px-3 py-2 transition-colors"
                   [class.border-border]="highlighted() !== place.id"
                   [class.border-accent]="highlighted() === place.id"
                   [class.bg-accent-soft]="highlighted() === place.id"
+                  cdkDrag
+                  [cdkDragData]="place"
+                  [cdkDragDisabled]="!canEdit() || saving()"
+                  cdkDragLockAxis="y"
                 >
+                  <!-- The gap the row will drop into. -->
+                  <div class="place-drop-gap" *cdkDragPlaceholder></div>
                   <div class="flex items-start gap-3">
+                    @if (canEdit()) {
+                      <!-- Dragging is handle-only so a touch drag on the row still
+                           scrolls the page. -->
+                      <button
+                        type="button"
+                        class="drag-handle -ml-1 mt-0.5 shrink-0 cursor-grab touch-none px-0.5
+                               text-muted active:cursor-grabbing"
+                        cdkDragHandle
+                        [attr.aria-label]="'Drag ' + place.name + ' to reorder'"
+                        tabindex="-1"
+                      >
+                        <svg class="size-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                          <circle cx="9" cy="6" r="1.4" />
+                          <circle cx="15" cy="6" r="1.4" />
+                          <circle cx="9" cy="12" r="1.4" />
+                          <circle cx="15" cy="12" r="1.4" />
+                          <circle cx="9" cy="18" r="1.4" />
+                          <circle cx="15" cy="18" r="1.4" />
+                        </svg>
+                      </button>
+                    }
                     <span class="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full
                                  bg-accent-soft text-[0.6875rem] font-semibold text-accent">
                       {{ place.position + 1 }}
@@ -130,7 +170,10 @@
                     }
 
                     @if (canEdit()) {
-                      <div class="flex shrink-0 items-center gap-0.5">
+                      <!-- Still the keyboard and screen-reader path for
+                           reordering, since a drag has neither. Quiet until the
+                           row is hovered or something in it takes focus. -->
+                      <div class="row-actions flex shrink-0 items-center gap-0.5">
                         <button type="button" class="btn-ghost px-1.5" title="Move up"
                                 [disabled]="saving() || place.position === 0"
                                 (click)="nudge(place, -1)">
@@ -208,10 +251,19 @@
                   }
                 </li>
               }
+              @if (!day.places.length) {
+                <li class="text-sm text-muted">
+                  @if (canEdit()) {
+                    <span class="grid h-11 place-items-center rounded-control border border-dashed
+                                 border-border text-xs">
+                      Drop a place here, or add one below
+                    </span>
+                  } @else {
+                    Nothing planned.
+                  }
+                </li>
+              }
             </ol>
-          } @else if (!canEdit()) {
-            <p class="mt-3 text-sm text-muted">Nothing planned.</p>
-          }
 
           @if (canEdit()) {
             @if (addingTo() === day.date) {

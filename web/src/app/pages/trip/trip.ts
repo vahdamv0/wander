@@ -1,3 +1,11 @@
+import {
+  CdkDrag,
+  CdkDragDrop,
+  CdkDragHandle,
+  CdkDragPlaceholder,
+  CdkDropList,
+  CdkDropListGroup,
+} from '@angular/cdk/drag-drop';
 import { Component, computed, inject, input, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -22,7 +30,16 @@ const SEARCH_DEBOUNCE_MS = 400;
  */
 @Component({
   selector: 'app-trip',
-  imports: [FormsModule, RouterLink, TripMap],
+  imports: [
+    CdkDrag,
+    CdkDragHandle,
+    CdkDragPlaceholder,
+    CdkDropList,
+    CdkDropListGroup,
+    FormsModule,
+    RouterLink,
+    TripMap,
+  ],
   templateUrl: './trip.html',
 })
 export class TripPage {
@@ -214,6 +231,20 @@ export class TripPage {
   /** Up and down inside one day. */
   protected async nudge(place: PlaceView, by: -1 | 1): Promise<void> {
     await this.guard(() => this.repo.move(this.id(), place.id, place.dayDate, place.position + by));
+  }
+
+  /**
+   * A dropped row. CDK reports the index within the target list after the move,
+   * which is the same thing the API's `position` means, so no translation is
+   * needed — and the same call serves the arrow buttons.
+   */
+  protected async onDrop(event: CdkDragDrop<TripDay>): Promise<void> {
+    const place: PlaceView = event.item.data;
+    const target = event.container.data;
+    if (event.previousContainer === event.container && event.previousIndex === event.currentIndex) {
+      return;
+    }
+    await this.guard(() => this.repo.move(this.id(), place.id, target.date, event.currentIndex));
   }
 
   /** Move to the start of an adjacent day. */
