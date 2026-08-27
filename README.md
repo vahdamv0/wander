@@ -3,15 +3,17 @@
 A self-hostable, collaborative travel planner. Spring Boot 4 + Angular 22, one
 container, one Postgres.
 
-> **Status: milestone 0.** The walking skeleton is complete and verified —
-> accounts, sessions, trips, and the full contract loop from Java records to a
-> typed Angular client. The planner itself (days, places, maps) is next.
+> **Status: days and places, in progress.** The walking skeleton is done, and the
+> itinerary now works: a trip's days come from its date range, and places can be
+> added, edited, and reordered within and across days. Place search over
+> Nominatim and the map are next.
 
 ## What works today
 
 - Register / sign in / sign out, session-cookie auth with CSRF
 - Create and list trips, scoped to the people who are members of them
 - A trip's days are derived from its date range, never stored
+- Places on a day: add, rename, annotate, delete, reorder, move between days
 - Light / dark / follow-the-OS theming, all driven by design tokens
 - The Angular app and the API ship as a single jar
 
@@ -101,6 +103,15 @@ which is why each dark palette is declared twice, once per condition.
 
 **Days are derived, never stored.** A stored day list is a second copy of the
 date range, and moving a trip's dates would then mean keeping two things in step.
+A place therefore carries a plain `day_date` rather than a foreign key, and
+`GET /api/trips/{id}/itinerary` rebuilds the range on every read — empty days
+included, so the client never reconstructs it.
+
+**The server owns ordering.** Ranks are dense and zero-based, and any move or
+delete renumbers the affected day from scratch inside one transaction. Moving a
+place is one operation — "put it at rank N of day D" — which is both what the
+up/down buttons send today and what drag-and-drop will send later. The client
+re-reads after a write rather than guessing at the new ranks.
 
 **Gates stay on.** `EndpointAuthRatchetTest` fires an anonymous request at every
 endpoint this project declares and fails if one answers; opening an endpoint
@@ -122,8 +133,9 @@ tables under a running instance. Don't lower a gate to land a change.
 ## Roadmap
 
 1. **Milestone 0 — walking skeleton.** ✅ Accounts, trips, contract loop, one container.
-2. **Days and places.** Days from the date range, place search over Nominatim, a
-   Leaflet map, drag ordering within and across days, day notes.
+2. **Days and places.** Days from the date range ✅, places with ordering within
+   and across days ✅ — place search over Nominatim, a Leaflet map, drag ordering
+   in place of the buttons, and day notes still to come.
 3. **Sharing.** Invites, the member list, roles beyond `OWNER`, and WebSocket
    sync so two people editing one day do not clobber each other.
 4. **Money and stuff.** Expenses with splits, packing lists, reservations.

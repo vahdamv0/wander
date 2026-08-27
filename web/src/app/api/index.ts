@@ -6,12 +6,28 @@ export { RequestBuilder } from './request-builder';
 export type { StrictHttpResponse } from './strict-http-response';
 export { Api } from './api';
 
+export type { CreatePlaceRequest } from './models/create-place-request';
 export type { CreateTripRequest } from './models/create-trip-request';
 export type { LoginRequest } from './models/login-request';
+export type { MovePlaceRequest } from './models/move-place-request';
+export type { PlaceView } from './models/place-view';
 export type { RegisterRequest } from './models/register-request';
 export type { SessionUser } from './models/session-user';
+export type { TripDay } from './models/trip-day';
+export type { TripItinerary } from './models/trip-itinerary';
 export type { TripSummary } from './models/trip-summary';
+export type { UpdatePlaceRequest } from './models/update-place-request';
 
+export type { UpdatePlace$Params as UpdatePlace$Params } from './fn/place-controller/update-place';
+export { updatePlace as updatePlace } from './fn/place-controller/update-place';
+export type { DeletePlace$Params as DeletePlace$Params } from './fn/place-controller/delete-place';
+export { deletePlace as deletePlace } from './fn/place-controller/delete-place';
+export type { CreatePlace$Params as CreatePlace$Params } from './fn/place-controller/create-place';
+export { createPlace as createPlace } from './fn/place-controller/create-place';
+export type { MovePlace$Params as MovePlace$Params } from './fn/place-controller/move-place';
+export { movePlace as movePlace } from './fn/place-controller/move-place';
+export type { GetItinerary$Params as GetItinerary$Params } from './fn/place-controller/get-itinerary';
+export { getItinerary as getItinerary } from './fn/place-controller/get-itinerary';
 export type { List$Params as List$Params } from './fn/trip-controller/list';
 export { list as list } from './fn/trip-controller/list';
 export type { Create$Params as Create$Params } from './fn/trip-controller/create';

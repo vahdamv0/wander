@@ -93,9 +93,10 @@
   } @else {
     <ul class="grid gap-3 sm:grid-cols-2">
       @for (trip of trips(); track trip.id) {
-        <li
-          class="card group p-5 transition-shadow hover:shadow-raised"
-        >
+        <li class="card group p-0 transition-shadow hover:shadow-raised">
+          <a class="block rounded-[inherit] p-5 focus-visible:outline-2
+                    focus-visible:outline-offset-2 focus-visible:outline-accent"
+             [routerLink]="['/trips', trip.id]">
           <div class="flex items-start gap-3">
             <div class="min-w-0">
               <h3 class="truncate font-semibold">{{ trip.name }}</h3>
@@ -133,6 +134,7 @@
               </dd>
             </div>
           </dl>
+          </a>
         </li>
       }
     </ul>

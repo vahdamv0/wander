@@ -19,6 +19,12 @@ export const routes: Routes = [
         path: 'trips',
         loadComponent: () => import('./pages/trips/trips').then((m) => m.TripsPage),
       },
+      {
+        // `tripId` arrives as a component input — withComponentInputBinding is
+        // on in app.config.ts, so the page needs no ActivatedRoute.
+        path: 'trips/:tripId',
+        loadComponent: () => import('./pages/trip/trip').then((m) => m.TripPage),
+      },
       { path: '**', redirectTo: 'trips' },
     ],
   },

@@ -1,10 +1,11 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { TripRepo } from '../../repo/trip.repo';
 
 @Component({
   selector: 'app-trips',
-  imports: [FormsModule],
+  imports: [FormsModule, RouterLink],
   templateUrl: './trips.html',
 })
 export class TripsPage {
