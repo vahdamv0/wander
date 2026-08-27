@@ -1,8 +1,16 @@
 import { Component, computed, inject, input, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { PlaceView, TripDay } from '../../api';
+import { PlaceSuggestion, PlaceView, TripDay } from '../../api';
+import { GeoRepo } from '../../repo/geo.repo';
 import { PlaceRepo } from '../../repo/place.repo';
+
+/**
+ * How long to sit on a keystroke before searching. The geocoder allows one
+ * request a second across the whole instance, so a typeahead that fired on every
+ * character would spend that budget on prefixes nobody wanted.
+ */
+const SEARCH_DEBOUNCE_MS = 400;
 
 /**
  * One trip: its derived days, top to bottom, with the places on each.
@@ -17,6 +25,7 @@ import { PlaceRepo } from '../../repo/place.repo';
 })
 export class TripPage {
   private readonly repo = inject(PlaceRepo);
+  private readonly geo = inject(GeoRepo);
 
   /** Bound from the route, as a string — coerced once here. */
   readonly tripId = input.required<string>();
@@ -26,6 +35,11 @@ export class TripPage {
   protected readonly loading = this.repo.loading;
   protected readonly saving = this.repo.saving;
   protected readonly canEdit = this.repo.canEdit;
+
+  protected readonly suggestions = this.geo.results;
+  protected readonly searching = this.geo.searching;
+  protected readonly searchError = this.geo.error;
+  protected readonly searchAvailable = this.geo.available;
 
   protected readonly placeCount = computed(() =>
     this.days().reduce((total, day) => total + day.places.length, 0),
@@ -39,6 +53,11 @@ export class TripPage {
   protected readonly draftName = signal('');
   protected readonly draftNotes = signal('');
   protected readonly error = signal<string | null>(null);
+
+  /** Set when the draft came from a search hit, so its point is saved with it. */
+  protected readonly draftLocation = signal<PlaceSuggestion | null>(null);
+
+  private searchTimer: ReturnType<typeof setTimeout> | null = null;
 
   /** Skeleton rows: a field, not an inline literal — see CLAUDE.md on `@for`. */
   protected readonly skeletons = [0, 1, 2];
@@ -62,36 +81,93 @@ export class TripPage {
 
   protected openAdd(date: string): void {
     this.editing.set(null);
-    this.draftName.set('');
-    this.draftNotes.set('');
-    this.error.set(null);
+    this.resetDraft();
     this.addingTo.set(this.addingTo() === date ? null : date);
   }
 
   protected openEdit(place: PlaceView): void {
     this.addingTo.set(null);
+    this.resetDraft();
     this.draftName.set(place.name);
     this.draftNotes.set(place.notes ?? '');
-    this.error.set(null);
     this.editing.set(this.editing() === place.id ? null : place.id);
   }
 
   protected cancel(): void {
     this.addingTo.set(null);
     this.editing.set(null);
+    this.resetDraft();
+  }
+
+  private resetDraft(): void {
+    this.draftName.set('');
+    this.draftNotes.set('');
+    this.draftLocation.set(null);
     this.error.set(null);
+    this.clearSearch();
+  }
+
+  private clearSearch(): void {
+    if (this.searchTimer !== null) {
+      clearTimeout(this.searchTimer);
+      this.searchTimer = null;
+    }
+    this.geo.clear();
+  }
+
+  /**
+   * Typing invalidates any picked location: the name no longer describes the
+   * point that would be saved with it.
+   */
+  protected onNameTyped(value: string): void {
+    this.draftName.set(value);
+    this.draftLocation.set(null);
+    if (!this.searchAvailable()) {
+      return;
+    }
+    if (this.searchTimer !== null) {
+      clearTimeout(this.searchTimer);
+    }
+    this.searchTimer = setTimeout(() => {
+      this.searchTimer = null;
+      void this.geo.search(value);
+    }, SEARCH_DEBOUNCE_MS);
+  }
+
+  /** Takes the hit's own name, and remembers the point to save with it. */
+  protected pick(suggestion: PlaceSuggestion): void {
+    this.draftName.set(suggestion.name);
+    this.draftLocation.set(suggestion);
+    this.clearSearch();
+  }
+
+  /** The address of a hit, minus the leading name it repeats. */
+  protected addressDetail(suggestion: PlaceSuggestion): string {
+    const address = suggestion.address;
+    return address.startsWith(suggestion.name + ',')
+      ? address.slice(suggestion.name.length + 1).trim()
+      : address;
   }
 
   protected async addPlace(date: string): Promise<void> {
     await this.guard(async () => {
+      const location = this.draftLocation();
       await this.repo.add(this.id(), {
         dayDate: date,
         name: this.draftName(),
         notes: this.draftNotes() || undefined,
+        // Sent as picked rather than re-searched: the user chose one candidate
+        // out of several, and a second search could rank a different one first.
+        latitude: location?.latitude,
+        longitude: location?.longitude,
+        address: location?.address,
       });
-      // Left open: adding several places to one day is the common case.
+      // The form stays open — adding several places to one day is the common
+      // case — but the draft and its search results go.
       this.draftName.set('');
       this.draftNotes.set('');
+      this.draftLocation.set(null);
+      this.clearSearch();
     });
   }
 

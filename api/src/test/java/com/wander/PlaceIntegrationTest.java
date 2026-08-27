@@ -173,4 +173,63 @@ class PlaceIntegrationTest extends IntegrationTestBase {
         assertThat(delete(owner, "/api/trips/" + other + "/places/" + place)
                 .getStatusCode().value()).isEqualTo(404);
     }
+
+    @Test
+    void aPlaceFromASearchKeepsItsCoordinates() {
+        Session owner = register("rhea");
+        Object tripId = newTrip(owner);
+
+        var created = post(owner, "/api/trips/" + tripId + "/places", """
+                {"dayDate":"2027-11-03","name":"Sagrada Familia",
+                 "latitude":41.4036,"longitude":2.1744,
+                 "address":"Sagrada Familia, Carrer de Mallorca, Barcelona, Spain"}
+                """);
+        assertThat(created.getStatusCode().value()).isEqualTo(201);
+        assertThat(asMap(created.getBody()))
+                .containsEntry("latitude", 41.4036)
+                .containsEntry("longitude", 2.1744)
+                .containsEntry("address", "Sagrada Familia, Carrer de Mallorca, Barcelona, Spain");
+
+        // And they survive the read the page actually makes.
+        assertThat(day(owner, tripId, 0).getFirst()).containsEntry("latitude", 41.4036);
+    }
+
+    @Test
+    void aPlaceTypedByHandHasNoCoordinatesAndThatIsFine() {
+        Session owner = register("sven");
+        Object tripId = newTrip(owner);
+        addPlace(owner, tripId, "2027-11-03", "That cafe we liked");
+
+        // Present but null, since Jackson serialises the absent location — which
+        // is the same thing to the generated client, where both fields are
+        // optional.
+        assertThat(day(owner, tripId, 0).getFirst())
+                .containsEntry("latitude", null)
+                .containsEntry("longitude", null)
+                .containsEntry("address", null);
+    }
+
+    @Test
+    void halfACoordinatePairIsRejected() {
+        Session owner = register("tara");
+        Object tripId = newTrip(owner);
+
+        // A latitude with no longitude is not a location. Caught in the service,
+        // so it is a 400 rather than the database CHECK turning into a 500.
+        var response = post(owner, "/api/trips/" + tripId + "/places", """
+                {"dayDate":"2027-11-03","name":"Half a point","latitude":41.4036}
+                """);
+        assertThat(response.getStatusCode().value()).isEqualTo(400);
+    }
+
+    @Test
+    void anImpossibleLatitudeIsRejected() {
+        Session owner = register("ugo");
+        Object tripId = newTrip(owner);
+
+        var response = post(owner, "/api/trips/" + tripId + "/places", """
+                {"dayDate":"2027-11-03","name":"Off the planet","latitude":91,"longitude":0}
+                """);
+        assertThat(response.getStatusCode().value()).isEqualTo(400);
+    }
 }

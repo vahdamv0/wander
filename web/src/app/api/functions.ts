@@ -29,3 +29,5 @@ export type { Me$Params as Me$Params } from './fn/auth-controller/me';
 export { me as me } from './fn/auth-controller/me';
 export type { Health$Params as Health$Params } from './fn/health-controller/health';
 export { health as health } from './fn/health-controller/health';
+export type { SearchPlaces$Params as SearchPlaces$Params } from './fn/geo-controller/search-places';
+export { searchPlaces as searchPlaces } from './fn/geo-controller/search-places';

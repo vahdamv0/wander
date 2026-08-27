@@ -13,10 +13,15 @@ public record PlaceView(
         @NotNull int position,
         @NotNull String name,
         /** Nullable on purpose: most places never get a note. */
-        String notes) {
+        String notes,
+        /** Null unless the place came from a search — both coordinates or neither. */
+        Double latitude,
+        Double longitude,
+        /** The geocoder's formatted address line, when there was one. */
+        String address) {
 
     public static PlaceView of(Place place) {
         return new PlaceView(place.getId(), place.getDayDate(), place.getSortOrder(), place.getName(),
-                place.getNotes());
+                place.getNotes(), place.getLatitude(), place.getLongitude(), place.getAddress());
     }
 }

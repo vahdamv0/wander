@@ -72,9 +72,12 @@ public class PlaceService {
         requireDayInTrip(trip, request.dayDate());
 
         int end = places.findByTripIdAndDayDateOrderBySortOrderAsc(tripId, request.dayDate()).size();
-        Place place = places.save(new Place(trip, request.dayDate(), end, request.name(),
-                blankToNull(request.notes())));
-        return PlaceView.of(place);
+        Place place = new Place(trip, request.dayDate(), end, request.name(),
+                blankToNull(request.notes()));
+        // Rejects half a point with a 400 rather than letting the database
+        // CHECK turn it into a 500.
+        place.setLocation(request.latitude(), request.longitude(), blankToNull(request.address()));
+        return PlaceView.of(places.save(place));
     }
 
     @Transactional

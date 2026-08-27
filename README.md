@@ -4,9 +4,9 @@ A self-hostable, collaborative travel planner. Spring Boot 4 + Angular 22, one
 container, one Postgres.
 
 > **Status: days and places, in progress.** The walking skeleton is done, and the
-> itinerary now works: a trip's days come from its date range, and places can be
-> added, edited, and reordered within and across days. Place search over
-> Nominatim and the map are next.
+> itinerary works: days come from the trip's date range, places can be searched
+> for by name over Nominatim, and they can be reordered within and across days.
+> The map is next.
 
 ## What works today
 
@@ -14,6 +14,7 @@ container, one Postgres.
 - Create and list trips, scoped to the people who are members of them
 - A trip's days are derived from its date range, never stored
 - Places on a day: add, rename, annotate, delete, reorder, move between days
+- Place search over Nominatim, proxied and cached, so a place keeps its coordinates
 - Light / dark / follow-the-OS theming, all driven by design tokens
 - The Angular app and the API ship as a single jar
 
@@ -107,6 +108,22 @@ A place therefore carries a plain `day_date` rather than a foreign key, and
 `GET /api/trips/{id}/itinerary` rebuilds the range on every read — empty days
 included, so the client never reconstructs it.
 
+**Place search is proxied, never called from the browser.** Nominatim's usage
+policy wants one identifiable caller honouring one request a second, which is
+impossible to arrange across N browsers; a shared cache only works server-side
+anyway, and a self-hoster can point `WANDER_GEOCODING_URL` at their own instance
+without any client learning a new address. `GeocodingService` holds the toggle,
+the LRU cache, and the rate gate; `GeocoderClient` is the interface the tests
+replace, so the suite never touches the network or spends a public service's
+budget. Search off (`WANDER_GEOCODING_ENABLED=false`) is a supported
+configuration — the itinerary still works, places are typed by hand and simply
+have no coordinates.
+
+**A picked location is saved, not re-derived.** The client sends the coordinates
+of the candidate the user chose. Re-geocoding the name server-side would be
+tidier in principle and wrong in practice: searching again can rank a different
+result first, so the place would quietly move.
+
 **The server owns ordering.** Ranks are dense and zero-based, and any move or
 delete renumbers the affected day from scratch inside one transaction. Moving a
 place is one operation — "put it at rank N of day D" — which is both what the
@@ -134,8 +151,8 @@ tables under a running instance. Don't lower a gate to land a change.
 
 1. **Milestone 0 — walking skeleton.** ✅ Accounts, trips, contract loop, one container.
 2. **Days and places.** Days from the date range ✅, places with ordering within
-   and across days ✅ — place search over Nominatim, a Leaflet map, drag ordering
-   in place of the buttons, and day notes still to come.
+   and across days ✅, place search over Nominatim ✅ — a Leaflet map, drag
+   ordering in place of the buttons, and day notes still to come.
 3. **Sharing.** Invites, the member list, roles beyond `OWNER`, and WebSocket
    sync so two people editing one day do not clobber each other.
 4. **Money and stuff.** Expenses with splits, packing lists, reservations.

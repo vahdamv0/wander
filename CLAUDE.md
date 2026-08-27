@@ -69,11 +69,18 @@ Java record → springdoc → `api/build/openapi.json` (written by
   is the single source of truth for who may see a trip.
 - **Flyway owns the schema**, Hibernate runs `ddl-auto: validate`. Schema changes
   are a new `V<n>__*.sql`; never edit an applied migration.
+- **Outbound HTTP goes through an interface.** `GeocoderClient` is the seam the
+  tests replace (`@MockitoBean`), which is what keeps the suite off the network
+  and off a free public service's rate budget. `GeocodingService` owns the
+  feature toggle, the LRU cache, and the shared one-request-a-second gate — a
+  new upstream call belongs behind the same shape, not in a controller.
 - **Boot 4 notes** (these differ from every Boot 3 tutorial): `TestRestTemplate`
   is gone — use `RestClient`; Jackson 3 lives under `tools.jackson`; each
   integration ships as its own module, so `flyway-core` alone gives you no
   autoconfiguration (`spring-boot-flyway` does); Testcontainers 2.x artifacts are
-  `testcontainers-postgresql`, not `postgresql`.
+  `testcontainers-postgresql`, not `postgresql`; there is no `RestClient.Builder`
+  bean unless `spring-boot-restclient` is on the classpath, so an outbound client
+  calls `RestClient.builder()` itself.
 
 ## Client conventions
 
@@ -99,6 +106,21 @@ Java record → springdoc → `api/build/openapi.json` (written by
   comes back **401**, not 403, because Spring treats access-denied-while-anonymous
   as "authenticate first".
 
+## Talking to Nominatim
+
+Place search is a proxy (`/api/geo/search`), authenticated like everything else —
+an open one would hand this instance's rate budget to anyone. Three rules the
+usage policy imposes and this code keeps: an identifying `User-Agent` (a default
+Java one gets 403'd), at most one outbound request a second **across the
+instance** — it is the instance that gets blocked, not a user, so `RateGate` is
+shared rather than per session — and results cached, which is what makes a
+typeahead affordable at that rate. Debouncing sits in the component, next to the
+keystrokes it throttles.
+
+The client sends a picked suggestion's coordinates when creating a place rather
+than having the server re-geocode the name: the user chose one candidate of
+several, and a second search can rank a different one first.
+
 ## Browser tests
 
 `cd web && npm run e2e` (Playwright) against a running instance — start the app
@@ -112,9 +134,9 @@ detection still renders, so a status code alone proves nothing.
 ## Scope discipline
 
 Milestone 0 (accounts, trips, the contract loop, one container) is done, and so
-is the first half of "days and places": derived days plus places, with ordering
-owned by the server (`PlaceService` renumbers a day on every move or delete, and
-the client re-reads instead of patching ranks). Still open in that milestone:
-Nominatim search, the Leaflet map, drag ordering in place of the buttons, and day
-notes. See the roadmap in README.md. Deliberately **out** of scope until asked:
+is most of "days and places": derived days, places with ordering owned by the
+server (`PlaceService` renumbers a day on every move or delete, and the client
+re-reads instead of patching ranks), and Nominatim search behind a proxy that
+caches and rate-limits. Still open in that milestone: the Leaflet map, drag
+ordering in place of the buttons, and day notes. See the roadmap in README.md. Deliberately **out** of scope until asked:
 plugins, i18n, MCP, offline. Keep v1 small.
