@@ -1,39 +1,91 @@
-<main class="card">
-  <h1>wander</h1>
-  <p class="muted">{{ mode() === 'login' ? 'Sign in to your trips' : 'Create an account' }}</p>
+<div class="grid min-h-dvh place-items-center px-4 py-12">
+  <main class="w-full max-w-sm">
+    <div class="mb-6 flex flex-col items-center gap-2 text-center">
+      <app-brand-mark />
+      <h1 class="text-2xl font-semibold tracking-tight">wander</h1>
+      <p class="text-sm text-muted">
+        {{ mode() === 'login' ? 'Sign in to your trips' : 'Create an account' }}
+      </p>
+    </div>
 
-  <form (ngSubmit)="submit()">
-    <label>
-      Email
-      <input type="email" name="email" autocomplete="email" required
-             [ngModel]="email()" (ngModelChange)="email.set($event)" />
-    </label>
+    <div class="card p-6">
+      <form class="grid gap-4" (ngSubmit)="submit()">
+        <label class="label">
+          Email
+          <input
+            class="field"
+            type="email"
+            name="email"
+            autocomplete="email"
+            required
+            [ngModel]="email()"
+            (ngModelChange)="email.set($event)"
+          />
+        </label>
 
-    @if (mode() === 'register') {
-      <label>
-        Display name
-        <input type="text" name="displayName" autocomplete="name" required
-               [ngModel]="displayName()" (ngModelChange)="displayName.set($event)" />
-      </label>
-    }
+        @if (mode() === 'register') {
+          <label class="label">
+            Display name
+            <input
+              class="field"
+              type="text"
+              name="displayName"
+              autocomplete="name"
+              required
+              [ngModel]="displayName()"
+              (ngModelChange)="displayName.set($event)"
+            />
+          </label>
+        }
 
-    <label>
-      Password
-      <input type="password" name="password" required
-             [attr.autocomplete]="mode() === 'login' ? 'current-password' : 'new-password'"
-             [ngModel]="password()" (ngModelChange)="password.set($event)" />
-    </label>
+        <label class="label">
+          Password
+          <input
+            class="field"
+            type="password"
+            name="password"
+            required
+            [attr.autocomplete]="mode() === 'login' ? 'current-password' : 'new-password'"
+            [ngModel]="password()"
+            (ngModelChange)="password.set($event)"
+          />
+          @if (mode() === 'register') {
+            <span class="text-xs font-normal text-muted">At least 10 characters.</span>
+          }
+        </label>
 
-    @if (error()) {
-      <p class="error" role="alert">{{ error() }}</p>
-    }
+        @if (error()) {
+          <p
+            class="rounded-control bg-danger-soft px-3 py-2 text-sm text-danger"
+            role="alert"
+          >
+            {{ error() }}
+          </p>
+        }
 
-    <button type="submit" [disabled]="busy()">
-      {{ busy() ? 'Working…' : mode() === 'login' ? 'Sign in' : 'Create account' }}
-    </button>
-  </form>
+        <button type="submit" class="btn-primary w-full" [disabled]="busy()">
+          @if (busy()) {
+            <svg class="size-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-opacity="0.25" stroke-width="3" />
+              <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
+            </svg>
+            Working…
+          } @else {
+            {{ mode() === 'login' ? 'Sign in' : 'Create account' }}
+          }
+        </button>
+      </form>
+    </div>
 
-  <button type="button" class="link" (click)="toggleMode()">
-    {{ mode() === 'login' ? 'Need an account?' : 'Already have an account?' }}
-  </button>
-</main>
+    <p class="mt-4 text-center text-sm text-muted">
+      {{ mode() === 'login' ? "Don't have an account?" : 'Already have an account?' }}
+      <button
+        type="button"
+        class="font-medium text-accent underline-offset-4 hover:underline"
+        (click)="toggleMode()"
+      >
+        {{ mode() === 'login' ? 'Create one' : 'Sign in' }}
+      </button>
+    </p>
+  </main>
+</div>

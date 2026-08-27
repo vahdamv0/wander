@@ -44,6 +44,10 @@ Java record → springdoc → `api/build/openapi.json` (written by
   it by hand.
 - A response field that is always present needs `@NotNull`, or springdoc omits
   it from `required` and the generated TypeScript field becomes optional.
+- `springdoc.default-produces-media-type` must stay `application/json`. Without
+  it every response is documented as a wildcard type and the generated client
+  requests a Blob — the API still returns correct JSON, so only the browser
+  breaks.
 - The OpenAPI `servers` entry is pinned to `/` in `OpenApiConfig`; otherwise the
   spec records whatever random port the export test ran on.
 
@@ -69,6 +73,15 @@ Java record → springdoc → `api/build/openapi.json` (written by
 
 ## Client conventions
 
+- **Styling goes through tokens, never raw colours.** `bg-surface`, `text-muted`,
+  `border-border` — not `bg-white` or a hex literal. That is what makes the
+  three-state theme (system / light / dark, in `web/src/styles.css`) work
+  everywhere at once. Repeated shapes live as `.card` / `.field` / `.btn-*` in
+  the `@layer components` block; Tailwind 4's `@apply` cannot reference another
+  custom class, so variants list the base selector rather than composing it.
+- **`@for` needs a collection from the component, not an inline array literal.**
+  `@for (x of [1, 2]; ...)` does not survive the block-syntax parser and fails at
+  runtime with `newCollection[Symbol.iterator] is not a function`.
 - **Components never call HTTP.** They go through a repo in `web/src/app/repo/`,
   which wraps the generated client. Offline support will land inside the repos;
   a component that bypasses them blocks that.
@@ -81,6 +94,16 @@ Java record → springdoc → `api/build/openapi.json` (written by
   get the `XSRF-TOKEN` cookie; an anonymous request that fails the CSRF check
   comes back **401**, not 403, because Spring treats access-denied-while-anonymous
   as "authenticate first".
+
+## Browser tests
+
+`cd web && npm run e2e` (Playwright) against a running instance — start the app
+first; `WANDER_E2E_URL` overrides the default `http://localhost:8080`. These exist
+because two real bugs were invisible to the Java suite: responses documented as a
+wildcard media type made the generated client request Blobs instead of JSON, and
+the CSRF cookie needs one GET before the first POST. Both looked perfect to curl.
+The suite asserts on console errors too — a template that throws every change
+detection still renders, so a status code alone proves nothing.
 
 ## Scope discipline
 

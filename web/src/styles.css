@@ -1,146 +1,169 @@
-/* Deliberately plain for milestone 0: enough structure to use the app, no
-   design system yet. Tailwind lands with the real UI. */
-:root {
-  --bg: #f6f7f9;
-  --card: #ffffff;
-  --ink: #14171f;
-  --muted: #6b7280;
-  --line: #e5e7eb;
-  --accent: #0d6efd;
-  --error: #b42318;
-  color-scheme: light dark;
+@import "tailwindcss";
+
+/*
+ * wander's design tokens.
+ *
+ * Rule for every component: use a token, never a raw colour. `bg-surface`,
+ * `text-muted`, `border-border` — not `bg-white`, not `#111`. That is what makes
+ * the theme switch work everywhere at once, and what will let a user-chosen
+ * accent drop in later without touching a single template.
+ *
+ * Three theme states, which is one more than most setups handle:
+ *   - no attribute  → follow the OS (the default)
+ *   - [data-theme="light"] / [data-theme="dark"] → an explicit choice that must
+ *     win over the OS in both directions
+ * Hence each palette appears twice for dark: once under prefers-color-scheme
+ * (guarded so an explicit light choice is not overridden) and once under the
+ * attribute.
+ */
+
+@theme inline {
+  --color-bg: var(--w-bg);
+  --color-surface: var(--w-surface);
+  --color-surface-2: var(--w-surface-2);
+  --color-border: var(--w-border);
+  --color-ink: var(--w-ink);
+  --color-muted: var(--w-ink-muted);
+  --color-accent: var(--w-accent);
+  --color-accent-strong: var(--w-accent-strong);
+  --color-on-accent: var(--w-on-accent);
+  --color-accent-soft: var(--w-accent-soft);
+  --color-danger: var(--w-danger);
+  --color-danger-soft: var(--w-danger-soft);
+  --color-success: var(--w-success);
+
+  --radius-card: 14px;
+  --radius-control: 9px;
+
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.04), 0 10px 30px -18px rgb(0 0 0 / 0.18);
+  --shadow-raised: 0 1px 2px rgb(0 0 0 / 0.05), 0 18px 40px -20px rgb(0 0 0 / 0.28);
+
+  /* System fonts on purpose: a self-hosted app should not need a request to a
+     font CDN to render, and these are already on every device. */
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
 }
 
+/* --- light (the base palette) --------------------------------------------- */
+:root {
+  --w-bg: #f6f8f7;
+  --w-surface: #ffffff;
+  --w-surface-2: #eef2f1;
+  --w-border: #dfe5e3;
+  --w-ink: #121a19;
+  --w-ink-muted: #5a6562;
+  --w-accent: #0f766e;
+  --w-accent-strong: #115e59;
+  --w-on-accent: #ffffff;
+  --w-accent-soft: #d7f0ec;
+  --w-danger: #b42318;
+  --w-danger-soft: #fdeceb;
+  --w-success: #15803d;
+
+  color-scheme: light;
+}
+
+/* --- dark, when the OS asks for it and no explicit light choice was made --- */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0f1116;
-    --card: #171a21;
-    --ink: #e8eaed;
-    --muted: #9aa1ac;
-    --line: #262b34;
-    --accent: #6ea8fe;
-    --error: #ff938a;
+  :root:not([data-theme="light"]) {
+    --w-bg: #0a0f0e;
+    --w-surface: #121918;
+    --w-surface-2: #1a2321;
+    --w-border: #26312f;
+    --w-ink: #e8efed;
+    --w-ink-muted: #94a09d;
+    --w-accent: #2dd4bf;
+    --w-accent-strong: #5eead4;
+    --w-on-accent: #04211d;
+    --w-accent-soft: #10302c;
+    --w-danger: #ff9c8f;
+    --w-danger-soft: #2b1614;
+    --w-success: #4ade80;
+
+    color-scheme: dark;
   }
 }
 
-* { box-sizing: border-box; }
+/* --- dark, chosen explicitly (must beat a light OS setting) --------------- */
+:root[data-theme="dark"] {
+  --w-bg: #0a0f0e;
+  --w-surface: #121918;
+  --w-surface-2: #1a2321;
+  --w-border: #26312f;
+  --w-ink: #e8efed;
+  --w-ink-muted: #94a09d;
+  --w-accent: #2dd4bf;
+  --w-accent-strong: #5eead4;
+  --w-on-accent: #04211d;
+  --w-accent-soft: #10302c;
+  --w-danger: #ff9c8f;
+  --w-danger-soft: #2b1614;
+  --w-success: #4ade80;
 
-body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--ink);
-  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color-scheme: dark;
 }
 
-h1, h2 { margin: 0 0 0.25rem; }
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
 
-.muted { color: var(--muted); }
+  body {
+    background-color: var(--color-bg);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    margin: 0;
+    min-height: 100dvh;
+  }
 
-.error { color: var(--error); }
+  /* One visible focus style for everything, rather than per-component. */
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
 
-.card {
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 1.25rem;
+  ::placeholder {
+    color: var(--color-muted);
+    opacity: 0.7;
+  }
 }
 
-main.card {
-  max-width: 22rem;
-  margin: 12vh auto;
-}
+@layer components {
+  /* The handful of shapes that repeat often enough to earn a name. Anything
+     used once stays as utilities in the template. */
+  .card {
+    @apply bg-surface border border-border rounded-card shadow-card;
+  }
 
-.page {
-  max-width: 42rem;
-  margin: 0 auto;
-  padding: 1.5rem 1rem 4rem;
-  display: grid;
-  gap: 1.5rem;
-}
+  .field {
+    @apply w-full bg-bg text-ink border border-border rounded-control px-3 py-2
+           text-[0.9375rem] transition-colors;
+  }
 
-.bar {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid var(--line);
-  background: var(--card);
-}
+  .field:hover {
+    @apply border-accent/40;
+  }
 
-.bar .link { margin-left: auto; }
+  /* Shared shape first: Tailwind 4's @apply cannot reference another custom
+     class, so the variants list the base selector rather than composing it. */
+  .btn,
+  .btn-primary,
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-control px-4 py-2
+           text-sm font-medium transition-colors disabled:opacity-55
+           disabled:cursor-not-allowed;
+  }
 
-form {
-  display: grid;
-  gap: 0.75rem;
-  margin: 1rem 0 0.5rem;
-}
+  .btn-primary {
+    @apply bg-accent text-on-accent hover:bg-accent-strong;
+  }
 
-.row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.75rem;
-}
+  .btn-ghost {
+    @apply text-muted hover:bg-surface-2 hover:text-ink;
+  }
 
-label {
-  display: grid;
-  gap: 0.25rem;
-  font-size: 0.875rem;
-  color: var(--muted);
-}
-
-input {
-  font: inherit;
-  color: var(--ink);
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  padding: 0.5rem 0.625rem;
-}
-
-input:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-}
-
-button {
-  font: inherit;
-  border: 0;
-  border-radius: 7px;
-  padding: 0.55rem 0.9rem;
-  background: var(--accent);
-  color: #fff;
-  cursor: pointer;
-}
-
-button:disabled { opacity: 0.6; cursor: default; }
-
-button.link {
-  background: none;
-  color: var(--accent);
-  padding: 0.25rem;
-  text-decoration: underline;
-}
-
-ul.trips {
-  list-style: none;
-  margin: 1rem 0 0;
-  padding: 0;
-  display: grid;
-  gap: 0.75rem;
-}
-
-.trip-head {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.badge {
-  margin-left: auto;
-  font-size: 0.7rem;
-  letter-spacing: 0.04em;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 0.1rem 0.5rem;
-  color: var(--muted);
+  .label {
+    @apply grid gap-1.5 text-[0.8125rem] font-medium text-muted;
+  }
 }

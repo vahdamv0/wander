@@ -1,16 +1,25 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './core/auth.guard';
+import { AppShell } from './shell/app-shell';
 
 export const routes: Routes = [
-  { path: '', pathMatch: 'full', redirectTo: 'trips' },
   {
     path: 'login',
     loadComponent: () => import('./pages/login/login').then((m) => m.LoginPage),
   },
   {
-    path: 'trips',
+    // Everything signed-in renders inside the shell, so a page never draws the
+    // header itself.
+    path: '',
+    component: AppShell,
     canActivate: [authGuard],
-    loadComponent: () => import('./pages/trips/trips').then((m) => m.TripsPage),
+    children: [
+      { path: '', pathMatch: 'full', redirectTo: 'trips' },
+      {
+        path: 'trips',
+        loadComponent: () => import('./pages/trips/trips').then((m) => m.TripsPage),
+      },
+      { path: '**', redirectTo: 'trips' },
+    ],
   },
-  { path: '**', redirectTo: 'trips' },
 ];

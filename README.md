@@ -12,6 +12,7 @@ container, one Postgres.
 - Register / sign in / sign out, session-cookie auth with CSRF
 - Create and list trips, scoped to the people who are members of them
 - A trip's days are derived from its date range, never stored
+- Light / dark / follow-the-OS theming, all driven by design tokens
 - The Angular app and the API ship as a single jar
 
 ## Run it
@@ -52,6 +53,7 @@ Useful commands:
 
 ```bash
 ./gradlew build                          # everything: frontend, jar, tests
+cd web && npm run e2e                    # Playwright, against a running instance
 ./gradlew build -Pfrontend.skip=true     # backend only, no npm work
 ./gradlew :api:test                      # tests + exports api/build/openapi.json
 cd web && npm run api:gen                # regenerate the typed client from that spec
@@ -92,6 +94,11 @@ nothing else — there is no owner column to fall out of step with it.
 anyone count trips by walking ids. A member with too weak a role does get 403 —
 they already know it exists.
 
+**One token layer, three theme states.** Every colour comes from a CSS variable
+in `web/src/styles.css`; no component holds a raw colour. The theme follows the OS
+by default and an explicit light/dark choice overrides it in both directions —
+which is why each dark palette is declared twice, once per condition.
+
 **Days are derived, never stored.** A stored day list is a second copy of the
 date range, and moving a trip's dates would then mean keeping two things in step.
 
@@ -107,9 +114,9 @@ tables under a running instance. Don't lower a gate to land a change.
 |---|---|
 | API | Java 21, Spring Boot 4.1, Spring Security 7, JPA/Hibernate, Flyway |
 | DB | Postgres 17 |
-| Web | Angular 22 (standalone, signals, zoneless), TypeScript |
+| Web | Angular 22 (standalone, signals, zoneless), Tailwind 4, TypeScript |
 | Contract | springdoc-openapi → ng-openapi-gen |
-| Tests | JUnit 5, Testcontainers (real Postgres, never H2) |
+| Tests | JUnit 5, Testcontainers (real Postgres, never H2), Playwright |
 | Build | Gradle 9.7 (Kotlin DSL), one Docker image |
 
 ## Roadmap

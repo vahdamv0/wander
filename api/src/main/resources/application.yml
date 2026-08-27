@@ -51,6 +51,13 @@ springdoc:
     path: /v3/api-docs
   swagger-ui:
     path: /swagger-ui.html
+  # Without these, springdoc documents every response as `*/*` (no controller
+  # declares `produces`), and ng-openapi-gen then generates a client that asks
+  # for a Blob instead of JSON. The server is fine either way — curl sees proper
+  # JSON — so this only ever shows up in the browser, as a body that arrives
+  # unparsed.
+  default-produces-media-type: application/json
+  default-consumes-media-type: application/json
 
 wander:
   version: 0.1.0

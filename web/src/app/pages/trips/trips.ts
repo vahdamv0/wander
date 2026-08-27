@@ -1,7 +1,5 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
-import { SessionStore } from '../../core/session.store';
 import { TripRepo } from '../../repo/trip.repo';
 
 @Component({
@@ -11,12 +9,20 @@ import { TripRepo } from '../../repo/trip.repo';
 })
 export class TripsPage {
   private readonly repo = inject(TripRepo);
-  private readonly session = inject(SessionStore);
-  private readonly router = inject(Router);
 
   protected readonly trips = this.repo.trips;
   protected readonly loading = this.repo.loading;
-  protected readonly user = this.session.user;
+
+  /** Whether the create form is open. Closed once a trip lands. */
+  protected readonly composing = signal(false);
+
+  /**
+   * How many skeleton cards to draw while loading. A field rather than an inline
+   * array literal in the template: `@for` over a literal containing a comma
+   * does not survive the block-syntax parser, and fails at runtime with
+   * "newCollection[Symbol.iterator] is not a function".
+   */
+  protected readonly skeletons = [0, 1];
 
   protected readonly name = signal('');
   protected readonly destination = signal('');
@@ -41,14 +47,11 @@ export class TripsPage {
       this.destination.set('');
       this.startDate.set('');
       this.endDate.set('');
+      this.composing.set(false);
     } catch (err: unknown) {
       const body = (err as { error?: { message?: string } } | null)?.error;
       this.error.set(body?.message ?? 'Could not create the trip.');
     }
   }
 
-  protected async signOut(): Promise<void> {
-    await this.session.logout();
-    await this.router.navigate(['/login']);
-  }
 }

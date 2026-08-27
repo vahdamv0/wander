@@ -2,10 +2,11 @@ import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { SessionStore } from '../../core/session.store';
+import { BrandMark } from '../../shell/brand-mark';
 
 @Component({
   selector: 'app-login',
-  imports: [FormsModule],
+  imports: [FormsModule, BrandMark],
   templateUrl: './login.html',
 })
 export class LoginPage {

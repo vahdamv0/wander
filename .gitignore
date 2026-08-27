@@ -13,6 +13,11 @@ web/build/
 # produce the spec first. CI regenerates it and fails on any drift, so it cannot
 # quietly diverge from the Java contract. Never hand-edit it.
 
+# Playwright
+web/test-results/
+web/playwright-report/
+web/blob-report/
+
 # Local config
 .env
 *.local
