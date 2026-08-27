@@ -31,8 +31,12 @@ Gradle build downloads its own pinned Node, so only the Angular CLI itself cares
 about your local version.
 
 ```bash
-# 1. Postgres
-docker compose up -d db
+# 1. Postgres on :5432 with the credentials application.yml defaults to.
+#    (Not `docker compose up -d db` — that one publishes no host port on
+#    purpose, so the production stack keeps its database off the network.)
+docker run -d --name wander-dev-db -p 5432:5432 \
+  -e POSTGRES_DB=wander -e POSTGRES_USER=wander -e POSTGRES_PASSWORD=wander \
+  postgres:17-alpine
 
 # 2. API on :8080  (Flyway migrates on boot; an admin is seeded on first run)
 ./gradlew :api:bootRun
@@ -40,6 +44,9 @@ docker compose up -d db
 # 3. Angular dev server on :4200, proxying /api to :8080
 cd web && npm install && npm start
 ```
+
+Stop and reset the dev database with
+`docker rm -f wander-dev-db` (its data is not on a volume, so this wipes it).
 
 Useful commands:
 
