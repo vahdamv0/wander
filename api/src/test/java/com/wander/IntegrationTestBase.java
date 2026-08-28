@@ -25,6 +25,9 @@ import tools.jackson.databind.ObjectMapper;
 @PostgresIntegrationTest
 abstract class IntegrationTestBase {
 
+    /** Spring Session's cookie. Was JSESSIONID while sessions lived in the heap. */
+    protected static final String SESSION_COOKIE = "SESSION";
+
     @LocalServerPort
     protected int port;
 
@@ -84,11 +87,14 @@ abstract class IntegrationTestBase {
 
         assertThat(response.getStatusCode().value()).as("register %s", email).isEqualTo(201);
 
-        String session = cookieValue(response, "JSESSIONID");
+        // SESSION, not JSESSIONID: sessions live in Postgres now (Spring Session
+        // JDBC), and Spring Session names the cookie itself. Nothing hands out a
+        // container session any more.
+        String session = cookieValue(response, SESSION_COOKIE);
         assertThat(session).as("session cookie after register").isNotNull();
         // The CSRF token is cookie-backed and survives the new session id.
         String refreshed = cookieValue(response, "XSRF-TOKEN");
-        return new Session("JSESSIONID=" + session, refreshed != null ? refreshed : csrf, email);
+        return new Session(SESSION_COOKIE + "=" + session, refreshed != null ? refreshed : csrf, email);
     }
 
     /** The value of one Set-Cookie on a response, or null if it was not set. */

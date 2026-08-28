@@ -90,8 +90,10 @@ public class AuthController {
         // Rotate the session id on login so an id an attacker planted beforehand
         // cannot be ridden afterwards. Only when a session already exists:
         // changeSessionId() throws outright if there is none, and a fresh client
-        // (no JSESSIONID yet) gets a brand-new id from saveContext below anyway,
-        // which is the same protection by a different route.
+        // (no session cookie yet) gets a brand-new id from saveContext below anyway,
+        // which is the same protection by a different route. Spring Session
+        // implements changeSessionId on its own request wrapper, so this keeps
+        // working now that the store is Postgres rather than the heap.
         if (httpRequest.getSession(false) != null) {
             httpRequest.changeSessionId();
         }

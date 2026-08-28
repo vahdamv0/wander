@@ -88,12 +88,29 @@ Java record → springdoc → `api/build/openapi.json` (written by
   a member who may not remove anyone cannot use the 404 to learn who is on the
   trip.
 - **Flyway owns the schema**, Hibernate runs `ddl-auto: validate`. Schema changes
-  are a new `V<n>__*.sql`; never edit an applied migration.
+  are a new `V<n>__*.sql`; never edit an applied migration. That includes tables
+  a library would happily create for itself: `V5` carries Spring Session's own
+  `schema-postgresql.sql` verbatim (so an upgrade can be diffed against the jar)
+  and `spring.session.jdbc.initialize-schema` is `never`.
+- **Sessions live in Postgres** (Spring Session JDBC), because the session is the
+  credential and an in-memory store signs everybody out on every restart. Two
+  things follow. The cookie is **`SESSION`**, not `JSESSIONID` — nothing hands out
+  a container session any more. And **anything reachable from the security context
+  must be `Serializable`**: `WanderUser` is, and if it stops being, the first
+  request after signing in fails at runtime with nothing at compile time to warn
+  you. `SessionPersistenceIntegrationTest` starts a second instance on the same
+  database and presents the first one's cookie to it, which is the only honest way
+  to test "survives a restart".
 - **Outbound HTTP goes through an interface.** `GeocoderClient` is the seam the
   tests replace (`@MockitoBean`), which is what keeps the suite off the network
   and off a free public service's rate budget. `GeocodingService` owns the
   feature toggle, the LRU cache, and the shared one-request-a-second gate — a
   new upstream call belongs behind the same shape, not in a controller.
+- **A second application context in a test needs command-line arguments**, not
+  `SpringApplicationBuilder.properties()`: the latter lands in Spring's *default*
+  property source, which `application.yml` then overrides, so the new instance
+  quietly goes looking for a database on localhost. `.run("--spring.datasource.url=...")`
+  wins instead.
 - **Boot 4 notes** (these differ from every Boot 3 tutorial): `TestRestTemplate`
   is gone — use `RestClient`; Jackson 3 lives under `tools.jackson`; each
   integration ships as its own module, so `flyway-core` alone gives you no
