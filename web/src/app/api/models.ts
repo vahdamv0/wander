@@ -30,3 +30,4 @@ export type { TripItinerary } from './models/trip-itinerary';
 export type { TripMemberView } from './models/trip-member-view';
 export type { TripSummary } from './models/trip-summary';
 export type { UpdatePlaceRequest } from './models/update-place-request';
+export type { UpdateTripRequest } from './models/update-trip-request';

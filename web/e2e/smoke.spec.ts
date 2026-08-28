@@ -564,7 +564,15 @@ test('one person edits, the other sees it without reloading', async ({ browser }
   const consoleErrors: string[] = [];
   for (const page of [owner, editor]) {
     page.on('console', (message) => {
-      if (message.type() === 'error' && !message.text().includes('401')) {
+      // This test cuts the editor's network on purpose, and the re-read that
+      // fails while it is down is the whole point of the retry being tested.
+      // The browser logs that as a console error, so it is filtered by name —
+      // and only by name, so any other error still fails the test. It is
+      // intermittent because a short outage sometimes ends before the re-read
+      // is even attempted, which is what made this look like a flake.
+      const expected =
+        message.text().includes('401') || message.text().includes('ERR_INTERNET_DISCONNECTED');
+      if (message.type() === 'error' && !expected) {
         consoleErrors.push(message.text());
       }
     });
@@ -1040,4 +1048,83 @@ test('recording a payment settles the balance and can be undone', async ({ brows
   expect(consoleErrors, 'unexpected console errors').toEqual([]);
   await ownerContext.close();
   await friendContext.close();
+});
+
+/**
+ * Editing a trip, which is really about its dates.
+ *
+ * Days are derived from the range, so a place carries a plain date and nothing in
+ * the database stops it referring to a day the trip no longer has. Both halves of
+ * the rule are asserted through the screen: a move of the same length brings the
+ * itinerary along, and shortening the trip over a place is refused with a message
+ * that says so.
+ */
+test('a trip can be renamed and moved, and will not strand its places', async ({ page }) => {
+  const consoleErrors: string[] = [];
+  page.on('console', (message) => {
+    // This test provokes a 409 on purpose, and the browser logs every failed
+    // response as a console error. Filtered here rather than by relaxing the
+    // assertion, so any *other* error still fails the test.
+    const expected = message.text().includes('401') || message.text().includes('409');
+    if (message.type() === 'error' && !expected) {
+      consoleErrors.push(message.text());
+    }
+  });
+  page.on('pageerror', (error) => consoleErrors.push(error.message));
+
+  await page.goto('/login');
+  await page.getByText('Create one').click();
+  await page.locator('input[name=email]').fill(`e2e-edit-${Date.now()}@example.com`);
+  await page.locator('input[name=displayName]').fill('Edit Tester');
+  await page.locator('input[name=password]').fill('correct-horse-battery');
+  await page.locator('button[type=submit]').click();
+
+  await expect(page).toHaveURL(/\/trips$/);
+  await page.getByRole('button', { name: 'Plan your first trip' }).click();
+  await page.locator('input[name=name]').fill('Kyto');
+  await page.locator('input[name=startDate]').fill('2027-07-12');
+  await page.locator('input[name=endDate]').fill('2027-07-15');
+  await page.getByRole('button', { name: 'Create trip' }).click();
+  await page.getByRole('link', { name: /Kyto/ }).click();
+  await expect(page).toHaveURL(/\/trips\/\d+$/);
+
+  // Something on the last day, so shortening the trip has something to strand.
+  const day4 = page.locator('ol > li.card').nth(3);
+  await day4.getByRole('button', { name: 'Add place' }).click();
+  await day4.locator('input[name=name]').fill('Nishiki Market');
+  await day4.getByRole('button', { name: 'Add place' }).click();
+  await expect(day4.getByText('Nishiki Market')).toBeVisible();
+  await day4.getByRole('button', { name: 'Done' }).click();
+
+  // The typo in the name, which is the whole reason this endpoint exists.
+  await page.getByRole('button', { name: 'Edit trip' }).click();
+  await page.locator('input[name=tripName]').fill('Kyoto');
+  await page.locator('input[name=tripDestination]').fill('Kansai');
+  await page.getByRole('button', { name: 'Save trip' }).click();
+  await expect(page.getByRole('heading', { name: 'Kyoto' })).toBeVisible();
+  await expect(page.getByText('Kansai')).toBeVisible();
+
+  // Shortening it over that place is refused, and the message says what is in the
+  // way rather than just failing.
+  await page.getByRole('button', { name: 'Edit trip' }).click();
+  await page.locator('input[name=tripEnd]').fill('2027-07-13');
+  await page.getByRole('button', { name: 'Save trip' }).click();
+  await expect(page.locator('[role=alert]')).toContainText('1 place');
+  await expect(page.locator('[role=alert]')).toContainText('Move or delete');
+  // And the trip is untouched: still four days, still holding the place.
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  await expect(page.getByRole('heading', { name: /^Day 4/ })).toBeVisible();
+
+  // Moving it a week later keeps the same length, so everything comes along.
+  await page.getByRole('button', { name: 'Edit trip' }).click();
+  await page.locator('input[name=tripStart]').fill('2027-07-19');
+  await page.locator('input[name=tripEnd]').fill('2027-07-22');
+  await page.getByRole('button', { name: 'Save trip' }).click();
+
+  await expect(page.getByText('Mon, Jul 19')).toBeVisible();
+  // The place is still on the last day of the trip, not left behind on the 15th.
+  await expect(page.locator('ol > li.card').nth(3).getByText('Nishiki Market')).toBeVisible();
+  await expect(page.getByRole('heading', { name: /^Day 4/ })).toBeVisible();
+
+  expect(consoleErrors, 'unexpected console errors').toEqual([]);
 });

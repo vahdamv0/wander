@@ -20,6 +20,15 @@
         </p>
       </div>
       <div class="flex shrink-0 items-center gap-2">
+        @if (isOwner() && !editingTrip()) {
+          <button type="button" class="btn-ghost px-2 py-1 text-sm" (click)="openTripEdit()">
+            <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M4 20h4l10-10-4-4L4 16v4Z" />
+            </svg>
+            Edit trip
+          </button>
+        }
         <a [routerLink]="['/trips', tripId(), 'expenses']"
            class="inline-flex items-center gap-1.5 text-sm text-muted hover:text-fg">
           <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -58,6 +67,67 @@
     <p class="mb-4 rounded-control bg-danger-soft px-3 py-2 text-sm text-danger" role="alert">
       {{ error() }}
     </p>
+  }
+
+  @if (editingTrip()) {
+    <section class="card mb-4 p-5">
+      <h2 class="mb-1 text-sm font-semibold">Edit this trip</h2>
+      <!-- Said before somebody tries it, because the server will refuse and it is
+           kinder to know why in advance. Moving a trip without changing its
+           length brings the itinerary along; shortening it over places does not
+           quietly drop them. -->
+      <p class="mb-3 text-xs text-muted">
+        Moving the dates without changing the length carries the whole itinerary
+        with it. Shortening the trip over days that have places or notes on them
+        is refused, so nothing disappears without you moving it first.
+      </p>
+      <form class="grid gap-3" (ngSubmit)="saveTrip()">
+        <div class="grid gap-3 sm:grid-cols-2">
+          <label class="label min-w-0 sm:col-span-2">
+            Name
+            <input class="field" type="text" name="tripName" required
+                   [ngModel]="tripName()" (ngModelChange)="tripName.set($event)" />
+          </label>
+          <label class="label min-w-0 sm:col-span-2">
+            <!-- One grid item, not two: `.label` is a grid, so a bare text node
+                 and a sibling span land on separate rows and "(optional)" drops
+                 to a line of its own. -->
+            <span>Destination <span class="font-normal">(optional)</span></span>
+            <input class="field" type="text" name="tripDestination"
+                   [ngModel]="tripDestination()" (ngModelChange)="tripDestination.set($event)" />
+          </label>
+          <label class="label min-w-0">
+            Start
+            <input class="field" type="date" name="tripStart" required
+                   [ngModel]="tripStart()" (ngModelChange)="tripStart.set($event)" />
+          </label>
+          <label class="label min-w-0">
+            End
+            <input class="field" type="date" name="tripEnd" required
+                   [ngModel]="tripEnd()" (ngModelChange)="tripEnd.set($event)" />
+          </label>
+          <label class="label min-w-0 sm:col-span-2">
+            Currency
+            <select class="field" name="tripCurrency"
+                    [ngModel]="tripCurrency()" (ngModelChange)="tripCurrency.set($event)">
+              @for (code of currencyOptions(); track code) {
+                <option [value]="code">{{ code }}</option>
+              }
+            </select>
+            <span class="text-xs font-normal text-muted">
+              Changeable only until the trip has its first expense — after that the
+              amounts already recorded mean something in it.
+            </span>
+          </label>
+        </div>
+        <div class="flex items-center gap-2">
+          <button type="submit" class="btn-primary" [disabled]="saving() || !tripName().trim()">
+            Save trip
+          </button>
+          <button type="button" class="btn-ghost" (click)="cancelTripEdit()">Cancel</button>
+        </div>
+      </form>
+    </section>
   }
 
   @if (trip(); as trip) {
@@ -313,7 +383,7 @@
                                [ngModel]="draftName()" (ngModelChange)="draftName.set($event)" />
                       </label>
                       <label class="label">
-                        Notes <span class="font-normal">(optional)</span>
+                        <span>Notes <span class="font-normal">(optional)</span></span>
                         <textarea class="field" name="notes" rows="2"
                                   [ngModel]="draftNotes()"
                                   (ngModelChange)="draftNotes.set($event)"></textarea>
@@ -394,7 +464,7 @@
                   </ul>
                 }
                 <label class="label">
-                  Notes <span class="font-normal">(optional)</span>
+                  <span>Notes <span class="font-normal">(optional)</span></span>
                   <textarea class="field" name="notes" rows="2" placeholder="Book ahead, opens 9:00"
                             [ngModel]="draftNotes()"
                             (ngModelChange)="draftNotes.set($event)"></textarea>

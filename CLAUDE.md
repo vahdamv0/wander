@@ -74,6 +74,19 @@ Java record → springdoc → `api/build/openapi.json` (written by
   deletes the row**: "no note" is the absence of a row, so there is one
   representation of empty and no second endpoint to clear one. Notes ride along
   on `TripItinerary`, so the page is still one request.
+- **A trip can be rewritten, but its dates are the hard part.** `PUT /api/trips/{id}`
+  is **owner only**, like deleting one. Days are derived, so places and day notes
+  carry a plain date and nothing in the database stops one pointing at a day the
+  trip no longer has. Two rules cover it: a move of the **same length** shifts
+  every place and note by the same offset (the "our flights changed" edit, which
+  must not lose anything), and any other change that would leave content outside
+  the new range is **refused with 409** naming what is in the way — hiding those
+  rows or deleting them are both worse than being told to move them. Shifting the
+  notes deletes and reinserts them, because `uq_day_notes_trip_day` is not
+  deferrable and an in-place shift collides mid-statement; `places` has no such
+  constraint, which `V2` says it left out for exactly this reason. A trip's
+  **currency moves only while it has no expenses** — after that the stored amounts
+  mean something in it.
 - **Membership is the only grant.** No owner column on `trips` — `trip_members`
   is the single source of truth for who may see a trip. It needed no migration to
   become a real feature: the table has carried `role` and `UNIQUE (trip_id,
@@ -128,6 +141,9 @@ Java record → springdoc → `api/build/openapi.json` (written by
   everywhere at once. Repeated shapes live as `.card` / `.field` / `.btn-*` in
   the `@layer components` block; Tailwind 4's `@apply` cannot reference another
   custom class, so variants list the base selector rather than composing it.
+- **`.label` is a grid**, so a bare text node and a sibling `<span>` inside one
+  become separate rows: `Destination <span>(optional)</span>` puts "(optional)" on
+  a line of its own. Wrap both in one span.
 - **A bare `grid` sizes its track to max-content.** Inside a constrained column
   (the trip page's day list, beside the map) that lets one long address stretch
   the cards past their column and under the map. Use `grid-cols-1` — which is

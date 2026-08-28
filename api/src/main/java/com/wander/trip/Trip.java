@@ -102,6 +102,34 @@ public class Trip {
         return currency;
     }
 
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public void setDestination(String destination) {
+        this.destination = destination;
+    }
+
+    /**
+     * The dates move together, and only through here, so the caller cannot leave
+     * a trip that ends before it starts halfway through an edit.
+     */
+    public void setDates(LocalDate startDate, LocalDate endDate) {
+        if (endDate.isBefore(startDate)) {
+            throw new IllegalArgumentException("endDate must not be before startDate");
+        }
+        this.startDate = startDate;
+        this.endDate = endDate;
+    }
+
+    /**
+     * Only legitimate while nothing has been counted in the old one — see
+     * `TripService.update`, which is what enforces that.
+     */
+    public void setCurrency(String currency) {
+        this.currency = currency;
+    }
+
     public Instant getCreatedAt() {
         return createdAt;
     }
