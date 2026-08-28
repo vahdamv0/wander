@@ -1,0 +1,238 @@
+<div class="mx-auto max-w-3xl px-4 py-8">
+  <a [routerLink]="['/trips', tripId()]"
+     class="inline-flex items-center gap-1.5 text-sm text-muted hover:text-fg">
+    <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" aria-hidden="true">
+      <path d="M15 18l-6-6 6-6" />
+    </svg>
+    Back to the trip
+  </a>
+
+  @if (trip(); as trip) {
+    <header class="mt-3 mb-6 flex flex-wrap items-end justify-between gap-3">
+      <div class="min-w-0">
+        <h1 class="truncate text-xl font-semibold tracking-tight">Bookings</h1>
+        <p class="text-sm text-muted">
+          {{ trip.name }}
+          @if (reservations().length) {
+            · {{ reservations().length }}
+            {{ reservations().length === 1 ? 'booking' : 'bookings' }}
+          }
+        </p>
+      </div>
+      <div class="flex shrink-0 items-center gap-2">
+        @if (syncStatus() === 'offline') {
+          <span class="inline-flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5
+                       text-[0.6875rem] font-medium uppercase tracking-wide text-muted"
+                title="Live updates are not getting through. Reload to see other people's changes.">
+            <span class="size-1.5 rounded-full bg-muted"></span>
+            Reconnecting
+          </span>
+        }
+        @if (!canEdit()) {
+          <span class="rounded-full border border-border px-2 py-0.5 text-[0.6875rem] font-medium
+                       uppercase tracking-wide text-muted">
+            Read only
+          </span>
+        }
+      </div>
+    </header>
+  } @else if (!loading()) {
+    <p class="card mt-3 px-6 py-14 text-center text-sm text-muted">This trip is not available.</p>
+  }
+
+  @if (error()) {
+    <p class="mb-4 rounded-control bg-danger-soft px-3 py-2 text-sm text-danger" role="alert">
+      {{ error() }}
+    </p>
+  }
+
+  @if (trip()) {
+    @if (canEdit() && editing() !== 'new') {
+      <button type="button" class="btn-ghost mb-4 w-full justify-center py-2.5" (click)="openNew()">
+        <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" aria-hidden="true">
+          <path d="M12 5v14M5 12h14" />
+        </svg>
+        Add a booking
+      </button>
+    }
+
+    @if (editing() === 'new') {
+      <section class="card mb-4 p-5">
+        <h2 class="mb-3 text-sm font-semibold">New booking</h2>
+        <ng-container [ngTemplateOutlet]="bookingForm" />
+      </section>
+    }
+
+    <ul class="grid grid-cols-1 gap-3">
+      @for (booking of reservations(); track booking.id) {
+        <li class="card p-5">
+          @if (editing() === booking.id) {
+            <h2 class="mb-3 text-sm font-semibold">Edit booking</h2>
+            <ng-container [ngTemplateOutlet]="bookingForm" />
+          } @else {
+            <div class="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
+              <div class="min-w-0">
+                <p class="text-xs text-muted">
+                  {{ day(booking) }} · {{ time(booking) }}
+                  <!-- The zone is only worth saying when it is not the reader's:
+                       on a trip at home it would be noise on every row. -->
+                  @if (zoneLabel(booking); as zone) {
+                    <span class="font-medium">{{ zone }}</span>
+                  }
+                </p>
+                <p class="truncate text-sm font-medium">{{ booking.title }}</p>
+                <p class="text-xs text-muted">
+                  {{ kindLabel(booking.kind) }}
+                  @if (endLabel(booking); as end) {
+                    · until {{ end }}
+                  }
+                  @if (booking.confirmation) {
+                    · ref <span class="font-medium text-fg">{{ booking.confirmation }}</span>
+                  }
+                </p>
+              </div>
+              @if (canEdit()) {
+                <div class="flex shrink-0 items-center gap-2">
+                  <button type="button" class="btn-ghost px-1.5" [disabled]="saving()"
+                          (click)="openEdit(booking)">
+                    <span class="sr-only">Edit {{ booking.title }}</span>
+                    <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
+                         aria-hidden="true">
+                      <path d="M4 20h4l10-10-4-4L4 16v4Z" />
+                    </svg>
+                  </button>
+                  <button type="button" class="btn-ghost px-1.5" [disabled]="saving()"
+                          (click)="remove(booking)">
+                    <span class="sr-only">Remove {{ booking.title }}</span>
+                    <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+                      <path d="M6 6l12 12M18 6L6 18" />
+                    </svg>
+                  </button>
+                </div>
+              }
+            </div>
+
+            @if (booking.notes) {
+              <p class="mt-2 whitespace-pre-line rounded-control bg-surface-2 px-3 py-2 text-sm">
+                {{ booking.notes }}
+              </p>
+            }
+          }
+        </li>
+      } @empty {
+        @if (!loading()) {
+          <li class="card px-6 py-14 text-center text-sm text-muted">
+            No bookings yet.
+            @if (canEdit()) {
+              Flights, trains, hotels and tables go here.
+            }
+          </li>
+        }
+      }
+    </ul>
+  }
+</div>
+
+<!-- One form for new and edit: a booking is written whole either way. -->
+<ng-template #bookingForm>
+  <form class="grid gap-3" (ngSubmit)="save()">
+    <div class="grid gap-3 sm:grid-cols-2">
+      <label class="label min-w-0">
+        What
+        <select class="field" name="kind"
+                [ngModel]="draftKind()" (ngModelChange)="draftKind.set($event)">
+          @for (kind of kinds; track kind) {
+            <option [value]="kind">{{ kindLabel(kind) }}</option>
+          }
+        </select>
+      </label>
+      <label class="label min-w-0">
+        <span>Reference <span class="font-normal">(optional)</span></span>
+        <input class="field" type="text" name="confirmation" placeholder="XK29PQ"
+               [ngModel]="draftConfirmation()" (ngModelChange)="draftConfirmation.set($event)" />
+      </label>
+      <label class="label min-w-0 sm:col-span-2">
+        Title
+        <input class="field" type="text" name="title" required placeholder="BA512 to Osaka"
+               [ngModel]="draftTitle()" (ngModelChange)="draftTitle.set($event)" />
+      </label>
+    </div>
+
+    <div class="rounded-control bg-surface-2 p-3">
+      <p class="text-xs font-semibold uppercase tracking-wide text-muted">Starts</p>
+      <div class="mt-2 grid gap-2 sm:grid-cols-[auto_auto_minmax(0,1fr)]">
+        <label class="label min-w-0">
+          Date
+          <input class="field" type="date" name="startDate" required
+                 [ngModel]="draftStartDate()" (ngModelChange)="draftStartDate.set($event)" />
+        </label>
+        <label class="label min-w-0">
+          Time
+          <input class="field" type="time" name="startTime" required
+                 [ngModel]="draftStartTime()" (ngModelChange)="draftStartTime.set($event)" />
+        </label>
+        <label class="label min-w-0">
+          Time zone
+          <select class="field" name="startZone"
+                  [ngModel]="draftStartZone()" (ngModelChange)="draftStartZone.set($event)">
+            @for (zone of zones; track zone) {
+              <option [value]="zone">{{ zone }}</option>
+            }
+          </select>
+        </label>
+      </div>
+      <!-- Said plainly, because it is the one thing about this form that is easy
+           to get wrong: the time is the one printed on the ticket, in the place
+           it happens, not converted into the reader's own zone. -->
+      <p class="mt-1.5 text-xs text-muted">
+        The time as printed on the booking, in the place it happens.
+      </p>
+    </div>
+
+    <div class="rounded-control bg-surface-2 p-3">
+      <p class="text-xs font-semibold uppercase tracking-wide text-muted">
+        Ends <span class="font-normal normal-case tracking-normal">(optional)</span>
+      </p>
+      <div class="mt-2 grid gap-2 sm:grid-cols-[auto_auto_minmax(0,1fr)]">
+        <label class="label min-w-0">
+          Date
+          <input class="field" type="date" name="endDate"
+                 [ngModel]="draftEndDate()" (ngModelChange)="draftEndDate.set($event)" />
+        </label>
+        <label class="label min-w-0">
+          Time
+          <input class="field" type="time" name="endTime"
+                 [ngModel]="draftEndTime()" (ngModelChange)="draftEndTime.set($event)" />
+        </label>
+        <label class="label min-w-0">
+          Time zone
+          <select class="field" name="endZone"
+                  [ngModel]="draftEndZone()" (ngModelChange)="draftEndZone.set($event)">
+            @for (zone of zones; track zone) {
+              <option [value]="zone">{{ zone }}</option>
+            }
+          </select>
+        </label>
+      </div>
+      <p class="mt-1.5 text-xs text-muted">
+        A flight lands in a different zone from the one it left — set this one to
+        where it arrives.
+      </p>
+    </div>
+
+    <label class="label">
+      <span>Notes <span class="font-normal">(optional)</span></span>
+      <textarea class="field" name="notes" rows="2" placeholder="Car 7, window seat"
+                [ngModel]="draftNotes()" (ngModelChange)="draftNotes.set($event)"></textarea>
+    </label>
+
+    <div class="flex items-center gap-2">
+      <button type="submit" class="btn-primary" [disabled]="!canSubmit()">Save booking</button>
+      <button type="button" class="btn-ghost" (click)="cancel()">Cancel</button>
+    </div>
+  </form>
+</ng-template>

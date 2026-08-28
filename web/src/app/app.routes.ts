@@ -35,6 +35,11 @@ export const routes: Routes = [
         path: 'trips/:tripId/packing',
         loadComponent: () => import('./pages/packing/packing').then((m) => m.PackingPage),
       },
+      {
+        path: 'trips/:tripId/reservations',
+        loadComponent: () =>
+          import('./pages/reservations/reservations').then((m) => m.ReservationsPage),
+      },
       { path: '**', redirectTo: 'trips' },
     ],
   },

@@ -341,6 +341,36 @@ to the trip.
   on a shared item is the useful half. Unlike `move` it does not re-read: the
   server's answer to a tick is exactly what was sent.
 
+## Reservations and the clock
+
+The first thing in the project with a *time* rather than a date, and the only one
+that crosses a timezone.
+
+- **Both halves are stored**: `starts_at TIMESTAMPTZ` — the instant — and
+  `start_zone`, the IANA id it was booked in. Postgres keeps a `TIMESTAMPTZ` as
+  UTC and throws the original zone away, so without the second column "09:15"
+  could never be shown again. A flight has two zones, because it lands somewhere
+  else; `end_zone` defaults to the start's, which is right for everything that
+  does not fly.
+- **The instant is what everything sorts by.** 23:00 in Tokyo really does come
+  before 08:00 in London the next morning, and only the instants say so. Sorting
+  on local times would put them the wrong way round.
+- **The client sends wall-clock plus zone; the server makes the instant.** Java
+  carries the full tz database and `atZone` has documented answers for the two
+  awkward hours a year (a nonexistent time shifts forward, an ambiguous one takes
+  the earlier offset) — both better than refusing a booking somebody holds. The
+  browser only goes the other way, instant → zone, which is what `Intl` is good
+  at; that lives in `core/zones.ts` and nowhere else.
+- **The response carries the local wall time too**, redundantly, so an edit form
+  puts back exactly what was typed instead of reconstructing it from an instant
+  and a zone.
+- **An unknown zone is a 400.** It is the one field a client can get wrong in a
+  way that makes the whole record undisplayable, so it is checked against the tz
+  database rather than trusted.
+- **A zone is only shown when it is not the reader's own**, or every row of a
+  domestic trip carries noise. The exception is a flight's arrival, which is
+  labelled whenever it differs from the departure.
+
 ## Live sync
 
 Two people on one trip see each other's changes without reloading.
@@ -348,7 +378,7 @@ Two people on one trip see each other's changes without reloading.
 sends nothing but keepalive, and the payload is one small event.
 
 - **Invalidation, not state.** A frame says *what* changed (`ITINERARY`,
-  `MEMBERS`, `EXPENSES`, `PACKING`, `TRIP_DELETED`), never what it changed to, and the client
+  `MEMBERS`, `EXPENSES`, `PACKING`, `RESERVATIONS`, `TRIP_DELETED`), never what it changed to, and the client
   answers by re-reading. A new kind has to be added to the union **and** to
   `parse()` in `core/trip-sync.ts`, which drops anything it does not recognise —
   forgetting the second half looks exactly like a broken socket. The server owns place ranks and renumbers a whole day on every
@@ -422,7 +452,7 @@ re-reads instead of patching ranks), Nominatim search behind a proxy that
 caches and rate-limits, a Leaflet map, drag ordering, and a note per day.
 Milestone 3 is done bar one piece: members, roles, ownership transfer and live
 WebSocket sync are in; what remains of sharing is invite links for people who
-have no account yet. Milestone 4 has started: expenses with splits, balances,
-settling up and packing lists are in; reservations are untouched. See
+have no account yet. Milestone 4 is done: expenses with splits, balances and
+settling up, packing lists, and reservations. See
 the roadmap in README.md. Deliberately **out** of scope until asked:
 plugins, i18n, MCP, offline. Keep v1 small.

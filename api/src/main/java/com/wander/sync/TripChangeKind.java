@@ -17,6 +17,8 @@ public enum TripChangeKind {
     EXPENSES,
     /** Something on the packing list changed. Re-read it. */
     PACKING,
+    /** A booking changed. Re-read the reservations. */
+    RESERVATIONS,
     /** The trip is gone. Nothing to re-read. */
     TRIP_DELETED
 }
