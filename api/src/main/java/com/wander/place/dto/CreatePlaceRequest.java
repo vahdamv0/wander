@@ -30,5 +30,11 @@ public record CreatePlaceRequest(
          * re-deriving it later would mean guessing which of several candidates
          * they meant. Absent for a place typed by hand, permanently.
          */
-        @Size(max = 40) String osmRef) {
+        @Size(max = 40) String osmRef,
+        /**
+         * The geocoder's classification of the picked suggestion. Sent for the
+         * same reason as the reference and the coordinates: it came back with the
+         * hit the user chose and there is no way to derive it later.
+         */
+        @Size(max = 40) String category) {
 }

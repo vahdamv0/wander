@@ -19,6 +19,8 @@ public record PlaceView(
         Double longitude,
         /** The geocoder's formatted address line, when there was one. */
         String address,
+        /** The geocoder's classification, when there was one. Null for a typed place. */
+        String category,
         /**
          * True when this place came from a search and can therefore be asked
          * about. The reference itself is not sent — the client never needs it,
@@ -39,7 +41,7 @@ public record PlaceView(
     public static PlaceView of(Place place) {
         return new PlaceView(place.getId(), place.getDayDate(), place.getSortOrder(), place.getName(),
                 place.getNotes(), place.getLatitude(), place.getLongitude(), place.getAddress(),
-                place.getOsmRef() != null,
+                place.getCategory(), place.getOsmRef() != null,
                 place.getPhotoThumbUrl(), place.getPhotoUrl(), place.getPhotoAuthor(),
                 place.getPhotoLicence(), place.getPhotoSourceUrl());
     }

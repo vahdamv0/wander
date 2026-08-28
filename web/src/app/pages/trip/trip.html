@@ -344,7 +344,17 @@
                            class="mt-0.5 size-9 shrink-0 rounded-control object-cover" />
                     }
                     <div class="min-w-0 flex-1">
-                      <p class="truncate text-sm font-medium">{{ place.name }}</p>
+                      <p class="truncate text-sm font-medium">
+                        {{ place.name }}
+                        @if (place.category) {
+                          <!-- The geocoder's own word for it, shown as its own
+                               word: never inferred from the name. -->
+                          <span class="ml-1 rounded-full bg-surface-2 px-1.5 py-0.5 align-middle
+                                       text-[0.625rem] font-medium uppercase tracking-wide text-muted">
+                            {{ place.category }}
+                          </span>
+                        }
+                      </p>
                       @if (place.address) {
                         <!-- Minus the leading name, which the line above already says. -->
                         <p class="truncate text-xs text-muted" [title]="place.address">
