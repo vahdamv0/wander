@@ -532,3 +532,227 @@ test('share a trip with somebody, who then sees it read-only', async ({ browser 
   await ownerContext.close();
   await guestContext.close();
 });
+
+/**
+ * Live sync, which is the one feature that is *defined* by two browsers.
+ *
+ * Everything here is asserted without a reload anywhere: the whole point is that
+ * a change made in one browser appears in the other on its own. A passing
+ * server-side test proves the frame was sent, not that anybody acted on it.
+ */
+test('one person edits, the other sees it without reloading', async ({ browser }) => {
+  const stamp = Date.now();
+  const editorEmail = `e2e-sync-editor-${stamp}@example.com`;
+
+  const ownerContext = await browser.newContext();
+  const editorContext = await browser.newContext();
+  const owner = await ownerContext.newPage();
+  const editor = await editorContext.newPage();
+
+  const consoleErrors: string[] = [];
+  for (const page of [owner, editor]) {
+    page.on('console', (message) => {
+      if (message.type() === 'error' && !message.text().includes('401')) {
+        consoleErrors.push(message.text());
+      }
+    });
+    page.on('pageerror', (error) => consoleErrors.push(error.message));
+  }
+
+  const register = async (page: typeof owner, email: string, name: string) => {
+    await page.goto('/login');
+    await page.getByText('Create one').click();
+    await page.locator('input[name=email]').fill(email);
+    await page.locator('input[name=displayName]').fill(name);
+    await page.locator('input[name=password]').fill('correct-horse-battery');
+    await page.locator('button[type=submit]').click();
+    await expect(page).toHaveURL(/\/trips$/);
+  };
+
+  await register(owner, `e2e-sync-owner-${stamp}@example.com`, 'Sync Owner');
+  await register(editor, editorEmail, 'Sync Editor');
+
+  await owner.getByRole('button', { name: 'Plan your first trip' }).click();
+  await owner.locator('input[name=name]').fill('Reykjavik');
+  await owner.locator('input[name=startDate]').fill('2027-10-05');
+  await owner.locator('input[name=endDate]').fill('2027-10-07');
+  await owner.getByRole('button', { name: 'Create trip' }).click();
+  await owner.getByRole('link', { name: /Reykjavik/ }).click();
+  await expect(owner).toHaveURL(/\/trips\/\d+$/);
+
+  await owner.getByRole('button', { name: /People/ }).click();
+  await owner.locator('input[name=memberEmail]').fill(editorEmail);
+  await owner.locator('select[name=memberRole]').selectOption('EDITOR');
+  await owner.getByRole('button', { name: 'Add', exact: true }).click();
+  await expect(owner.getByText('Sync Editor', { exact: true })).toBeVisible();
+
+  // Both parties now sit on the trip page and nothing below reloads either of
+  // them. This is also the last navigation in the test.
+  await editor.goto(owner.url());
+  await expect(editor.getByRole('heading', { name: /^Day 1/ })).toBeVisible();
+
+  const ownerDay1 = owner.locator('ol > li.card').first();
+  const editorDay1 = editor.locator('ol > li.card').first();
+
+  // Owner adds a place; it turns up in the editor's browser on its own.
+  await ownerDay1.getByRole('button', { name: 'Add place' }).click();
+  await ownerDay1.locator('input[name=name]').fill('Hallgrimskirkja');
+  await ownerDay1.getByRole('button', { name: 'Add place' }).click();
+  await expect(editorDay1.getByText('Hallgrimskirkja')).toBeVisible();
+
+  // And the other way, with a day note — which rides along on the itinerary, so
+  // it is the same event.
+  await editorDay1.getByRole('button', { name: /the note for day 1/ }).click();
+  await editorDay1.locator('textarea[name=dayNote]').fill('Northern lights at eleven.');
+  await editorDay1.getByRole('button', { name: 'Save note' }).click();
+  await expect(ownerDay1.getByText('Northern lights at eleven.')).toBeVisible();
+
+  // A reorder reaches the other side as the server's ordering, not a guess.
+  // The add form has to be reopened: editing a day's note closes it, since only
+  // one of a day's forms is open at a time.
+  await editorDay1.getByRole('button', { name: 'Add place' }).click();
+  await editorDay1.locator('input[name=name]').fill('Blue Lagoon');
+  await editorDay1.getByRole('button', { name: 'Add place' }).click();
+  await expect(ownerDay1.locator('ol > li p.font-medium')).toHaveText([
+    'Hallgrimskirkja',
+    'Blue Lagoon',
+  ]);
+  await editorDay1.getByRole('button', { name: 'Done' }).click();
+  await editorDay1.getByRole('button', { name: 'Move down' }).first().click();
+  await expect(ownerDay1.locator('ol > li p.font-medium')).toHaveText([
+    'Blue Lagoon',
+    'Hallgrimskirkja',
+  ]);
+
+  // A pushed re-read that fails must retry itself. Nobody is watching it: if the
+  // one request a live event triggers is dropped, the page sits there quietly
+  // wrong, and the next event might be hours away.
+  //
+  // Chromium's offline emulation leaves an already-open WebSocket alone and only
+  // breaks HTTP, which is precisely the case being tested here — the event
+  // arrives, the re-read behind it does not.
+  await editorContext.setOffline(true);
+
+  // No opener click here: the owner's add form is still open from Hallgrimskirkja,
+  // so clicking "Add place" now is the *submit* — and an empty one is a 400.
+  await ownerDay1.locator('input[name=name]').fill('Thingvellir');
+  await ownerDay1.getByRole('button', { name: 'Add place' }).click();
+  await expect(ownerDay1.getByText('Thingvellir')).toBeVisible();
+  // The editor was told, and could not act on it. That is the premise.
+  await expect(editorDay1.getByText('Thingvellir')).toHaveCount(0);
+
+  await editorContext.setOffline(false);
+  // No reload and no second event: a retry is what catches this page up.
+  await expect(editorDay1.getByText('Thingvellir')).toBeVisible({ timeout: 20000 });
+  await expect(editor.locator('[role=alert]')).toHaveCount(0);
+
+  // Losing access is pushed too: the editor is removed and their page leaves the
+  // trip on its own, rather than sitting on a stale itinerary.
+  const editorRow = owner.locator('li', { hasText: 'Sync Editor' });
+  await editorRow.getByRole('button', { name: /^Remove Sync Editor/ }).click();
+  await expect(editor).toHaveURL(/\/trips$/);
+  await expect(editor.getByText('No trips yet')).toBeVisible();
+
+  expect(consoleErrors, 'unexpected console errors').toEqual([]);
+  await ownerContext.close();
+  await editorContext.close();
+});
+
+/**
+ * A dropped connection has to catch up, not wait.
+ *
+ * Anything that happens while the socket is down is never delivered — there is
+ * no replay — so reconnecting has to re-read unconditionally. Get that wrong and
+ * the page looks perfectly healthy while showing an itinerary from before the
+ * outage, until the next unrelated edit happens to arrive.
+ *
+ * The connection is dropped with `routeWebSocket`, and the first few retries are
+ * refused, so the outage is a few seconds wide rather than a race: the change
+ * below is definitively made while nobody is listening.
+ */
+test('a dropped connection catches up when it comes back', async ({ browser }) => {
+  const stamp = Date.now();
+  const viewerEmail = `e2e-gap-viewer-${stamp}@example.com`;
+
+  const ownerContext = await browser.newContext();
+  const viewerContext = await browser.newContext();
+  const owner = await ownerContext.newPage();
+  const viewer = await viewerContext.newPage();
+
+  const consoleErrors: string[] = [];
+  for (const page of [owner, viewer]) {
+    page.on('console', (message) => {
+      if (message.type() === 'error' && !message.text().includes('401')) {
+        consoleErrors.push(message.text());
+      }
+    });
+    page.on('pageerror', (error) => consoleErrors.push(error.message));
+  }
+
+  const register = async (page: typeof owner, email: string, name: string) => {
+    await page.goto('/login');
+    await page.getByText('Create one').click();
+    await page.locator('input[name=email]').fill(email);
+    await page.locator('input[name=displayName]').fill(name);
+    await page.locator('input[name=password]').fill('correct-horse-battery');
+    await page.locator('button[type=submit]').click();
+    await expect(page).toHaveURL(/\/trips$/);
+  };
+
+  await register(owner, `e2e-gap-owner-${stamp}@example.com`, 'Gap Owner');
+  await register(viewer, viewerEmail, 'Gap Viewer');
+
+  await owner.getByRole('button', { name: 'Plan your first trip' }).click();
+  await owner.locator('input[name=name]').fill('Tallinn');
+  await owner.locator('input[name=startDate]').fill('2027-07-01');
+  await owner.locator('input[name=endDate]').fill('2027-07-03');
+  await owner.getByRole('button', { name: 'Create trip' }).click();
+  await owner.getByRole('link', { name: /Tallinn/ }).click();
+  await expect(owner).toHaveURL(/\/trips\/\d+$/);
+
+  await owner.getByRole('button', { name: /People/ }).click();
+  await owner.locator('input[name=memberEmail]').fill(viewerEmail);
+  await owner.locator('select[name=memberRole]').selectOption('VIEWER');
+  await owner.getByRole('button', { name: 'Add', exact: true }).click();
+  await expect(owner.getByText('Gap Viewer', { exact: true })).toBeVisible();
+
+  // Routed before the page ever opens a socket. The first connection is a plain
+  // pass-through; the next three are refused, which is the outage; after that it
+  // is a pass-through again.
+  let attempts = 0;
+  let firstConnection: { close: () => Promise<void> } | null = null;
+  await viewer.routeWebSocket(/\/api\/ws\/trips\//, (ws) => {
+    attempts += 1;
+    if (attempts === 1) {
+      firstConnection = ws;
+      ws.connectToServer();
+    } else if (attempts <= 4) {
+      void ws.close();
+    } else {
+      ws.connectToServer();
+    }
+  });
+
+  await viewer.goto(owner.url());
+  await expect(viewer.getByRole('heading', { name: /^Day 1/ })).toBeVisible();
+
+  // Down it goes.
+  await firstConnection!.close();
+  await expect(viewer.getByText('Reconnecting')).toBeVisible();
+
+  // Made while nobody is listening: no event for this one will ever arrive.
+  const ownerDay1 = owner.locator('ol > li.card').first();
+  await ownerDay1.getByRole('button', { name: 'Add place' }).click();
+  await ownerDay1.locator('input[name=name]').fill('Toompea Castle');
+  await ownerDay1.getByRole('button', { name: 'Add place' }).click();
+  await expect(ownerDay1.getByText('Toompea Castle')).toBeVisible();
+  await expect(viewer.getByText('Toompea Castle')).toHaveCount(0);
+
+  // Coming back is what fetches it — no reload, and no second edit to ride on.
+  await expect(viewer.getByText('Toompea Castle')).toBeVisible({ timeout: 30000 });
+  await expect(viewer.getByText('Reconnecting')).toHaveCount(0);
+
+  expect(consoleErrors, 'unexpected console errors').toEqual([]);
+  await ownerContext.close();
+  await viewerContext.close();
+});

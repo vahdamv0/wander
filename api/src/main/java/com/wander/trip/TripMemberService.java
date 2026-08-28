@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.wander.common.ConflictException;
 import com.wander.common.NotFoundException;
+import com.wander.sync.TripChanges;
 import com.wander.trip.dto.AddMemberRequest;
 import com.wander.trip.dto.ChangeRoleRequest;
 import com.wander.trip.dto.TripMemberView;
@@ -35,11 +36,14 @@ public class TripMemberService {
     private final TripMemberRepository members;
     private final UserRepository users;
     private final TripAccessService access;
+    private final TripChanges changes;
 
-    public TripMemberService(TripMemberRepository members, UserRepository users, TripAccessService access) {
+    public TripMemberService(TripMemberRepository members, UserRepository users, TripAccessService access,
+            TripChanges changes) {
         this.members = members;
         this.users = users;
         this.access = access;
+        this.changes = changes;
     }
 
     /** Any member sees the whole list: you cannot collaborate with people you cannot see. */
@@ -72,7 +76,9 @@ public class TripMemberService {
             throw new ConflictException("Already a member of this trip");
         });
 
-        return TripMemberView.of(members.save(new TripMember(owner.getTrip(), invitee, request.role())));
+        TripMember added = members.save(new TripMember(owner.getTrip(), invitee, request.role()));
+        changes.membersChanged(tripId, userId);
+        return TripMemberView.of(added);
     }
 
     @Transactional
@@ -96,6 +102,10 @@ public class TripMemberService {
         } else {
             target.setRole(request.role());
         }
+        // Everybody re-reads: a transfer changed two people's rights, and a
+        // demotion to VIEWER has to reach the page that is still showing edit
+        // controls.
+        changes.membersChanged(tripId, userId);
         return TripMemberView.of(target);
     }
 
@@ -123,5 +133,10 @@ public class TripMemberService {
             throw new ConflictException("Transfer ownership before removing the owner");
         }
         members.delete(target);
+        // Naming the person who lost access is what closes their socket — see
+        // TripSyncHandler. Membership is checked once, at the handshake, so a
+        // removal that left the socket open would leave them being told about
+        // changes to a trip they can no longer read.
+        changes.accessRevoked(tripId, userId, targetUserId);
     }
 }
