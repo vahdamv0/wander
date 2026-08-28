@@ -181,6 +181,17 @@
     />
   }
 
+  @if (selectedPlace(); as place) {
+    <app-place-detail
+      [tripId]="numericTripId()"
+      [place]="place"
+      [dayIndex]="selectedDayIndex()"
+      [canEdit]="canEdit()"
+      (closed)="closePlace()"
+      (changed)="onPlaceChanged()"
+    />
+  }
+
   <!-- Map beside the days on a wide screen, above them on a narrow one. The
        itinerary is the page; the map is a second view of it. -->
   <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:items-start">
@@ -198,7 +209,6 @@
               [canEdit]="canEdit()"
               [focus]="focused()"
               (placePicked)="onMarkerPicked($event)"
-              (photoChanged)="onRolesChanged()"
             />
           </div>
           @if (placeCount() && mappedCount() < placeCount()) {
@@ -349,7 +359,11 @@
                            broke two browser tests that identify a place by it,
                            which is a fair warning: a row's name is a handle other
                            things rely on. -->
-                      <p class="truncate text-sm font-medium">{{ place.name }}</p>
+                      <!-- The name opens the panel: a row and a pin are the two
+                           ways to a place, and both land in the same place. -->
+                      <button type="button" class="block max-w-full truncate text-left text-sm
+                                                   font-medium hover:underline underline-offset-2"
+                              (click)="openPlace(place)">{{ place.name }}</button>
                       @if (place.category) {
                         <!-- The geocoder's own word for it, shown as its own word
                              and never inferred from the name. -->
@@ -432,7 +446,7 @@
                           </svg>
                         </button>
                         <button type="button" class="btn-ghost px-1.5" title="Edit"
-                                [disabled]="saving()" (click)="openEdit(place)">
+                                [disabled]="saving()" (click)="openPlace(place)">
                           <span class="sr-only">Edit</span>
                           <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
@@ -451,55 +465,6 @@
                     }
                   </div>
 
-                  @if (editing() === place.id) {
-                    <form class="mt-3 grid gap-3" (ngSubmit)="savePlace(place)">
-                      <label class="label">
-                        Name
-                        <input class="field" type="text" name="name" required
-                               [ngModel]="draftName()" (ngModelChange)="draftName.set($event)" />
-                      </label>
-                      <label class="label">
-                        <span>Time <span class="font-normal">(optional)</span></span>
-                        <input class="field" type="time" name="placeTime"
-                               [ngModel]="draftTime()" (ngModelChange)="draftTime.set($event)" />
-                      </label>
-                      <div class="label">
-                        <span>Notes <span class="font-normal">(optional)</span></span>
-                        <!-- Several, because two thoughts about a place are two
-                             notes rather than one paragraph with a gap in it. The
-                             list is saved whole: emptying a box removes it. -->
-                        @for (note of draftNoteList(); track $index) {
-                          <div class="flex items-start gap-1.5">
-                            <textarea class="field flex-1" [attr.name]="'note-' + $index" rows="2"
-                                      [ngModel]="note"
-                                      [ngModelOptions]="{ standalone: true }"
-                                      (ngModelChange)="setNoteAt($index, $event)"></textarea>
-                            @if (draftNoteList().length > 1) {
-                              <button type="button" class="btn-ghost px-1.5"
-                                      (click)="removeNoteAt($index)">
-                                <span class="sr-only">Remove this note</span>
-                                <svg class="size-4" viewBox="0 0 24 24" fill="none"
-                                     stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
-                                     aria-hidden="true">
-                                  <path d="M6 6l12 12M18 6L6 18" />
-                                </svg>
-                              </button>
-                            }
-                          </div>
-                        }
-                        <button type="button" class="btn-ghost self-start px-2 py-1 text-xs"
-                                (click)="addNoteBox()">Add another note</button>
-                      </div>
-                      <div class="flex items-center gap-2">
-                        <!-- Same rule as adding: a place cannot be renamed to
-                             nothing. "Save note" above is deliberately not
-                             guarded — an empty note is how a note is removed. -->
-                        <button type="submit" class="btn-primary"
-                                [disabled]="saving() || !draftName().trim()">Save</button>
-                        <button type="button" class="btn-ghost" (click)="cancel()">Cancel</button>
-                      </div>
-                    </form>
-                  }
                 </li>
               }
               @if (!day.places.length) {

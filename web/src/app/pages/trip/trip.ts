@@ -18,6 +18,7 @@ import { GeoRepo } from '../../repo/geo.repo';
 import { MemberRepo } from '../../repo/member.repo';
 import { TripRepo } from '../../repo/trip.repo';
 import { PlaceRepo } from '../../repo/place.repo';
+import { PlaceDetail } from './place-detail';
 import { TripMap } from './trip-map';
 import { TripMembers } from './trip-members';
 
@@ -55,6 +56,7 @@ const REFRESH_BACKOFF_MS = 500;
     CdkDropListGroup,
     FormsModule,
     RouterLink,
+    PlaceDetail,
     TripMap,
     TripMembers,
   ],
@@ -115,10 +117,28 @@ export class TripPage {
     this.days().reduce((total, day) => total + day.places.length, 0),
   );
 
+  /**
+   * The place whose panel is open, by id.
+   *
+   * Held here rather than in the panel because both the row and the map pin open
+   * it, and the itinerary is what knows about both.
+   */
+  protected readonly selectedPlaceId = signal<number | null>(null);
+
+  protected readonly selectedPlace = computed(() => {
+    const id = this.selectedPlaceId();
+    return id === null ? null : this.days().flatMap((day) => day.places).find((p) => p.id === id) ?? null;
+  });
+
+  /** The day number the selected place sits on, for the panel's heading. */
+  protected readonly selectedDayIndex = computed(() => {
+    const id = this.selectedPlaceId();
+    const day = this.days().find((candidate) => candidate.places.some((p) => p.id === id));
+    return day?.index ?? 0;
+  });
+
   /** Which day's add-form is open, by date. Only one at a time. */
   protected readonly addingTo = signal<string | null>(null);
-  /** Which place is being edited, by id. */
-  protected readonly editing = signal<number | null>(null);
   /** Which day's note is being edited, by date. */
   protected readonly editingNote = signal<string | null>(null);
   /** The note being typed, separate from the place draft above it. */
@@ -127,12 +147,7 @@ export class TripPage {
   protected readonly draftName = signal('');
   /** The add form's single box. A place usually starts with one thought. */
   protected readonly draftNotes = signal('');
-  /**
-   * The edit form's note blocks, which is where several are managed. Always at
-   * least one box, so there is something to type in; blanks are dropped on save.
-   */
-  protected readonly draftNoteList = signal<string[]>(['']);
-  protected readonly draftTime = signal('');
+
   protected readonly error = signal<string | null>(null);
 
   /** Set when the draft came from a search hit, so its point is saved with it. */
@@ -373,37 +388,14 @@ export class TripPage {
   }
 
   protected openAdd(date: string): void {
-    this.editing.set(null);
     this.editingNote.set(null);
     this.resetDraft();
     this.addingTo.set(this.addingTo() === date ? null : date);
   }
 
-  protected openEdit(place: PlaceView): void {
-    this.addingTo.set(null);
-    this.editingNote.set(null);
-    this.resetDraft();
-    this.draftName.set(place.name);
-    this.draftNoteList.set(place.notes.length ? [...place.notes] : ['']);
-    this.draftTime.set(place.startsAt ? place.startsAt.slice(0, 5) : '');
-    this.editing.set(this.editing() === place.id ? null : place.id);
-  }
 
-  protected setNoteAt(index: number, value: string): void {
-    this.draftNoteList.update((notes) => notes.map((note, i) => (i === index ? value : note)));
-  }
 
-  protected addNoteBox(): void {
-    this.draftNoteList.update((notes) => [...notes, '']);
-  }
 
-  protected removeNoteAt(index: number): void {
-    // Never down to nothing: an empty list would leave no box to type in, and a
-    // blank one is dropped on save anyway.
-    this.draftNoteList.update((notes) =>
-      notes.length > 1 ? notes.filter((_, i) => i !== index) : [''],
-    );
-  }
 
   /** "08:00" from the stored "08:00:00". */
   protected timeLabel(startsAt: string): string {
@@ -412,14 +404,12 @@ export class TripPage {
 
   protected cancel(): void {
     this.addingTo.set(null);
-    this.editing.set(null);
     this.resetDraft();
   }
 
   /** Opens a day's note for editing, seeded with whatever it already says. */
   protected openNote(day: TripDay): void {
     this.addingTo.set(null);
-    this.editing.set(null);
     this.resetDraft();
     this.draftNote.set(day.note ?? '');
     this.editingNote.set(this.editingNote() === day.date ? null : day.date);
@@ -528,17 +518,6 @@ export class TripPage {
     });
   }
 
-  protected async savePlace(place: PlaceView): Promise<void> {
-    await this.guard(async () => {
-      await this.repo.update(this.id(), place.id, {
-        name: this.draftName(),
-        notes: this.draftNoteList(),
-        // Empty clears it; the server takes null for "no particular hour".
-        startsAt: this.draftTime() ? `${this.draftTime()}:00` : undefined,
-      });
-      this.editing.set(null);
-    });
-  }
 
   protected async removePlace(place: PlaceView): Promise<void> {
     await this.guard(() => this.repo.remove(this.id(), place.id));
@@ -590,6 +569,21 @@ export class TripPage {
   /** A marker was clicked: highlight its row without moving the map again. */
   protected onMarkerPicked(place: PlaceView): void {
     this.highlighted.set(place.id);
+    // A pin and a row are the two ways in, and both land on the same panel.
+    this.selectedPlaceId.set(place.id);
+  }
+
+  protected openPlace(place: PlaceView): void {
+    this.selectedPlaceId.set(place.id);
+  }
+
+  protected closePlace(): void {
+    this.selectedPlaceId.set(null);
+  }
+
+  /** The panel wrote something; the itinerary and the map both need the new truth. */
+  protected async onPlaceChanged(): Promise<void> {
+    await this.reload();
   }
 
   /** Weekday and day-of-month, e.g. "Mon 3 Nov". */

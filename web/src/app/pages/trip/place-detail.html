@@ -1,0 +1,209 @@
+<!-- A panel on a wide screen, a sheet on a narrow one. Fixed rather than inline
+     so it does not push the itinerary about, and scrollable because a place with
+     a description, hours and photos is taller than a phone. -->
+<aside
+  class="fixed inset-x-0 bottom-0 z-20 max-h-[85dvh] overflow-y-auto rounded-t-2xl border border-border
+         bg-surface p-5 shadow-lg
+         sm:inset-y-0 sm:left-auto sm:right-0 sm:max-h-none sm:w-[26rem] sm:rounded-none sm:rounded-l-2xl"
+  role="dialog"
+  aria-label="Place details"
+>
+  <div class="flex items-start justify-between gap-3">
+    <div class="min-w-0">
+      <p class="text-xs text-muted">
+        Day {{ dayIndex() }}
+        @if (place().startsAt) {
+          · {{ timeLabel(place().startsAt!) }}
+        }
+      </p>
+      <h2 class="text-lg font-semibold tracking-tight">{{ place().name }}</h2>
+      @if (place().category) {
+        <span class="mt-1 inline-block rounded-full bg-surface-2 px-2 py-0.5 text-[0.625rem]
+                     font-medium uppercase tracking-wide text-muted">
+          {{ place().category }}
+        </span>
+      }
+    </div>
+    <button type="button" class="btn-ghost shrink-0 px-1.5" (click)="closed.emit()">
+      <span class="sr-only">Close</span>
+      <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round" aria-hidden="true">
+        <path d="M6 6l12 12M18 6L6 18" />
+      </svg>
+    </button>
+  </div>
+
+  @if (place().photoUrl) {
+    <!-- The credit sits under the picture, not in a tooltip: a Commons image is
+         licensed per image and the attribution is a condition of showing it. -->
+    <figure class="mt-3">
+      <img [src]="place().photoUrl" [alt]="'Photo of ' + place().name"
+           class="h-40 w-full rounded-control object-cover" />
+      <figcaption class="mt-1 text-[0.6875rem] text-muted">
+        {{ place().photoAuthor }} · {{ place().photoLicence }}
+        @if (place().photoSourceUrl) {
+          ·
+          <a [href]="place().photoSourceUrl" target="_blank" rel="noopener noreferrer"
+             class="underline underline-offset-2">Commons</a>
+        }
+        @if (canEdit()) {
+          · <button type="button" class="underline underline-offset-2" [disabled]="saving()"
+                    (click)="keepPhoto(null)">remove</button>
+        }
+      </figcaption>
+    </figure>
+  }
+
+  @if (place().address) {
+    <p class="mt-3 text-sm text-muted">{{ place().address }}</p>
+  }
+  @if (place().latitude != null) {
+    <p class="text-xs text-muted">{{ place().latitude }}, {{ place().longitude }}</p>
+  }
+
+  @if (error(); as error) {
+    <p class="mt-3 rounded-control bg-danger-soft px-3 py-2 text-sm text-danger" role="alert">
+      {{ error }}
+    </p>
+  }
+
+  @if (editing()) {
+    <form class="mt-4 grid gap-3" (ngSubmit)="save()">
+      <label class="label">
+        Name
+        <input class="field" type="text" name="detailName" required
+               [ngModel]="draftName()" (ngModelChange)="draftName.set($event)" />
+      </label>
+      <label class="label">
+        <span>Time <span class="font-normal">(optional)</span></span>
+        <input class="field" type="time" name="detailTime"
+               [ngModel]="draftTime()" (ngModelChange)="draftTime.set($event)" />
+      </label>
+      <div class="label">
+        <span>Your notes</span>
+        @for (note of draftNotes(); track $index) {
+          <div class="flex items-start gap-1.5">
+            <textarea class="field flex-1" [attr.name]="'detail-note-' + $index" rows="3"
+                      [ngModel]="note" [ngModelOptions]="{ standalone: true }"
+                      (ngModelChange)="setNoteAt($index, $event)"></textarea>
+            @if (draftNotes().length > 1) {
+              <button type="button" class="btn-ghost px-1.5" (click)="removeNoteAt($index)">
+                <span class="sr-only">Remove this note</span>
+                <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+                  <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
+              </button>
+            }
+          </div>
+        }
+        <button type="button" class="btn-ghost self-start px-2 py-1 text-xs" (click)="addNoteBox()">
+          Add another note
+        </button>
+      </div>
+      <div class="flex items-center gap-2">
+        <button type="submit" class="btn-primary" [disabled]="saving() || !draftName().trim()">
+          Save
+        </button>
+        <button type="button" class="btn-ghost" (click)="cancelEdit()">Cancel</button>
+      </div>
+    </form>
+  } @else {
+    @if (place().notes.length) {
+      <div class="mt-4 grid gap-2">
+        @for (note of place().notes; track $index) {
+          <!-- Your prose, in its own block, above anything fetched. -->
+          <p class="whitespace-pre-line rounded-control bg-surface-2 px-3 py-2 text-sm">{{ note }}</p>
+        }
+      </div>
+    }
+
+    @if (facts(); as facts) {
+      @if (facts.available) {
+        @if (facts.summary) {
+          <div class="mt-4">
+            <p class="text-[0.6875rem] font-medium uppercase tracking-wide text-muted">
+              From Wikipedia
+            </p>
+            <p class="mt-1 text-sm leading-relaxed">{{ facts.summary }}</p>
+            <p class="mt-1 text-[0.6875rem] text-muted">
+              @if (facts.summaryUrl) {
+                <a [href]="facts.summaryUrl" target="_blank" rel="noopener noreferrer"
+                   class="underline underline-offset-2">Wikipedia</a>
+              } @else {
+                Wikipedia
+              }
+              @if (facts.summaryLicence) {
+                · {{ facts.summaryLicence }}
+              }
+            </p>
+          </div>
+        }
+
+        @if (facts.openingHours) {
+          <div class="mt-4 rounded-control bg-surface-2 px-3 py-2">
+            <p class="text-[0.6875rem] font-medium uppercase tracking-wide text-muted">Hours</p>
+            <!-- OpenStreetMap's own specification, shown as written. A computed
+                 "open now" is a claim this data cannot support, and people plan
+                 their day around hours. -->
+            <p class="whitespace-pre-line text-sm">{{ facts.openingHours }}</p>
+            <p class="text-[0.6875rem] text-muted">
+              OpenStreetMap
+              @if (facts.fetchedAt) {
+                · read {{ readOn(facts.fetchedAt) }}
+              }
+              · may be out of date
+            </p>
+          </div>
+        }
+
+        @if (facts.photos.length && canEdit()) {
+          <div class="mt-4">
+            <p class="text-[0.6875rem] font-medium uppercase tracking-wide text-muted">Photos</p>
+            <ul class="mt-1 flex flex-wrap gap-1.5">
+              @for (photo of facts.photos; track photo.url) {
+                <li>
+                  <button type="button"
+                          class="block overflow-hidden rounded-control border border-border"
+                          [class.border-accent]="place().photoUrl === photo.url"
+                          [disabled]="saving()"
+                          [title]="photo.author + ' · ' + photo.licence"
+                          (click)="keepPhoto(photo)">
+                    <img [src]="photo.thumbUrl" [alt]="'Photo of ' + place().name"
+                         class="h-14 w-20 object-cover" />
+                  </button>
+                </li>
+              }
+            </ul>
+            <p class="mt-1 text-[0.6875rem] text-muted">
+              Each is credited to its own photographer under its own licence.
+            </p>
+          </div>
+        }
+      }
+    } @else if (place().enrichable) {
+      <p class="mt-4 text-sm text-muted">Looking this place up…</p>
+    }
+
+    <div class="mt-5 flex flex-wrap gap-2 border-t border-border pt-4">
+      @if (directionsUrl(); as directions) {
+        <a [href]="directions" target="_blank" rel="noopener noreferrer" class="btn-ghost text-sm">
+          Directions
+        </a>
+      }
+      @if (facts()?.website; as website) {
+        <a [href]="website" target="_blank" rel="noopener noreferrer" class="btn-ghost text-sm">
+          Website
+        </a>
+      }
+      @if (facts()?.phone; as phone) {
+        <a [href]="'tel:' + phone" class="btn-ghost text-sm">{{ phone }}</a>
+      }
+      @if (canEdit()) {
+        <button type="button" class="btn-ghost text-sm" (click)="openEdit()">Edit</button>
+        <button type="button" class="btn-ghost text-sm text-danger" [disabled]="saving()"
+                (click)="remove()">Remove</button>
+      }
+    </div>
+  }
+</aside>

@@ -300,21 +300,20 @@ Wikidata, Wikipedia and Commons.
   offered, which is what stops the endpoint becoming a way to hotlink anything.
 - Nothing here throws upward. An enrichment is a nicety: a Wikipedia outage costs
   a description, not a 502 on somebody's itinerary.
-- **The popup is an Angular component, rendered into DOM Leaflet owns.**
-  `createComponent` + `appRef.attachView` + `popup.setContent(hostElement)`, so the
-  markup stays a normal template with tokens and `trip-map.ts` keeps owning nothing
-  but the map. Three things are required and each one fails silently on its own:
-  `detectChanges()` before handing the element over (`attachView` only *schedules*
-  rendering, so Leaflet otherwise measures an empty box); **`:host { display:
-  block }`**, because a component element is inline by default, has no box, and a
-  `ResizeObserver` on it never fires; and detaching the view on destroy, or every
-  popup leaks a component exactly as an unremoved map leaks listeners.
-- **A popup that grows after it opens has to be re-panned by hand.** Leaflet's
-  auto-pan runs once, on open, against content that is not there yet — this panel
-  grows when Angular renders and again when the fetch lands. `revealPopup`
-  measures the shortfall against the map's top edge and pans, over a few frames
-  because the layout is still settling. Its own `maxWidth`/`maxHeight` are for the
-  same reason useless here, so the panel sizes itself instead.
+- **The enrichment lives in `pages/trip/place-detail.ts`, a panel — not the map
+  popup.** It was a popup for about an hour, which took four attempts to make fit
+  and needed an Angular component rendered into Leaflet's DOM, a `ResizeObserver`
+  to notice it had grown, and a hand-written pan because Leaflet's own runs before
+  the content exists. All of that is deleted; the popup is a label again. The
+  lesson worth keeping: **Leaflet computes a popup's size and pan once, on open**,
+  so a popup is the wrong home for anything that arrives afterwards.
+- **The panel is the only editor for a place.** The row used to carry an inline
+  form too; two editors for one thing is two places to keep in step and two
+  answers to "where do I change the name".
+- **The place row's name is a handle the browser tests identify a place by**, and
+  it has broken them twice — once when a category chip went inside it, once when it
+  became a button to open the panel. Changing it is fine; changing it without
+  updating `smoke.spec.ts` is not.
 
 ## Talking to Nominatim
 

@@ -65,6 +65,12 @@ test('a signed-out visitor is sent to the login page', async ({ page }) => {
  * one, and reordering survives a round trip through the server (which owns
  * ranks and renumbers a whole day on every move).
  */
+/**
+ * Note for anyone changing the place row: its name element is a handle these
+ * tests identify a place by. It has broken them twice — once when a category chip
+ * was added inside it, and once when it became a button so it could open the
+ * detail panel. Changing it is fine; changing it without updating these is not.
+ */
 test('add places to a day and reorder them', async ({ page }) => {
   const consoleErrors: string[] = [];
   page.on('console', (message) => {
@@ -106,7 +112,7 @@ test('add places to a day and reorder them', async ({ page }) => {
   await expect(day1.getByText('Park Guell')).toBeVisible();
   await day1.getByRole('button', { name: 'Done' }).click();
 
-  const placeNames = day1.locator('ol > li p.font-medium');
+  const placeNames = day1.locator('ol > li button.font-medium');
   await expect(placeNames).toHaveText(['Sagrada Familia', 'Park Guell']);
 
   // Reordering is a server round trip, so this asserts the move endpoint and
@@ -346,7 +352,7 @@ test('drag a place within a day and into the next one', async ({ page }) => {
   }
   await day1.getByRole('button', { name: 'Done' }).click();
 
-  const day1Names = day1.locator('ol > li p.font-medium');
+  const day1Names = day1.locator('ol > li button.font-medium');
   await expect(day1Names).toHaveText(['Alfama', 'Belém', 'Time Out Market']);
 
   /** Presses the row's handle and moves the pointer to `target` in steps. */
@@ -375,10 +381,10 @@ test('drag a place within a day and into the next one', async ({ page }) => {
   const day2Box = (await day2.boundingBox())!;
   await dragTo('Belém', { x: day2Box.x + day2Box.width / 2, y: day2Box.y + day2Box.height / 2 });
   await expect(day1Names).toHaveText(['Time Out Market', 'Alfama']);
-  await expect(day2.locator('ol > li p.font-medium')).toHaveText(['Belém']);
+  await expect(day2.locator('ol > li button.font-medium')).toHaveText(['Belém']);
 
   await page.reload();
-  await expect(day2.locator('ol > li p.font-medium')).toHaveText(['Belém']);
+  await expect(day2.locator('ol > li button.font-medium')).toHaveText(['Belém']);
 
   await expect(page.locator('[role=alert]')).toHaveCount(0);
   expect(consoleErrors, 'unexpected console errors').toEqual([]);
@@ -633,13 +639,13 @@ test('one person edits, the other sees it without reloading', async ({ browser }
   await editorDay1.getByRole('button', { name: 'Add place' }).click();
   await editorDay1.locator('input[name=name]').fill('Blue Lagoon');
   await editorDay1.getByRole('button', { name: 'Add place' }).click();
-  await expect(ownerDay1.locator('ol > li p.font-medium')).toHaveText([
+  await expect(ownerDay1.locator('ol > li button.font-medium')).toHaveText([
     'Hallgrimskirkja',
     'Blue Lagoon',
   ]);
   await editorDay1.getByRole('button', { name: 'Done' }).click();
   await editorDay1.getByRole('button', { name: 'Move down' }).first().click();
-  await expect(ownerDay1.locator('ol > li p.font-medium')).toHaveText([
+  await expect(ownerDay1.locator('ol > li button.font-medium')).toHaveText([
     'Blue Lagoon',
     'Hallgrimskirkja',
   ]);
@@ -829,13 +835,19 @@ test('a place cannot be added or renamed with an empty name', async ({ page }) =
   await expect(day1.getByRole('button', { name: 'Add place' })).toBeDisabled();
   await day1.getByRole('button', { name: 'Done' }).click();
 
-  // And a place cannot be renamed to nothing either.
+  // And a place cannot be renamed to nothing either. Renaming happens in the
+  // detail panel now — the row's inline form is gone, because two editors for one
+  // place meant two places to keep in step.
   await day1.getByRole('button', { name: 'Edit', exact: true }).click();
-  await day1.locator('input[name=name]').fill('');
-  await expect(day1.getByRole('button', { name: 'Save', exact: true })).toBeDisabled();
-  await day1.locator('input[name=name]').fill('Markt square');
-  await day1.getByRole('button', { name: 'Save', exact: true }).click();
-  await expect(day1.getByText('Markt square')).toBeVisible();
+  const panel = page.locator('aside[role=dialog]');
+  await panel.getByRole('button', { name: 'Edit', exact: true }).click();
+  await panel.locator('input[name=detailName]').fill('');
+  await expect(panel.getByRole('button', { name: 'Save', exact: true })).toBeDisabled();
+  await panel.locator('input[name=detailName]').fill('Markt square');
+  await panel.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(panel.getByRole('heading', { name: 'Markt square' })).toBeVisible();
+  await panel.getByRole('button', { name: 'Close' }).click();
+  await expect(day1.getByText('Markt square', { exact: true })).toBeVisible();
 
   await expect(page.locator('[role=alert]')).toHaveCount(0);
   expect(consoleErrors, 'unexpected console errors').toEqual([]);
@@ -1504,15 +1516,18 @@ test('with no connection, a trip you have opened is still readable', async ({ br
 });
 
 /**
- * The enrichment popup, and the attribution that has to travel with it.
+ * The place detail panel, and the attribution that has to travel with it.
  *
- * The upstreams are stubbed in the browser: what matters here is not what
- * Wikipedia says but that a description arrives with its source and licence, that
- * the hours are shown as OpenStreetMap's own string with a provenance line rather
- * than as a confident "open now", and that the popup ends up inside the map — it
- * opens empty and grows twice, which took three attempts to get right.
+ * The upstreams are stubbed in the browser: what matters is not what Wikipedia
+ * says but that a description arrives with its source and licence, that the hours
+ * are shown as OpenStreetMap's own string with a provenance line rather than a
+ * confident "open now", and that **your prose and the fetched text are separate
+ * blocks** — a single merged field could not say which half the credit belongs to.
+ *
+ * This replaced a test about the map popup. The popup is a label again; the
+ * geometry assertions it needed went with the machinery.
  */
-test('a place popup shows what is known about it, with its credits', async ({ page }) => {
+test('a place panel shows your notes and what is known, each credited', async ({ page }) => {
   const consoleErrors: string[] = [];
   page.on('console', (message) => {
     if (message.type() === 'error' && !message.text().includes('401')) {
@@ -1569,36 +1584,43 @@ test('a place popup shows what is known about it, with its credits', async ({ pa
   await day1.getByRole('button', { name: 'Add place' }).click();
   await day1.locator('input[name=name]').fill('Fushimi');
   await page.getByText('Fushimi Inari-taisha').first().click();
+  await day1.locator('textarea[name=notes]').fill('Come before eight.');
   await day1.getByRole('button', { name: 'Add place' }).click();
   await expect(day1.getByText('Fushimi Inari-taisha', { exact: true })).toBeVisible();
   await day1.getByRole('button', { name: 'Done' }).click();
 
+  // A pin is one way in; the row's name is the other, and both land on the panel.
   await page.locator('.leaflet-marker-icon').first().click();
-  const popup = page.locator('.leaflet-popup-content');
-  await expect(popup).toContainText('A Shinto shrine at the base of Mount Inari.');
+  const panel = page.locator('aside[role=dialog]');
+  await expect(panel).toBeVisible();
+  // The popup itself is a label again — no description in it.
+  await expect(page.locator('.leaflet-popup-content')).not.toContainText('Shinto shrine');
+
+  // Your prose and the fetched text are both there, and separately.
+  await expect(panel).toContainText('Come before eight.');
+  await expect(panel).toContainText('From Wikipedia');
+  await expect(panel).toContainText('A Shinto shrine at the base of Mount Inari.');
   // The description never appears without its source and terms — CC BY-SA
   // obliges both, and this is the assertion that keeps that true.
-  await expect(popup.getByRole('link', { name: 'Wikipedia' }))
+  await expect(panel.getByRole('link', { name: 'Wikipedia' }))
     .toHaveAttribute('href', /en\.wikipedia\.org/);
-  await expect(popup).toContainText('CC BY-SA 4.0');
+  await expect(panel).toContainText('CC BY-SA 4.0');
 
   // Hours as OpenStreetMap wrote them, with where they came from and a warning —
   // never computed into "open now", which this data cannot support.
-  await expect(popup).toContainText('Mo-Su 00:00-24:00');
-  await expect(popup).toContainText('OpenStreetMap');
-  await expect(popup).toContainText('may be out of date');
+  await expect(panel).toContainText('Mo-Su 00:00-24:00');
+  await expect(panel).toContainText('OpenStreetMap');
+  await expect(panel).toContainText('may be out of date');
 
-  // And the popup is inside the map rather than over its top edge: it opens empty
-  // and grows twice, so its own auto-pan is computed against a box that is not
-  // there yet.
-  // Retried rather than read once: the popup settles over a few frames — Angular
-  // renders, the panel resizes, the map pans — and a single measurement catches it
-  // mid-flight.
-  await expect(async () => {
-    const box = await popup.boundingBox();
-    const map = await page.locator('.leaflet-container').boundingBox();
-    expect(box!.y, 'the popup sits inside the map').toBeGreaterThanOrEqual(map!.y);
-  }).toPass({ timeout: 5_000 });
+  // Directions go to OpenStreetMap, like everything else here.
+  await expect(panel.getByRole('link', { name: 'Directions' }))
+    .toHaveAttribute('href', /openstreetmap\.org\/directions/);
+
+  await panel.getByRole('button', { name: 'Close' }).click();
+  await expect(panel).toHaveCount(0);
+  // And in from the row's name.
+  await day1.getByRole('button', { name: 'Fushimi Inari-taisha', exact: true }).click();
+  await expect(page.locator('aside[role=dialog]')).toBeVisible();
 
   expect(consoleErrors, 'unexpected console errors').toEqual([]);
 });
