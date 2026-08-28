@@ -523,6 +523,18 @@ test('share a trip with somebody, who then sees it read-only', async ({ browser 
   await expect(guest.getByText('Trip Owner', { exact: true })).toBeVisible();
   await expect(guest.locator('input[name=memberEmail]')).toHaveCount(0);
 
+  // A viewer is read-only, not offline: the socket's handshake asks for
+  // membership, not a write role, so somebody else's edit lands here with no
+  // reload — which is most of the point of sharing a trip read-only.
+  const ownerDay1 = owner.locator('ol > li.card').first();
+  await ownerDay1.getByRole('button', { name: 'Add place' }).click();
+  await ownerDay1.locator('input[name=name]').fill('Vigeland Park');
+  await ownerDay1.getByRole('button', { name: 'Add place' }).click();
+  await expect(guest.locator('ol > li.card').first().getByText('Vigeland Park')).toBeVisible();
+  // Still read-only, and still without any controls to change it.
+  await expect(guest.getByText('Read only')).toBeVisible();
+  await expect(guest.getByRole('button', { name: 'Add place' })).toHaveCount(0);
+
   // Leaving is the one membership change a viewer may make.
   await guest.getByRole('button', { name: 'Leave trip' }).click();
   await expect(guest).toHaveURL(/\/trips$/);
