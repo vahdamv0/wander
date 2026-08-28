@@ -244,12 +244,14 @@ class PlaceIntegrationTest extends IntegrationTestBase {
         // the reference it came with.
         var fromSearch = post(owner, "/api/trips/" + tripId + "/places", """
                 {"dayDate":"2027-03-28","name":"Fushimi Inari","latitude":34.9671,
-                 "longitude":135.7727,"address":"Fushimi Ward, Kyoto","osmRef":"way/34633854"}
+                 "longitude":135.7727,"address":"Fushimi Ward, Kyoto","osmRef":"way/34633854",
+                 "category":"attraction"}
                 """);
         assertThat(fromSearch.getStatusCode().value()).isEqualTo(201);
         // The reference itself never comes back — the client has no use for it,
-        // and the server is what does the asking.
+        // and the server is what does the asking. The category does: it is shown.
         assertThat(asMap(fromSearch.getBody())).containsEntry("enrichable", true)
+                .containsEntry("category", "attraction")
                 .doesNotContainKey("osmRef");
 
         // Typed by hand: no reference, and that is permanent rather than missing.
@@ -258,5 +260,7 @@ class PlaceIntegrationTest extends IntegrationTestBase {
                 """);
         assertThat(asMap(typed.getBody())).containsEntry("enrichable", false);
         assertThat(asMap(typed.getBody()).get("photoUrl")).isNull();
+        // No category either, and none invented from the name.
+        assertThat(asMap(typed.getBody()).get("category")).isNull();
     }
 }

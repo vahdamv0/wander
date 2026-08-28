@@ -3,6 +3,7 @@
 
 export interface PlaceView {
   address?: string;
+  category?: string;
   dayDate: string;
   enrichable: boolean;
   id: number;

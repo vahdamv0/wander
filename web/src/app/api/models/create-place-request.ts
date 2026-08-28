@@ -3,6 +3,7 @@
 
 export interface CreatePlaceRequest {
   address?: string;
+  category?: string;
   dayDate: string;
   latitude?: number;
   longitude?: number;

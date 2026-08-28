@@ -73,7 +73,10 @@ Java record → springdoc → `api/build/openapi.json` (written by
   a place upstream afterwards, so a place saved without it can never be asked
   about — which is why it is stored before anything reads it. Null forever for a
   place typed by hand, and `PlaceView.enrichable` is how the client asks. A kept
-  photo lives beside it, and `Place.setPhoto` takes its author and licence or
+  photo lives beside it, and `places.category` is the geocoder's own word for what
+  the place is — under the same deadline and never inferred from the name, because
+  a category shown as fact should have come from something that knows.
+  `Place.setPhoto` takes its author and licence or
   refuses: a Commons image is licensed *per image*, so a URL without its credit is
   a picture this project has no right to draw.
 - **A day is addressed by its date.** Days are derived from the trip's range and

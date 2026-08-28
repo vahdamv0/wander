@@ -94,6 +94,7 @@ public class PlaceService {
         // Kept whether or not anything reads it yet: a place saved without it can
         // never be enriched, and there is no way to work it out afterwards.
         place.setOsmRef(blankToNull(request.osmRef()));
+        place.setCategory(blankToNull(request.category()));
         Place saved = places.save(place);
         // Announced, not sent: the event fires after this transaction commits and
         // says only that the itinerary moved. See TripChange.

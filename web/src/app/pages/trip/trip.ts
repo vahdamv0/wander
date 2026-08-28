@@ -484,6 +484,9 @@ export class TripPage {
         // is the only thing that can identify this place upstream afterwards, and
         // it cannot be recovered once the moment of choosing has passed.
         osmRef: location?.ref,
+        // Same reasoning: it arrived with the hit they chose and cannot be
+        // recovered once the choosing is over.
+        category: location?.category,
       });
       // The form stays open — adding several places to one day is the common
       // case — but the draft and its search results go.

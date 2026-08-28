@@ -71,6 +71,14 @@ public class Place {
     private String osmRef;
 
     /**
+     * The geocoder's own classification — "attraction", "restaurant" — or null for
+     * a place typed by hand. Never inferred from the name: a category shown as
+     * fact should have come from somewhere that knows.
+     */
+    @Column(length = 40)
+    private String category;
+
+    /**
      * A photo chosen from the candidates, with the credit that has to appear
      * wherever it does. The five move together — see {@link #setPhoto}.
      */
@@ -173,6 +181,14 @@ public class Place {
 
     public void setOsmRef(String osmRef) {
         this.osmRef = osmRef;
+    }
+
+    public String getCategory() {
+        return category;
+    }
+
+    public void setCategory(String category) {
+        this.category = category;
     }
 
     public String getPhotoUrl() {

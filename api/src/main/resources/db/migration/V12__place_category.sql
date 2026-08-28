@@ -1,0 +1,13 @@
+-- The other thing a search result carried and this application threw away.
+--
+-- `PlaceSuggestion.category` has always held the geocoder's own idea of what a
+-- place is — "attraction", "restaurant", "hotel" — and `CreatePlaceRequest` did
+-- not accept it, exactly as it did not accept `osm_ref` until V10. The same
+-- deadline applies for the same reason: it arrives with the hit the user picked
+-- and cannot be recovered afterwards, so every place saved before this has none.
+--
+-- Nullable permanently. A place typed by hand has no category, and guessing one
+-- from its name would be presenting an inference as a fact. It is also what a map
+-- category filter would key on later, which is a second reason not to invent
+-- values.
+ALTER TABLE places ADD COLUMN category VARCHAR(40);
