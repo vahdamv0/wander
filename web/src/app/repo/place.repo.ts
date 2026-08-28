@@ -10,6 +10,7 @@ import {
   deletePlace,
   getItinerary,
   movePlace,
+  putDayNote,
   updatePlace,
 } from '../api';
 
@@ -67,6 +68,16 @@ export class PlaceRepo {
 
   async remove(tripId: number, placeId: number): Promise<void> {
     await this.write(tripId, () => this.api.invoke(deletePlace, { tripId, placeId }));
+  }
+
+  /**
+   * A day's note, written whole. An empty string clears it — that is the
+   * server's meaning of a blank note too, so there is no separate delete.
+   */
+  async saveDayNote(tripId: number, date: string, note: string): Promise<void> {
+    await this.write(tripId, () =>
+      this.api.invoke(putDayNote, { tripId, date, body: { note } }),
+    );
   }
 
   /**

@@ -13,5 +13,7 @@ import jakarta.validation.constraints.NotNull;
 public record TripDay(
         @NotNull LocalDate date,
         @NotNull int index,
-        @NotNull List<PlaceView> places) {
+        @NotNull List<PlaceView> places,
+        /** The day's own note, or null when it has none. Most days have none. */
+        String note) {
 }

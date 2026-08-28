@@ -86,6 +86,10 @@ export class TripPage {
   protected readonly addingTo = signal<string | null>(null);
   /** Which place is being edited, by id. */
   protected readonly editing = signal<number | null>(null);
+  /** Which day's note is being edited, by date. */
+  protected readonly editingNote = signal<string | null>(null);
+  /** The note being typed, separate from the place draft above it. */
+  protected readonly draftNote = signal('');
 
   protected readonly draftName = signal('');
   protected readonly draftNotes = signal('');
@@ -118,12 +122,14 @@ export class TripPage {
 
   protected openAdd(date: string): void {
     this.editing.set(null);
+    this.editingNote.set(null);
     this.resetDraft();
     this.addingTo.set(this.addingTo() === date ? null : date);
   }
 
   protected openEdit(place: PlaceView): void {
     this.addingTo.set(null);
+    this.editingNote.set(null);
     this.resetDraft();
     this.draftName.set(place.name);
     this.draftNotes.set(place.notes ?? '');
@@ -134,6 +140,31 @@ export class TripPage {
     this.addingTo.set(null);
     this.editing.set(null);
     this.resetDraft();
+  }
+
+  /** Opens a day's note for editing, seeded with whatever it already says. */
+  protected openNote(day: TripDay): void {
+    this.addingTo.set(null);
+    this.editing.set(null);
+    this.resetDraft();
+    this.draftNote.set(day.note ?? '');
+    this.editingNote.set(this.editingNote() === day.date ? null : day.date);
+  }
+
+  protected cancelNote(): void {
+    this.editingNote.set(null);
+    this.draftNote.set('');
+  }
+
+  /**
+   * Saves the note as typed. An empty box clears the day — the same meaning the
+   * server gives a blank note, so "Clear" is just an empty save.
+   */
+  protected async saveNote(day: TripDay): Promise<void> {
+    await this.guard(async () => {
+      await this.repo.saveDayNote(this.id(), day.date, this.draftNote());
+      this.cancelNote();
+    });
   }
 
   private resetDraft(): void {

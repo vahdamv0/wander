@@ -83,12 +83,56 @@
               Day {{ day.index }}
               <span class="ml-1.5 font-normal text-muted">{{ dayLabel(day.date) }}</span>
             </h2>
-            @if (day.places.length) {
-              <span class="text-xs text-muted">
-                {{ day.places.length }} {{ day.places.length === 1 ? 'place' : 'places' }}
-              </span>
-            }
+            <div class="flex shrink-0 items-center gap-2">
+              @if (day.places.length) {
+                <span class="text-xs text-muted">
+                  {{ day.places.length }} {{ day.places.length === 1 ? 'place' : 'places' }}
+                </span>
+              }
+              @if (canEdit()) {
+                <!-- The note belongs to the day, so its control sits in the day's
+                     header rather than among the places below it. -->
+                <button type="button" class="btn-ghost px-1.5" [disabled]="saving()"
+                        [title]="day.note ? 'Edit the note for this day' : 'Add a note for this day'"
+                        (click)="openNote(day)">
+                  <span class="sr-only">
+                    {{ day.note ? 'Edit' : 'Add' }} the note for day {{ day.index }}
+                  </span>
+                  <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                       stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
+                       aria-hidden="true">
+                    <path d="M5 4h14v16l-4-3-3 3-3-3-4 3V4Z" />
+                    <path d="M9 8h6M9 12h4" />
+                  </svg>
+                </button>
+              }
+            </div>
           </div>
+
+          @if (editingNote() === day.date) {
+            <form class="mt-3 grid gap-2" (ngSubmit)="saveNote(day)">
+              <label class="label">
+                Note for this day
+                <textarea class="field" name="dayNote" rows="3" autofocus
+                          placeholder="Early train, bags at the hotel until 15:00"
+                          [ngModel]="draftNote()"
+                          (ngModelChange)="draftNote.set($event)"></textarea>
+              </label>
+              <div class="flex items-center gap-2">
+                <button type="submit" class="btn-primary" [disabled]="saving()">Save note</button>
+                <button type="button" class="btn-ghost" (click)="cancelNote()">Cancel</button>
+                <!-- Emptying the box and saving is what clears a note, so this is
+                     the same submit with nothing in it. -->
+                <span class="text-xs text-muted">Empty the box to remove the note.</span>
+              </div>
+            </form>
+          } @else if (day.note) {
+            <!-- whitespace-pre-line: a note is typed prose and its line breaks
+                 are the only structure it has. -->
+            <p class="mt-3 whitespace-pre-line rounded-control bg-surface-2 px-3 py-2 text-sm">
+              {{ day.note }}
+            </p>
+          }
 
           <!-- One connected drop list per day, rendered even when the day is empty:
                an empty day that is not a drop target cannot be dragged into, which

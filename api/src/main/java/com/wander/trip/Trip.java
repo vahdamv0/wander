@@ -55,6 +55,19 @@ public class Trip {
         return (int) ChronoUnit.DAYS.between(startDate, endDate) + 1;
     }
 
+    /**
+     * Anything hung off a day — a place, a note — has to fall inside the range,
+     * or it would belong to a day the client never draws and simply disappear.
+     * The check lives here because more than one service needs it and the rule
+     * is the trip's, not theirs.
+     */
+    public void requireCovers(LocalDate day) {
+        if (day.isBefore(startDate) || day.isAfter(endDate)) {
+            throw new IllegalArgumentException(
+                    "dayDate must fall between " + startDate + " and " + endDate);
+        }
+    }
+
     public Long getId() {
         return id;
     }

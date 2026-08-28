@@ -11,6 +11,8 @@ export type { MovePlace$Params as MovePlace$Params } from './fn/place-controller
 export { movePlace as movePlace } from './fn/place-controller/move-place';
 export type { GetItinerary$Params as GetItinerary$Params } from './fn/place-controller/get-itinerary';
 export { getItinerary as getItinerary } from './fn/place-controller/get-itinerary';
+export type { PutDayNote$Params as PutDayNote$Params } from './fn/day-note-controller/put-day-note';
+export { putDayNote as putDayNote } from './fn/day-note-controller/put-day-note';
 export type { List$Params as List$Params } from './fn/trip-controller/list';
 export { list as list } from './fn/trip-controller/list';
 export type { Create$Params as Create$Params } from './fn/trip-controller/create';
