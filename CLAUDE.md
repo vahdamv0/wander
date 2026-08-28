@@ -285,6 +285,21 @@ Wikidata, Wikipedia and Commons.
   offered, which is what stops the endpoint becoming a way to hotlink anything.
 - Nothing here throws upward. An enrichment is a nicety: a Wikipedia outage costs
   a description, not a 502 on somebody's itinerary.
+- **The popup is an Angular component, rendered into DOM Leaflet owns.**
+  `createComponent` + `appRef.attachView` + `popup.setContent(hostElement)`, so the
+  markup stays a normal template with tokens and `trip-map.ts` keeps owning nothing
+  but the map. Three things are required and each one fails silently on its own:
+  `detectChanges()` before handing the element over (`attachView` only *schedules*
+  rendering, so Leaflet otherwise measures an empty box); **`:host { display:
+  block }`**, because a component element is inline by default, has no box, and a
+  `ResizeObserver` on it never fires; and detaching the view on destroy, or every
+  popup leaks a component exactly as an unremoved map leaks listeners.
+- **A popup that grows after it opens has to be re-panned by hand.** Leaflet's
+  auto-pan runs once, on open, against content that is not there yet — this panel
+  grows when Angular renders and again when the fetch lands. `revealPopup`
+  measures the shortfall against the map's top edge and pans, over a few frames
+  because the layout is still settling. Its own `maxWidth`/`maxHeight` are for the
+  same reason useless here, so the panel sizes itself instead.
 
 ## Talking to Nominatim
 

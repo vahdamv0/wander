@@ -194,8 +194,11 @@
             <app-trip-map
               [days]="days()"
               [config]="map"
+              [tripId]="numericTripId()"
+              [canEdit]="canEdit()"
               [focus]="focused()"
               (placePicked)="onMarkerPicked($event)"
+              (photoChanged)="onRolesChanged()"
             />
           </div>
           @if (placeCount() && mappedCount() < placeCount()) {
@@ -331,6 +334,15 @@
                                  bg-accent-soft text-[0.6875rem] font-semibold text-accent">
                       {{ place.position + 1 }}
                     </span>
+                    @if (place.photoThumbUrl) {
+                      <!-- A kept photo, with its credit reachable: a Commons image
+                           is licensed per image, so the attribution travels with
+                           it wherever it is drawn. -->
+                      <img [src]="place.photoThumbUrl"
+                           [alt]="'Photo of ' + place.name"
+                           [title]="place.photoAuthor + ' · ' + place.photoLicence"
+                           class="mt-0.5 size-9 shrink-0 rounded-control object-cover" />
+                    }
                     <div class="min-w-0 flex-1">
                       <p class="truncate text-sm font-medium">{{ place.name }}</p>
                       @if (place.address) {

@@ -31,6 +31,9 @@ container, one Postgres.
 - Bookings — flights, trains, hotels, tables — stored as instants with the zone
   they were booked in, so a flight keeps London time for its departure and Tokyo
   time for its arrival, and the list is ordered by when things really happen
+- Place enrichment: a searched place's pin carries what OpenStreetMap, Wikidata,
+  Wikipedia and Commons know about it — a description, opening hours, a website
+  and photographs you can keep — each with its source and licence shown
 - Offline reading: open a trip once and its days, places, bookings and packing
   list stay readable with no connection, labelled with how old the copy is
 - Light / dark / follow-the-OS theming, all driven by design tokens
