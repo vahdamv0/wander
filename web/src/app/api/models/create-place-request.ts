@@ -8,6 +8,7 @@ export interface CreatePlaceRequest {
   latitude?: number;
   longitude?: number;
   name: string;
-  notes?: string;
+  notes?: Array<string>;
   osmRef?: string;
+  startsAt?: string;
 }

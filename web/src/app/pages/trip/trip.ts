@@ -125,7 +125,14 @@ export class TripPage {
   protected readonly draftNote = signal('');
 
   protected readonly draftName = signal('');
+  /** The add form's single box. A place usually starts with one thought. */
   protected readonly draftNotes = signal('');
+  /**
+   * The edit form's note blocks, which is where several are managed. Always at
+   * least one box, so there is something to type in; blanks are dropped on save.
+   */
+  protected readonly draftNoteList = signal<string[]>(['']);
+  protected readonly draftTime = signal('');
   protected readonly error = signal<string | null>(null);
 
   /** Set when the draft came from a search hit, so its point is saved with it. */
@@ -377,8 +384,30 @@ export class TripPage {
     this.editingNote.set(null);
     this.resetDraft();
     this.draftName.set(place.name);
-    this.draftNotes.set(place.notes ?? '');
+    this.draftNoteList.set(place.notes.length ? [...place.notes] : ['']);
+    this.draftTime.set(place.startsAt ? place.startsAt.slice(0, 5) : '');
     this.editing.set(this.editing() === place.id ? null : place.id);
+  }
+
+  protected setNoteAt(index: number, value: string): void {
+    this.draftNoteList.update((notes) => notes.map((note, i) => (i === index ? value : note)));
+  }
+
+  protected addNoteBox(): void {
+    this.draftNoteList.update((notes) => [...notes, '']);
+  }
+
+  protected removeNoteAt(index: number): void {
+    // Never down to nothing: an empty list would leave no box to type in, and a
+    // blank one is dropped on save anyway.
+    this.draftNoteList.update((notes) =>
+      notes.length > 1 ? notes.filter((_, i) => i !== index) : [''],
+    );
+  }
+
+  /** "08:00" from the stored "08:00:00". */
+  protected timeLabel(startsAt: string): string {
+    return startsAt.slice(0, 5);
   }
 
   protected cancel(): void {
@@ -474,7 +503,9 @@ export class TripPage {
       await this.repo.add(this.id(), {
         dayDate: date,
         name: this.draftName(),
-        notes: this.draftNotes() || undefined,
+        // One box on the add form, but the API takes a list everywhere — one shape
+        // for notes is worth more than a convenience.
+        notes: this.draftNotes().trim() ? [this.draftNotes().trim()] : [],
         // Sent as picked rather than re-searched: the user chose one candidate
         // out of several, and a second search could rank a different one first.
         latitude: location?.latitude,
@@ -501,7 +532,9 @@ export class TripPage {
     await this.guard(async () => {
       await this.repo.update(this.id(), place.id, {
         name: this.draftName(),
-        notes: this.draftNotes() || undefined,
+        notes: this.draftNoteList(),
+        // Empty clears it; the server takes null for "no particular hour".
+        startsAt: this.draftTime() ? `${this.draftTime()}:00` : undefined,
       });
       this.editing.set(null);
     });

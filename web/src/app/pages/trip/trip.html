@@ -360,14 +360,21 @@
                           </span>
                         </p>
                       }
+                      @if (place.startsAt) {
+                        <!-- A label, not a sort key: the day keeps the order
+                             somebody dragged it into. -->
+                        <p class="text-xs font-medium text-muted">{{ timeLabel(place.startsAt) }}</p>
+                      }
                       @if (place.address) {
                         <!-- Minus the leading name, which the line above already says. -->
                         <p class="truncate text-xs text-muted" [title]="place.address">
                           {{ withoutLeadingName(place.name, place.address) }}
                         </p>
                       }
-                      @if (place.notes) {
-                        <p class="mt-0.5 text-sm text-muted">{{ place.notes }}</p>
+                      @for (note of place.notes; track $index) {
+                        <!-- whitespace-pre-line: a note is typed prose and its
+                             line breaks are the only structure it has. -->
+                        <p class="mt-0.5 whitespace-pre-line text-sm text-muted">{{ note }}</p>
                       }
                     </div>
 
@@ -452,11 +459,37 @@
                                [ngModel]="draftName()" (ngModelChange)="draftName.set($event)" />
                       </label>
                       <label class="label">
-                        <span>Notes <span class="font-normal">(optional)</span></span>
-                        <textarea class="field" name="notes" rows="2"
-                                  [ngModel]="draftNotes()"
-                                  (ngModelChange)="draftNotes.set($event)"></textarea>
+                        <span>Time <span class="font-normal">(optional)</span></span>
+                        <input class="field" type="time" name="placeTime"
+                               [ngModel]="draftTime()" (ngModelChange)="draftTime.set($event)" />
                       </label>
+                      <div class="label">
+                        <span>Notes <span class="font-normal">(optional)</span></span>
+                        <!-- Several, because two thoughts about a place are two
+                             notes rather than one paragraph with a gap in it. The
+                             list is saved whole: emptying a box removes it. -->
+                        @for (note of draftNoteList(); track $index) {
+                          <div class="flex items-start gap-1.5">
+                            <textarea class="field flex-1" [attr.name]="'note-' + $index" rows="2"
+                                      [ngModel]="note"
+                                      [ngModelOptions]="{ standalone: true }"
+                                      (ngModelChange)="setNoteAt($index, $event)"></textarea>
+                            @if (draftNoteList().length > 1) {
+                              <button type="button" class="btn-ghost px-1.5"
+                                      (click)="removeNoteAt($index)">
+                                <span class="sr-only">Remove this note</span>
+                                <svg class="size-4" viewBox="0 0 24 24" fill="none"
+                                     stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                                     aria-hidden="true">
+                                  <path d="M6 6l12 12M18 6L6 18" />
+                                </svg>
+                              </button>
+                            }
+                          </div>
+                        }
+                        <button type="button" class="btn-ghost self-start px-2 py-1 text-xs"
+                                (click)="addNoteBox()">Add another note</button>
+                      </div>
                       <div class="flex items-center gap-2">
                         <!-- Same rule as adding: a place cannot be renamed to
                              nothing. "Save note" above is deliberately not

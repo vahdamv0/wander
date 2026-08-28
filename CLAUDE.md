@@ -66,6 +66,18 @@ Java record → springdoc → `api/build/openapi.json` (written by
 - **Trip access goes through `TripAccessService`.** `requireMember` for read,
   `requireRole` for write. A non-member gets **404**, not 403; a member with too
   weak a role gets 403. New trip-scoped endpoints must go through it.
+- **A place holds several notes, written whole.** `place_note` rows, ordered, sent
+  as a list on create and update — there is deliberately no endpoint for one note,
+  so nothing has to reconcile a half-applied change and "delete the third" is
+  expressed by sending the list without it. Blank bodies are dropped rather than
+  stored, so "no notes" is the absence of rows, as with `day_notes`.
+  `Place.replaceNotes` reuses rows by position rather than clearing and re-adding,
+  which is the lesson `Expense.replaceShares` had to learn.
+- **`places.starts_at` is a plain `TIME`, and not a sort key.** The day comes from
+  `day_date` and the zone from wherever the place is, so neither needs storing —
+  unlike `reservations`, whose instant-plus-zone exists because a flight lands
+  somewhere else. A day keeps the manual order `PlaceService` renumbers on every
+  drag: sorting by time would fight that and would strand every untimed place.
 - **A place from search keeps the geocoder's reference.** `places.osm_ref` holds
   `node/240109189`, sent by the client from the suggestion it picked, for the same
   reason the coordinates are: the user chose one candidate of several and a later
