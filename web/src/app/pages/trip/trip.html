@@ -344,17 +344,22 @@
                            class="mt-0.5 size-9 shrink-0 rounded-control object-cover" />
                     }
                     <div class="min-w-0 flex-1">
-                      <p class="truncate text-sm font-medium">
-                        {{ place.name }}
-                        @if (place.category) {
-                          <!-- The geocoder's own word for it, shown as its own
-                               word: never inferred from the name. -->
-                          <span class="ml-1 rounded-full bg-surface-2 px-1.5 py-0.5 align-middle
+                      <!-- The name element holds nothing but the name. Putting the
+                           category chip inside it changed this element's text and
+                           broke two browser tests that identify a place by it,
+                           which is a fair warning: a row's name is a handle other
+                           things rely on. -->
+                      <p class="truncate text-sm font-medium">{{ place.name }}</p>
+                      @if (place.category) {
+                        <!-- The geocoder's own word for it, shown as its own word
+                             and never inferred from the name. -->
+                        <p class="mt-0.5">
+                          <span class="rounded-full bg-surface-2 px-1.5 py-0.5
                                        text-[0.625rem] font-medium uppercase tracking-wide text-muted">
                             {{ place.category }}
                           </span>
-                        }
-                      </p>
+                        </p>
+                      }
                       @if (place.address) {
                         <!-- Minus the leading name, which the line above already says. -->
                         <p class="truncate text-xs text-muted" [title]="place.address">
