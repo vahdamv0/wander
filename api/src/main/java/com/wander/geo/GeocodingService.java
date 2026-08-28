@@ -46,10 +46,14 @@ public class GeocodingService {
     private record Entry(List<PlaceSuggestion> suggestions, Instant storedAt) {
     }
 
-    public GeocodingService(GeocoderClient geocoder, WanderProperties properties) {
+    public GeocodingService(GeocoderClient geocoder, WanderProperties properties,
+            RateGate nominatimGate) {
         this.geocoder = geocoder;
         this.config = properties.geocoding();
-        this.gate = new RateGate(config.minIntervalMillis(), config.maxWaitMillis());
+        // Injected, not constructed: enrichment's tag lookup goes to the same
+        // service, and the one-request-a-second limit is the instance's, not this
+        // feature's. A second gate would quietly double the rate.
+        this.gate = nominatimGate;
         this.ttl = Duration.ofSeconds(config.cacheSeconds());
         int capacity = Math.max(1, config.cacheSize());
         // Access-ordered, so the entry evicted is the one nobody has asked for

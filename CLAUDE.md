@@ -250,6 +250,42 @@ reaches for it is worse than one that appears a moment late, and not offering
 registration is the entire point. Keep the rest of `/api/config` authenticated:
 one anonymous endpoint for one boolean, not the operator's configuration.
 
+## Place enrichment
+
+Descriptions, facts, hours and photo candidates for a place, from OpenStreetMap,
+Wikidata, Wikipedia and Commons.
+
+- **One seam, not four.** `EnrichmentClient` is a single interface and
+  `WikiEnrichmentClient` walks the whole chain — OSM tags, then Wikidata, then
+  Wikipedia, then Commons — because each step only happens if the one before found
+  something, and most places stop at the first for want of a `wikidata` tag. It is
+  what the tests replace, exactly as `GeocoderClient` is.
+- **`RateGate` is a bean, shared by search and enrichment.** Nominatim's limit is
+  one request a second *per client* and it is the instance that gets blocked, so a
+  second gate would quietly double the rate. `UpstreamGatesTest` asserts both
+  callers hold the same object, because nothing else would notice.
+- **The cache is a table, keyed by `osm_ref` and shared by every trip and user.**
+  Two people with Fushimi Inari on their itineraries mean one row: it describes the
+  shrine, not anybody's Tuesday. Note this makes enrichment rows outlive a *test*
+  as well, so tests bring their own reference rather than assuming a clean slate.
+  "We looked and found nothing" is stored too, or every popup on a bus stop re-asks
+  four services.
+- **Hours are OpenStreetMap's raw string, never parsed.** `Mo-Su 06:00-18:00` with
+  the date it was fetched is something a person judges; an app-computed "Open now"
+  is a claim this data cannot support, and people plan around hours. This was the
+  one part of the feature I argued against; showing the provenance is what makes it
+  defensible.
+- **A photo without its author and licence is not stored, offered or displayed.**
+  A Commons image is CC BY, CC BY-SA or public domain *per image*, so the terms for
+  one say nothing about the next. `PlaceFacts.PhotoCandidate.isUsable` drops
+  unattributable candidates during parsing, the photo columns are written five at a
+  time by `Place.setPhoto`, and `setPlacePhoto` stores **the credit the server
+  fetched** rather than the one the request supplied — a request is a choice among
+  what was offered, not a source of truth. It also refuses a URL that was never
+  offered, which is what stops the endpoint becoming a way to hotlink anything.
+- Nothing here throws upward. An enrichment is a nicety: a Wikipedia outage costs
+  a description, not a 502 on somebody's itinerary.
+
 ## Talking to Nominatim
 
 Place search is a proxy (`/api/geo/search`), authenticated like everything else —

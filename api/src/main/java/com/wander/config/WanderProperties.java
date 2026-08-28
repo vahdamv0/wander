@@ -27,6 +27,8 @@ public record WanderProperties(
 
         @DefaultValue Geocoding geocoding,
 
+        @DefaultValue Enrichment enrichment,
+
         @DefaultValue MapTiles map) {
 
     /**
@@ -66,6 +68,28 @@ public record WanderProperties(
             @DefaultValue("600") long cacheSeconds,
             /** How many distinct queries to remember. */
             @DefaultValue("500") int cacheSize) {
+    }
+
+    /**
+     * Descriptions, facts, hours and photos for a place, from OpenStreetMap,
+     * Wikidata, Wikipedia and Wikimedia Commons.
+     *
+     * Off means the popup shows nothing but the place itself, which is also what
+     * an instance with no outbound network gets. Everything fetched is stored, so
+     * the rate here is about first sight of a place rather than steady traffic.
+     */
+    public record Enrichment(
+            @DefaultValue("true") boolean enabled,
+            /** Wikipedia and Commons hosts. Language is chosen per request from the caller's. */
+            @DefaultValue("https://www.wikidata.org") String wikidataUrl,
+            @DefaultValue("https://commons.wikimedia.org") String commonsUrl,
+            /** How long a stored enrichment stands before it is fetched again. */
+            @DefaultValue("30") int cacheDays,
+            /** How many photo candidates to offer. More is a longer strip nobody scrolls. */
+            @DefaultValue("4") int photoCount,
+            /** Gap between outbound Wikimedia calls, and how long a caller waits for the gate. */
+            @DefaultValue("200") long minIntervalMillis,
+            @DefaultValue("4000") long maxWaitMillis) {
     }
 
     /**

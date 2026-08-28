@@ -96,6 +96,15 @@ wander:
     # then comes back as 京都.
     language: ${WANDER_GEOCODING_LANGUAGE:en}
     min-interval-millis: ${WANDER_GEOCODING_MIN_INTERVAL_MS:1000}
+  enrichment:
+    # Descriptions, facts, hours and photos for a place, from OpenStreetMap,
+    # Wikidata, Wikipedia and Commons. Off means the map popup shows nothing but
+    # the place itself, which is also what an instance with no outbound network
+    # gets. Everything fetched is stored and shared by every trip on the instance,
+    # so the rate below is about first sight of a place, not steady traffic.
+    enabled: ${WANDER_ENRICHMENT_ENABLED:true}
+    cache-days: ${WANDER_ENRICHMENT_CACHE_DAYS:30}
+    photo-count: ${WANDER_ENRICHMENT_PHOTO_COUNT:4}
   map:
     # Tiles are fetched by the browser, so this is the one thing here that is
     # not proxied. Point it at your own tile server if you would rather your
