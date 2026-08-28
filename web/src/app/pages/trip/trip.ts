@@ -74,6 +74,15 @@ export class TripPage {
   /** Bound from the route, as a string — coerced once here. */
   readonly tripId = input.required<string>();
 
+  /**
+   * The same id as a number, for children that want one.
+   *
+   * Not `trip()!.id`: the map renders before the itinerary has loaded, so that
+   * assertion is false on the first pass and throws. The route parameter is
+   * always there, which makes this the honest source.
+   */
+  protected readonly numericTripId = computed(() => Number(this.tripId()));
+
   protected readonly trip = this.repo.trip;
   protected readonly days = this.repo.days;
   protected readonly loading = this.repo.loading;

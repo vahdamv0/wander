@@ -1496,3 +1496,103 @@ test('with no connection, a trip you have opened is still readable', async ({ br
   expect(pageErrors, 'unexpected page errors').toEqual([]);
   await context.close();
 });
+
+/**
+ * The enrichment popup, and the attribution that has to travel with it.
+ *
+ * The upstreams are stubbed in the browser: what matters here is not what
+ * Wikipedia says but that a description arrives with its source and licence, that
+ * the hours are shown as OpenStreetMap's own string with a provenance line rather
+ * than as a confident "open now", and that the popup ends up inside the map — it
+ * opens empty and grows twice, which took three attempts to get right.
+ */
+test('a place popup shows what is known about it, with its credits', async ({ page }) => {
+  const consoleErrors: string[] = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error' && !message.text().includes('401')) {
+      consoleErrors.push(message.text());
+    }
+  });
+  page.on('pageerror', (error) => consoleErrors.push(error.message));
+
+  await page.route('**/api/geo/search**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([{
+        ref: 'way/34633854', name: 'Fushimi Inari-taisha',
+        address: 'Fushimi Ward, Kyoto, Japan',
+        latitude: 34.9671, longitude: 135.7727, category: 'attraction',
+      }]),
+    }));
+  await page.route('**/enrichment', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        available: true,
+        title: 'Fushimi Inari-taisha',
+        summary: 'A Shinto shrine at the base of Mount Inari.',
+        summaryUrl: 'https://en.wikipedia.org/wiki/Fushimi_Inari-taisha',
+        summaryLicence: 'CC BY-SA 4.0',
+        openingHours: 'Mo-Su 00:00-24:00',
+        website: 'https://inari.jp',
+        phone: '+81 75-641-7331',
+        fetchedAt: '2026-08-01T10:00:00Z',
+        photos: [],
+      }),
+    }));
+
+  await page.goto('/login');
+  await page.getByText('Create one').click();
+  await page.locator('input[name=email]').fill(`e2e-enrich-${Date.now()}@example.com`);
+  await page.locator('input[name=displayName]').fill('Enrich Tester');
+  await page.locator('input[name=password]').fill('correct-horse-battery');
+  await page.locator('button[type=submit]').click();
+
+  await expect(page).toHaveURL(/\/trips$/);
+  await page.getByRole('button', { name: 'Plan your first trip' }).click();
+  await page.locator('input[name=name]').fill('Kyoto');
+  await page.locator('input[name=startDate]').fill('2027-03-28');
+  await page.locator('input[name=endDate]').fill('2027-03-30');
+  await page.getByRole('button', { name: 'Create trip' }).click();
+  await page.getByRole('link', { name: /Kyoto/ }).click();
+  await expect(page).toHaveURL(/\/trips\/\d+$/);
+
+  const day1 = page.locator('ol > li.card').first();
+  await day1.getByRole('button', { name: 'Add place' }).click();
+  await day1.locator('input[name=name]').fill('Fushimi');
+  await page.getByText('Fushimi Inari-taisha').first().click();
+  await day1.getByRole('button', { name: 'Add place' }).click();
+  await expect(day1.getByText('Fushimi Inari-taisha', { exact: true })).toBeVisible();
+  await day1.getByRole('button', { name: 'Done' }).click();
+
+  await page.locator('.leaflet-marker-icon').first().click();
+  const popup = page.locator('.leaflet-popup-content');
+  await expect(popup).toContainText('A Shinto shrine at the base of Mount Inari.');
+  // The description never appears without its source and terms — CC BY-SA
+  // obliges both, and this is the assertion that keeps that true.
+  await expect(popup.getByRole('link', { name: 'Wikipedia' }))
+    .toHaveAttribute('href', /en\.wikipedia\.org/);
+  await expect(popup).toContainText('CC BY-SA 4.0');
+
+  // Hours as OpenStreetMap wrote them, with where they came from and a warning —
+  // never computed into "open now", which this data cannot support.
+  await expect(popup).toContainText('Mo-Su 00:00-24:00');
+  await expect(popup).toContainText('OpenStreetMap');
+  await expect(popup).toContainText('may be out of date');
+
+  // And the popup is inside the map rather than over its top edge: it opens empty
+  // and grows twice, so its own auto-pan is computed against a box that is not
+  // there yet.
+  // Retried rather than read once: the popup settles over a few frames — Angular
+  // renders, the panel resizes, the map pans — and a single measurement catches it
+  // mid-flight.
+  await expect(async () => {
+    const box = await popup.boundingBox();
+    const map = await page.locator('.leaflet-container').boundingBox();
+    expect(box!.y, 'the popup sits inside the map').toBeGreaterThanOrEqual(map!.y);
+  }).toPass({ timeout: 5_000 });
+
+  expect(consoleErrors, 'unexpected console errors').toEqual([]);
+});

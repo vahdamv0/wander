@@ -29,6 +29,10 @@ export type { MovePlace$Params as MovePlace$Params } from './fn/place-controller
 export { movePlace as movePlace } from './fn/place-controller/move-place';
 export type { GetItinerary$Params as GetItinerary$Params } from './fn/place-controller/get-itinerary';
 export { getItinerary as getItinerary } from './fn/place-controller/get-itinerary';
+export type { SetPlacePhoto$Params as SetPlacePhoto$Params } from './fn/enrichment-controller/set-place-photo';
+export { setPlacePhoto as setPlacePhoto } from './fn/enrichment-controller/set-place-photo';
+export type { GetPlaceEnrichment$Params as GetPlaceEnrichment$Params } from './fn/enrichment-controller/get-place-enrichment';
+export { getPlaceEnrichment as getPlaceEnrichment } from './fn/enrichment-controller/get-place-enrichment';
 export type { UpdatePackingItem$Params as UpdatePackingItem$Params } from './fn/packing-controller/update-packing-item';
 export { updatePackingItem as updatePackingItem } from './fn/packing-controller/update-packing-item';
 export type { DeletePackingItem$Params as DeletePackingItem$Params } from './fn/packing-controller/delete-packing-item';
