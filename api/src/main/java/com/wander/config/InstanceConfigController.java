@@ -44,7 +44,7 @@ public class InstanceConfigController {
     @GetMapping
     public InstanceConfig getInstanceConfig() {
         WanderProperties.MapTiles map = properties.map();
-        return new InstanceConfig(properties.geocoding().enabled(),
+        return new InstanceConfig(properties.geocoding().enabled(), properties.currency(),
                 new MapConfig(map.enabled(), map.tileUrl(), map.attribution(), map.maxZoom()));
     }
 }

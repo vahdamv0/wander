@@ -78,6 +78,9 @@ springdoc:
 wander:
   version: 0.1.0
   registration-enabled: ${WANDER_REGISTRATION_ENABLED:true}
+  # What a new trip's money is counted in when its creator does not say. Fixed
+  # per trip once created, so this only ever affects the next one.
+  currency: ${WANDER_CURRENCY:EUR}
   geocoding:
     # Place search proxies to Nominatim. Set enabled=false on an instance with
     # no outbound network access; point base-url at your own Nominatim if you

@@ -826,3 +826,121 @@ test('a place cannot be added or renamed with an empty name', async ({ page }) =
   await expect(page.locator('[role=alert]')).toHaveCount(0);
   expect(consoleErrors, 'unexpected console errors').toEqual([]);
 });
+
+/**
+ * Expenses, splits and balances, in two browsers.
+ *
+ * The arithmetic is tested thoroughly in Java; what this adds is that it survives
+ * the round trip to the screen — the pennies of an uneven split have to be
+ * visible and have to add up, or nobody will trust the ledger — and that a second
+ * person sees a new expense without reloading.
+ */
+test('an expense splits unevenly, adds up, and reaches the other browser', async ({ browser }) => {
+  const stamp = Date.now();
+  const editorEmail = `e2e-exp-editor-${stamp}@example.com`;
+
+  const ownerContext = await browser.newContext();
+  const editorContext = await browser.newContext();
+  const owner = await ownerContext.newPage();
+  const editor = await editorContext.newPage();
+
+  const consoleErrors: string[] = [];
+  for (const page of [owner, editor]) {
+    page.on('console', (message) => {
+      if (message.type() === 'error' && !message.text().includes('401')) {
+        consoleErrors.push(message.text());
+      }
+    });
+    page.on('pageerror', (error) => consoleErrors.push(error.message));
+  }
+
+  const register = async (page: typeof owner, email: string, name: string) => {
+    await page.goto('/login');
+    await page.getByText('Create one').click();
+    await page.locator('input[name=email]').fill(email);
+    await page.locator('input[name=displayName]').fill(name);
+    await page.locator('input[name=password]').fill('correct-horse-battery');
+    await page.locator('button[type=submit]').click();
+    await expect(page).toHaveURL(/\/trips$/);
+  };
+
+  await register(owner, `e2e-exp-owner-${stamp}@example.com`, 'Expense Owner');
+  await register(editor, editorEmail, 'Expense Editor');
+
+  await owner.getByRole('button', { name: 'Plan your first trip' }).click();
+  await owner.locator('input[name=name]').fill('Porto');
+  await owner.locator('input[name=startDate]').fill('2027-09-10');
+  await owner.locator('input[name=endDate]').fill('2027-09-12');
+  // The instance default is preselected, and the field is a real choice.
+  await expect(owner.locator('select[name=currency]')).toHaveValue('EUR');
+  await owner.getByRole('button', { name: 'Create trip' }).click();
+  await owner.getByRole('link', { name: /Porto/ }).click();
+
+  await owner.getByRole('button', { name: /People/ }).click();
+  await owner.locator('input[name=memberEmail]').fill(editorEmail);
+  await owner.locator('select[name=memberRole]').selectOption('EDITOR');
+  await owner.getByRole('button', { name: 'Add', exact: true }).click();
+  await expect(owner.getByText('Expense Editor', { exact: true })).toBeVisible();
+
+  await owner.getByRole('link', { name: 'Expenses' }).click();
+  await expect(owner).toHaveURL(/\/expenses$/);
+  await expect(owner.getByText('No expenses yet')).toBeVisible();
+
+  // Both parties are on the expenses page from here, and neither reloads again.
+  await editor.goto(owner.url());
+  await expect(editor.getByRole('heading', { name: 'Expenses' })).toBeVisible();
+
+  // 10.00 two ways is even; 10.01 is not. Use the odd one so the penny shows.
+  await owner.getByRole('button', { name: 'Add an expense' }).click();
+  await owner.locator('input[name=description]').fill('Pastries');
+  await owner.locator('input[name=amount]').fill('10.01');
+  await owner.getByRole('button', { name: 'Save expense' }).click();
+
+  // The split is spelled out, and the two halves differ by exactly one cent.
+  const ownerRow = owner.locator('ul > li.card').filter({ hasText: 'Pastries' });
+  await expect(ownerRow.getByText('€5.01')).toBeVisible();
+  await expect(ownerRow.getByText('€5.00')).toBeVisible();
+  await expect(owner.getByText('€10.01 in total')).toBeVisible();
+
+  // The owner fronted it, so the editor owes half. Signed the right way round.
+  await expect(owner.getByText('is owed €5.00')).toBeVisible();
+  await expect(owner.getByText('owes €5.00')).toBeVisible();
+
+  // And it is in the other browser with no reload and no second event.
+  await expect(editor.getByText('Pastries', { exact: true })).toBeVisible();
+  await expect(editor.getByText('owes €5.00')).toBeVisible();
+
+  // An exact split that does not add up cannot be submitted at all — the button
+  // is the guard, so the server's 400 is a backstop rather than the UX.
+  await editor.getByRole('button', { name: 'Add an expense' }).click();
+  await editor.locator('input[name=description]').fill('Museum');
+  await editor.locator('input[name=amount]').fill('30.00');
+  await editor.getByRole('button', { name: 'Exact amounts' }).click();
+  await editor.getByLabel('Amount for Expense Owner').fill('20.00');
+  await editor.getByLabel('Amount for Expense Editor').fill('5.00');
+  await expect(editor.getByText('€5.00 still unallocated')).toBeVisible();
+  await expect(editor.getByRole('button', { name: 'Save expense' })).toBeDisabled();
+
+  await editor.getByLabel('Amount for Expense Editor').fill('10.00');
+  await expect(editor.getByText('The shares add up')).toBeVisible();
+  await expect(editor.getByRole('button', { name: 'Save expense' })).toBeEnabled();
+  await editor.getByRole('button', { name: 'Save expense' }).click();
+
+  // Owner: paid 10.01, owes 5.01 of the pastries and 20.00 of the museum -> -15.00.
+  // Editor: paid 30.00, owes 5.00 and 10.00 -> +15.00. The odd penny of the
+  // pastries is on the owner's side of both columns, so it cancels.
+  await expect(editor.getByText('owes €15.00')).toBeVisible();
+  await expect(owner.getByText('owes €15.00')).toBeVisible();
+  await expect(owner.getByText('is owed €15.00')).toBeVisible();
+  // The settle-up line names the direction, with a space before the amount.
+  await expect(owner.getByText('Expense Owner pays Expense Editor €15.00')).toBeVisible();
+
+  // A viewer's-eye check that deleting cleans up after itself.
+  await owner.getByRole('button', { name: 'Remove Museum' }).click();
+  await expect(owner.getByText('€10.01 in total')).toBeVisible();
+  await expect(editor.getByText('Museum', { exact: true })).toHaveCount(0);
+
+  expect(consoleErrors, 'unexpected console errors').toEqual([]);
+  await ownerContext.close();
+  await editorContext.close();
+});

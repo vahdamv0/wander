@@ -13,5 +13,7 @@ import jakarta.validation.constraints.NotNull;
 public record InstanceConfig(
         /** False on an instance with no outbound network — the client hides its search box. */
         @NotNull boolean searchEnabled,
+        /** Preselected in the new-trip form. ISO 4217. */
+        @NotNull String defaultCurrency,
         @NotNull MapConfig map) {
 }

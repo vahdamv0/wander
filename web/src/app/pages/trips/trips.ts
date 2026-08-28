@@ -1,6 +1,7 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { InstanceConfigStore } from '../../core/instance-config.store';
 import { TripRepo } from '../../repo/trip.repo';
 
 @Component({
@@ -10,6 +11,7 @@ import { TripRepo } from '../../repo/trip.repo';
 })
 export class TripsPage {
   private readonly repo = inject(TripRepo);
+  private readonly config = inject(InstanceConfigStore);
 
   protected readonly trips = this.repo.trips;
   protected readonly loading = this.repo.loading;
@@ -31,8 +33,29 @@ export class TripsPage {
   protected readonly endDate = signal('');
   protected readonly error = signal<string | null>(null);
 
+  /**
+   * The trip's currency, and the one field here that cannot be changed later:
+   * expense amounts are stored in it, so a change would not be a relabel.
+   *
+   * A short list rather than every ISO code — this is a select, not a search box
+   * — with the instance's configured default preselected. The server accepts any
+   * three-letter code, so an operator whose currency is missing here is not
+   * locked out, they just cannot pick it from the menu.
+   */
+  protected readonly currencies = ['EUR', 'USD', 'GBP', 'CHF', 'SEK', 'NOK', 'DKK', 'PLN', 'CZK',
+    'JPY', 'INR', 'AUD', 'CAD', 'NZD', 'SGD', 'ZAR', 'BRL', 'MXN'];
+  protected readonly currency = signal('');
+
   constructor() {
     void this.repo.refresh();
+    // The instance's default, once it has answered. Until then the select shows
+    // the first option, and the server would apply the same default anyway.
+    effect(() => {
+      const preferred = this.config.defaultCurrency();
+      if (preferred && !untracked(() => this.currency())) {
+        this.currency.set(preferred);
+      }
+    });
   }
 
   protected async createTrip(): Promise<void> {
@@ -43,6 +66,7 @@ export class TripsPage {
         destination: this.destination() || undefined,
         startDate: this.startDate(),
         endDate: this.endDate(),
+        currency: this.currency() || undefined,
       });
       this.name.set('');
       this.destination.set('');

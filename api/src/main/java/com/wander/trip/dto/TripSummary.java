@@ -19,10 +19,12 @@ public record TripSummary(
         @NotNull LocalDate startDate,
         @NotNull LocalDate endDate,
         @NotNull int dayCount,
+        /** ISO 4217. Travels with every trip so the client can format money anywhere one appears. */
+        @NotNull String currency,
         @NotNull TripRole myRole) {
 
     public static TripSummary of(Trip trip, TripRole myRole) {
         return new TripSummary(trip.getId(), trip.getName(), trip.getDestination(), trip.getStartDate(),
-                trip.getEndDate(), trip.dayCount(), myRole);
+                trip.getEndDate(), trip.dayCount(), trip.getCurrency(), myRole);
     }
 }

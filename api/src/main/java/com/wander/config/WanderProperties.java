@@ -16,6 +16,13 @@ public record WanderProperties(
         /** Self-signup. Off means an admin creates accounts (invites land in a later milestone). */
         @DefaultValue("true") boolean registrationEnabled,
 
+        /**
+         * The currency a new trip gets when its creator does not choose one. An
+         * operator setting rather than a compiled-in constant for the same reason
+         * the tile URL is: this project has no idea where its instances are.
+         */
+        @DefaultValue("EUR") String currency,
+
         @DefaultValue Admin admin,
 
         @DefaultValue Geocoding geocoding,

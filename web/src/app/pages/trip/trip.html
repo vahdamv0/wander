@@ -20,6 +20,15 @@
         </p>
       </div>
       <div class="flex shrink-0 items-center gap-2">
+        <a [routerLink]="['/trips', tripId(), 'expenses']"
+           class="inline-flex items-center gap-1.5 text-sm text-muted hover:text-fg">
+          <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 7h18v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7Z" />
+            <path d="M3 7l3-3h12l3 3M8 12h8" />
+          </svg>
+          Expenses
+        </a>
         <!-- Only worth saying when it is not working: "Live" on a trip nobody
              else is looking at is noise, but a page that has quietly stopped
              receiving other people's edits is worth knowing about. -->

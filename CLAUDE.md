@@ -27,6 +27,7 @@ port would make this a derivative work.
 ./gradlew :api:bootRun                   # API on :8080 (needs `docker compose up -d db`)
 cd web && npm start                      # Angular dev server on :4200, proxies /api
 cd web && npm run api:gen                # regenerate the typed client from the spec
+cd web && npm test                       # vitest unit tests (money formatting)
 ```
 
 Tests need a Docker daemon: they run against real Postgres via Testcontainers,
@@ -238,6 +239,44 @@ The client sends a picked suggestion's coordinates when creating a place rather
 than having the server re-geocode the name: the user chose one candidate of
 several, and a second search can rank a different one first.
 
+## Money
+
+Expenses are the one feature where a rounding bug is silent and permanent, so the
+rules are narrow on purpose.
+
+- **Integer minor units, everywhere.** `1234` is 12.34. No `BigDecimal`, no
+  `double`, no decimal strings on the wire. `amount_minor` is `BIGINT` because a
+  JPY trip has no minor unit at all.
+- **One currency per trip**, on `trips.currency`, chosen at creation and **not
+  editable** — the amounts stored against it mean something, so changing it would
+  be a re-denomination rather than a relabel. `wander.currency` is the default for
+  a caller that does not choose.
+- **A split always sums to its amount.** `ExpenseSplitter.equalShares` spreads the
+  remainder one minor unit at a time to the lowest user ids — €10 over three is
+  334/333/333, deterministic so a test can assert on it. An `EXACT` split is the
+  client's numbers and is **refused with 400** unless they add up; adjusting it
+  silently would corrupt every balance on the trip with no error anywhere.
+- **All the arithmetic is server-side**, in `ExpenseSplitter` and
+  `ExpenseService.summarise`, and shipped in the response. The client formats and
+  parses money (`web/src/app/core/money.ts`) and computes none of it — a second
+  implementation in TypeScript is a second chance to round a cent differently.
+  `Intl.NumberFormat` is where the per-currency exponent comes from, so there is
+  no table of exponents to be wrong about; `parseMoney` **rejects** more decimal
+  places than the currency has rather than rounding them away.
+- **`split_mode` is stored** so an edit reopens in the mode it was saved in.
+  Without it, fixing a typo in the description of an equal split converts it to an
+  exact one.
+- **An expense's date is not range-checked** against the trip, unlike a place's
+  day: flights and deposits are paid months earlier.
+- **Replacing a split updates the rows it keeps.** `clear()` and re-add makes
+  Hibernate order inserts before orphan deletes in one flush, and
+  `uq_expense_shares` then rejects the write for anybody who was in both splits —
+  which is almost everybody, almost every time. See `Expense.replaceShares`.
+- **Somebody who leaves a trip keeps their shares**, and `PersonBalance.stillAMember`
+  is false for them. Money is history; membership is present tense. Dropping the
+  rows would silently forgive a debt, and refusing the removal would make it
+  impossible to leave a trip you had spent money on.
+
 ## Live sync
 
 Two people on one trip see each other's changes without reloading.
@@ -245,8 +284,10 @@ Two people on one trip see each other's changes without reloading.
 sends nothing but keepalive, and the payload is one small event.
 
 - **Invalidation, not state.** A frame says *what* changed (`ITINERARY`,
-  `MEMBERS`, `TRIP_DELETED`), never what it changed to, and the client answers by
-  re-reading. The server owns place ranks and renumbers a whole day on every
+  `MEMBERS`, `EXPENSES`, `TRIP_DELETED`), never what it changed to, and the client
+  answers by re-reading. A new kind has to be added to the union **and** to
+  `parse()` in `core/trip-sync.ts`, which drops anything it does not recognise —
+  forgetting the second half looks exactly like a broken socket. The server owns place ranks and renumbers a whole day on every
   move, so sending state would be a second serialisation path that can disagree
   with `GET /itinerary` — and `PlaceRepo` already re-reads after its own writes.
 - **Broadcast after commit.** Services call `TripChanges`, which publishes a
@@ -269,6 +310,19 @@ sends nothing but keepalive, and the payload is one small event.
   whichever thread committed — two people saving at once is the normal case.
 - The dev server needs `"ws": true` on `/api` in `web/proxy.conf.json`, or the
   handshake 404s under `npm start` and works only in the packaged jar.
+
+## Unit tests in the client
+
+`cd web && npm run test` (vitest, via `@angular/build:unit-test`). There is
+exactly one spec — `core/money.spec.ts` — and that is the shape to keep: the
+client is tested through the browser suite, except where a pure function deserves
+better than that. Money parsing does, because "12.345" quietly becoming 12.34 is
+invisible from the outside.
+
+The Angular CLI needs Node ≥ 22.22.3 and the machine's Node may be older; Gradle
+downloads its own at `web/.gradle/nodejs/`, so
+`PATH=web/.gradle/nodejs/node-*/bin:$PATH npx ng test --watch=false` works when
+`npm test` refuses.
 
 ## Browser tests
 
@@ -297,5 +351,7 @@ re-reads instead of patching ranks), Nominatim search behind a proxy that
 caches and rate-limits, a Leaflet map, drag ordering, and a note per day.
 Milestone 3 is done bar one piece: members, roles, ownership transfer and live
 WebSocket sync are in; what remains of sharing is invite links for people who
-have no account yet. See the roadmap in README.md. Deliberately **out** of scope until asked:
+have no account yet. Milestone 4 has started: expenses with splits and balances
+are in, settling up is not, and packing lists and reservations are untouched. See
+the roadmap in README.md. Deliberately **out** of scope until asked:
 plugins, i18n, MCP, offline. Keep v1 small.

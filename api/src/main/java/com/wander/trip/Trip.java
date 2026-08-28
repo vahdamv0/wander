@@ -31,6 +31,15 @@ public class Trip {
     @Column(name = "end_date", nullable = false)
     private LocalDate endDate;
 
+    /**
+     * ISO 4217, and fixed at creation. One currency per trip is what keeps a
+     * balance integer addition rather than a question about exchange rates; and
+     * changing it later could not be a relabel, because the amounts already
+     * stored mean something in the old one.
+     */
+    @Column(nullable = false, length = 3)
+    private String currency;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt = Instant.now();
 
@@ -38,11 +47,12 @@ public class Trip {
         // JPA
     }
 
-    public Trip(String name, String destination, LocalDate startDate, LocalDate endDate) {
+    public Trip(String name, String destination, LocalDate startDate, LocalDate endDate, String currency) {
         this.name = name;
         this.destination = destination;
         this.startDate = startDate;
         this.endDate = endDate;
+        this.currency = currency;
         this.createdAt = Instant.now();
     }
 
@@ -86,6 +96,10 @@ public class Trip {
 
     public LocalDate getEndDate() {
         return endDate;
+    }
+
+    public String getCurrency() {
+        return currency;
     }
 
     public Instant getCreatedAt() {
