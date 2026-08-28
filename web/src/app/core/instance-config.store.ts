@@ -16,10 +16,13 @@ export class InstanceConfigStore {
 
   private readonly _map = signal<MapConfig | null>(null);
   private readonly _searchEnabled = signal(false);
+  /** Null until answered, so a form can tell "not yet" from a real choice. */
+  private readonly _defaultCurrency = signal<string | null>(null);
   private readonly _loaded = signal(false);
 
   readonly map = this._map.asReadonly();
   readonly searchEnabled = this._searchEnabled.asReadonly();
+  readonly defaultCurrency = this._defaultCurrency.asReadonly();
   readonly loaded = this._loaded.asReadonly();
   readonly mapEnabled = computed(() => this._map()?.enabled === true);
 
@@ -28,11 +31,13 @@ export class InstanceConfigStore {
       const config = await this.api.invoke(getInstanceConfig);
       this._map.set(config.map);
       this._searchEnabled.set(config.searchEnabled);
+      this._defaultCurrency.set(config.defaultCurrency);
     } catch {
       // A signed-out visitor gets 401 here, which is not a failure — the
       // defaults stand, and the next sign-in loads it again.
       this._map.set(null);
       this._searchEnabled.set(false);
+      this._defaultCurrency.set(null);
     } finally {
       this._loaded.set(true);
     }

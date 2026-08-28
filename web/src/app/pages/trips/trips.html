@@ -48,6 +48,18 @@
             <input class="field" type="date" name="endDate" required
                    [ngModel]="endDate()" (ngModelChange)="endDate.set($event)" />
           </label>
+          <label class="label">
+            Currency
+            <select class="field" name="currency"
+                    [ngModel]="currency()" (ngModelChange)="currency.set($event)">
+              @for (code of currencies; track code) {
+                <option [value]="code">{{ code }}</option>
+              }
+            </select>
+            <span class="text-xs font-normal text-muted">
+              Expenses are counted in this. It cannot be changed later.
+            </span>
+          </label>
         </div>
 
         @if (error()) {

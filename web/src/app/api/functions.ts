@@ -19,6 +19,14 @@ export type { AddMember$Params as AddMember$Params } from './fn/trip-member-cont
 export { addMember as addMember } from './fn/trip-member-controller/add-member';
 export type { RemoveMember$Params as RemoveMember$Params } from './fn/trip-member-controller/remove-member';
 export { removeMember as removeMember } from './fn/trip-member-controller/remove-member';
+export type { UpdateExpense$Params as UpdateExpense$Params } from './fn/expense-controller/update-expense';
+export { updateExpense as updateExpense } from './fn/expense-controller/update-expense';
+export type { DeleteExpense$Params as DeleteExpense$Params } from './fn/expense-controller/delete-expense';
+export { deleteExpense as deleteExpense } from './fn/expense-controller/delete-expense';
+export type { ListExpenses$Params as ListExpenses$Params } from './fn/expense-controller/list-expenses';
+export { listExpenses as listExpenses } from './fn/expense-controller/list-expenses';
+export type { CreateExpense$Params as CreateExpense$Params } from './fn/expense-controller/create-expense';
+export { createExpense as createExpense } from './fn/expense-controller/create-expense';
 export type { PutDayNote$Params as PutDayNote$Params } from './fn/day-note-controller/put-day-note';
 export { putDayNote as putDayNote } from './fn/day-note-controller/put-day-note';
 export type { List$Params as List$Params } from './fn/trip-controller/list';

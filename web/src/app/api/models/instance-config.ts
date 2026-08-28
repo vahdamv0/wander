@@ -3,6 +3,7 @@
 
 import { MapConfig } from '../models/map-config';
 export interface InstanceConfig {
+  defaultCurrency: string;
   map: MapConfig;
   searchEnabled: boolean;
 }

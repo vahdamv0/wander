@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.wander.common.NotFoundException;
+import com.wander.config.WanderProperties;
 import com.wander.sync.TripChanges;
 import com.wander.trip.dto.CreateTripRequest;
 import com.wander.trip.dto.TripSummary;
@@ -22,14 +23,16 @@ public class TripService {
     private final UserRepository users;
     private final TripAccessService access;
     private final TripChanges changes;
+    private final WanderProperties properties;
 
     public TripService(TripRepository trips, TripMemberRepository members, UserRepository users,
-            TripAccessService access, TripChanges changes) {
+            TripAccessService access, TripChanges changes, WanderProperties properties) {
         this.trips = trips;
         this.members = members;
         this.users = users;
         this.access = access;
         this.changes = changes;
+        this.properties = properties;
     }
 
     @Transactional
@@ -40,8 +43,14 @@ public class TripService {
         User creator = users.findById(userId)
                 .orElseThrow(() -> new NotFoundException("User " + userId + " not found"));
 
+        // Omitted means "whatever this instance uses"; it is fixed from here on,
+        // because the expense amounts stored against it will mean something.
+        String currency = request.currency() == null || request.currency().isBlank()
+                ? properties.currency()
+                : request.currency();
+
         Trip trip = trips.save(new Trip(request.name(), request.destination(), request.startDate(),
-                request.endDate()));
+                request.endDate(), currency));
         // Creating the trip and the owner membership in one transaction: a trip
         // with no members would be invisible to everyone, including its author.
         members.save(new TripMember(trip, creator, TripRole.OWNER));

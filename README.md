@@ -92,6 +92,12 @@ reads and a write queue land inside the repos and no component changes.
 an httpOnly cookie cannot be read by XSS and there is no refresh-token dance.
 Angular's `HttpClient` handles the `XSRF-TOKEN` cookie with no code.
 
+**Money is integers.** Amounts are stored and sent as minor units — `1234` is
+12.34 — in one currency per trip, fixed when the trip is created. No floating
+point touches money in either language, an uneven split spreads its remainder to
+the penny rather than losing it, and the balances arrive computed from the server
+so there is only ever one implementation of the arithmetic.
+
 **Sessions live in Postgres, not in the heap.** Spring Session JDBC, with its two
 tables owned by Flyway like everything else. Because the session *is* the
 credential here, an in-memory store would mean every restart signs out every
@@ -197,7 +203,10 @@ tables under a running instance. Don't lower a gate to land a change.
    and live sync — add somebody by email, make them an editor or a viewer, hand
    the trip over, and watch each other's edits appear without reloading. Still to
    come: invite links for people who have no account yet.
-4. **Money and stuff.** Expenses with splits, packing lists, reservations.
+4. **Money and stuff.** Expenses with splits and balances are done ✅ — one
+   currency per trip, amounts in integer minor units, equal or exact splits, and
+   a "who owes whom" summary reduced to the fewest payments. Still to come:
+   recording a settlement so balances clear, then packing lists and reservations.
 5. **Offline.** IndexedDB reads and a replaying write queue, inside the repos.
 
 ## Licence

@@ -25,6 +25,10 @@ public class TripChanges {
         events.publishEvent(TripChange.itinerary(tripId, actorUserId));
     }
 
+    public void expensesChanged(Long tripId, Long actorUserId) {
+        events.publishEvent(TripChange.expenses(tripId, actorUserId));
+    }
+
     public void membersChanged(Long tripId, Long actorUserId) {
         events.publishEvent(TripChange.members(tripId, actorUserId));
     }

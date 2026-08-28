@@ -13,6 +13,8 @@ public enum TripChangeKind {
     ITINERARY,
     /** The member list or somebody's role changed. Re-read members, and the trip. */
     MEMBERS,
+    /** An expense, or its split, changed. Re-read the ledger. */
+    EXPENSES,
     /** The trip is gone. Nothing to re-read. */
     TRIP_DELETED
 }

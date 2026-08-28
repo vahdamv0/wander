@@ -25,6 +25,12 @@ export const routes: Routes = [
         path: 'trips/:tripId',
         loadComponent: () => import('./pages/trip/trip').then((m) => m.TripPage),
       },
+      {
+        // Its own page rather than a panel: the trip page already carries a map,
+        // a day list and a People panel, and money deserves room.
+        path: 'trips/:tripId/expenses',
+        loadComponent: () => import('./pages/expenses/expenses').then((m) => m.ExpensesPage),
+      },
       { path: '**', redirectTo: 'trips' },
     ],
   },

@@ -1,0 +1,297 @@
+<div class="mx-auto max-w-4xl px-4 py-8">
+  <a [routerLink]="['/trips', tripId()]"
+     class="inline-flex items-center gap-1.5 text-sm text-muted hover:text-fg">
+    <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" aria-hidden="true">
+      <path d="M15 18l-6-6 6-6" />
+    </svg>
+    Back to the trip
+  </a>
+
+  @if (trip(); as trip) {
+    <header class="mt-3 mb-6 flex flex-wrap items-end justify-between gap-3">
+      <div class="min-w-0">
+        <h1 class="truncate text-xl font-semibold tracking-tight">Expenses</h1>
+        <p class="text-sm text-muted">
+          {{ trip.name }}
+          @if (summary(); as summary) {
+            · {{ money(summary.totalMinor) }} in total
+          }
+        </p>
+      </div>
+      <div class="flex shrink-0 items-center gap-2">
+        @if (syncStatus() === 'offline') {
+          <span class="inline-flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5
+                       text-[0.6875rem] font-medium uppercase tracking-wide text-muted"
+                title="Live updates are not getting through. Reload to see other people's changes.">
+            <span class="size-1.5 rounded-full bg-muted"></span>
+            Reconnecting
+          </span>
+        }
+        @if (!canEdit()) {
+          <span class="rounded-full border border-border px-2 py-0.5 text-[0.6875rem] font-medium
+                       uppercase tracking-wide text-muted">
+            Read only
+          </span>
+        }
+      </div>
+    </header>
+  } @else if (!loading()) {
+    <p class="card mt-3 px-6 py-14 text-center text-sm text-muted">This trip is not available.</p>
+  }
+
+  @if (error()) {
+    <p class="mb-4 rounded-control bg-danger-soft px-3 py-2 text-sm text-danger" role="alert">
+      {{ error() }}
+    </p>
+  }
+
+  @if (trip()) {
+    <!-- Balances first: "what do I owe" is the question people open this page
+         with, and the list of expenses is the evidence behind the answer. -->
+    @if (summary(); as summary) {
+      <section class="card mb-4 p-5">
+        <h2 class="text-sm font-semibold">Where everyone stands</h2>
+
+        @if (!summary.balances.length) {
+          <p class="mt-3 text-sm text-muted">Nothing spent yet.</p>
+        } @else {
+          <ul class="mt-3 grid grid-cols-1 gap-2">
+            @for (person of summary.balances; track person.userId) {
+              <li class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1
+                         rounded-control bg-surface-2 px-3 py-2">
+                <div class="min-w-0">
+                  <p class="truncate text-sm font-medium">
+                    {{ person.displayName }}
+                    @if (isMe(person.userId)) {
+                      <span class="font-normal text-muted">(you)</span>
+                    }
+                    @if (!person.stillAMember) {
+                      <!-- Their expenses outlive their membership: money is
+                           history, and dropping the row would quietly forgive it. -->
+                      <span class="font-normal text-muted">· no longer on this trip</span>
+                    }
+                  </p>
+                  <p class="text-xs text-muted">
+                    paid {{ money(person.paidMinor) }} · share {{ money(person.shareMinor) }}
+                  </p>
+                </div>
+                <span class="shrink-0 text-sm"
+                      [class.text-muted]="person.netMinor === 0"
+                      [class.font-medium]="person.netMinor !== 0">
+                  {{ owedLabel(person.netMinor) }}
+                </span>
+              </li>
+            }
+          </ul>
+        }
+
+        @if (summary.settlements.length) {
+          <div class="mt-4 border-t border-border pt-3">
+            <h3 class="text-xs font-semibold uppercase tracking-wide text-muted">Settle up</h3>
+            <ul class="mt-2 grid grid-cols-1 gap-1.5">
+              @for (transfer of summary.settlements; track transfer.fromUserId + '-' + transfer.toUserId) {
+                <!-- &ngsp; is a real space, not decoration: Angular strips a
+                     whitespace-only text node between two elements, so without it
+                     this reads "pays Bob Bobson€52.51". -->
+                <li class="text-sm">
+                  <span class="font-medium">{{ transfer.fromName }}</span>
+                  pays
+                  <span class="font-medium">{{ transfer.toName }}</span>&ngsp;<span
+                    class="font-medium">{{ money(transfer.amountMinor) }}</span>
+                </li>
+              }
+            </ul>
+            <!-- Honest about what this is: nothing records a payment yet, so
+                 these do not shrink until the expenses behind them change. -->
+            <p class="mt-2 text-xs text-muted">
+              Suggestions only — recording a payment is not built yet.
+            </p>
+          </div>
+        }
+      </section>
+    }
+
+    @if (canEdit() && editing() !== 'new') {
+      <button type="button" class="btn-ghost mb-4 w-full justify-center py-2.5"
+              (click)="openNew()">
+        <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" aria-hidden="true">
+          <path d="M12 5v14M5 12h14" />
+        </svg>
+        Add an expense
+      </button>
+    }
+
+    @if (editing() === 'new') {
+      <section class="card mb-4 p-5">
+        <h2 class="mb-3 text-sm font-semibold">New expense</h2>
+        <ng-container [ngTemplateOutlet]="expenseForm" />
+      </section>
+    }
+
+    <ul class="grid grid-cols-1 gap-3">
+      @for (expense of expenses(); track expense.id) {
+        <li class="card p-5">
+          @if (editing() === expense.id) {
+            <h2 class="mb-3 text-sm font-semibold">Edit expense</h2>
+            <ng-container [ngTemplateOutlet]="expenseForm" />
+          } @else {
+            <div class="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
+              <div class="min-w-0">
+                <p class="truncate text-sm font-medium">{{ expense.description }}</p>
+                <p class="text-xs text-muted">
+                  {{ dateLabel(expense.spentOn) }} · paid by {{ expense.paidByName }}
+                  @if (expense.splitMode === 'EXACT') {
+                    · exact split
+                  }
+                </p>
+              </div>
+              <div class="flex shrink-0 items-center gap-2">
+                <span class="text-sm font-medium">{{ money(expense.amountMinor) }}</span>
+                @if (canEdit()) {
+                  <button type="button" class="btn-ghost px-1.5" [disabled]="saving()"
+                          (click)="openEdit(expense)">
+                    <span class="sr-only">Edit {{ expense.description }}</span>
+                    <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
+                         aria-hidden="true">
+                      <path d="M4 20h4l10-10-4-4L4 16v4Z" />
+                    </svg>
+                  </button>
+                  <button type="button" class="btn-ghost px-1.5" [disabled]="saving()"
+                          (click)="remove(expense)">
+                    <span class="sr-only">Remove {{ expense.description }}</span>
+                    <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+                      <path d="M6 6l12 12M18 6L6 18" />
+                    </svg>
+                  </button>
+                }
+              </div>
+            </div>
+
+            <!-- The split, spelled out. On an uneven division the shares differ
+                 by a minor unit and that has to be visible: a total that does not
+                 obviously add up is exactly what makes people distrust a ledger. -->
+            <ul class="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
+              @for (share of expense.shares; track share.userId) {
+                <li>
+                  {{ share.displayName }}&ngsp;<span class="text-fg">{{ money(share.amountMinor) }}</span>
+                </li>
+              }
+            </ul>
+          }
+        </li>
+      } @empty {
+        @if (!loading()) {
+          <li class="card px-6 py-14 text-center text-sm text-muted">
+            No expenses yet.
+            @if (canEdit()) {
+              Add the first one above.
+            }
+          </li>
+        }
+      }
+    </ul>
+  }
+</div>
+
+<!-- One form for both new and edit: an expense is written whole either way, so a
+     second copy of this would only be a second thing to keep in step. -->
+<ng-template #expenseForm>
+  <form class="grid gap-3" (ngSubmit)="save()">
+    <div class="grid gap-3 sm:grid-cols-2">
+      <label class="label min-w-0 sm:col-span-2">
+        What was it
+        <input class="field" type="text" name="description" required
+               placeholder="Dinner at the harbour"
+               [ngModel]="draftDescription()" (ngModelChange)="draftDescription.set($event)" />
+      </label>
+      <label class="label min-w-0">
+        Amount ({{ currency() }})
+        <input class="field" type="text" name="amount" inputmode="decimal" required
+               placeholder="0.00"
+               [ngModel]="draftAmount()" (ngModelChange)="draftAmount.set($event)" />
+      </label>
+      <label class="label min-w-0">
+        Date
+        <input class="field" type="date" name="spentOn" required
+               [ngModel]="draftDate()" (ngModelChange)="draftDate.set($event)" />
+      </label>
+      <label class="label min-w-0 sm:col-span-2">
+        Paid by
+        <select class="field" name="paidBy"
+                [ngModel]="draftPaidBy()" (ngModelChange)="draftPaidBy.set($event)">
+          @for (member of candidates(); track member.userId) {
+            <option [value]="member.userId">{{ member.displayName }}</option>
+          }
+        </select>
+      </label>
+    </div>
+
+    <div class="rounded-control bg-surface-2 p-3">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <span class="text-xs font-semibold uppercase tracking-wide text-muted">Split between</span>
+        <div class="flex items-center gap-1">
+          <button type="button" class="btn-ghost px-2 py-1 text-xs"
+                  [class.text-accent]="draftMode() === 'EQUAL'"
+                  (click)="draftMode.set('EQUAL')">Equally</button>
+          <button type="button" class="btn-ghost px-2 py-1 text-xs"
+                  [class.text-accent]="draftMode() === 'EXACT'"
+                  (click)="draftMode.set('EXACT')">Exact amounts</button>
+        </div>
+      </div>
+
+      <ul class="mt-2 grid grid-cols-1 gap-1.5">
+        @for (person of draftParticipants(); track person.userId) {
+          <li class="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <label class="flex min-w-0 flex-1 items-center gap-2 text-sm">
+              <input type="checkbox" class="size-4 accent-accent"
+                     [checked]="person.included"
+                     (change)="toggleParticipant(person.userId)" />
+              <span class="truncate">{{ person.displayName }}</span>
+            </label>
+            @if (draftMode() === 'EXACT' && person.included) {
+              <input class="field w-28 py-1 text-sm" type="text" inputmode="decimal"
+                     [attr.name]="'share-' + person.userId"
+                     [attr.aria-label]="'Amount for ' + person.displayName"
+                     [ngModel]="person.amount"
+                     [ngModelOptions]="{ standalone: true }"
+                     (ngModelChange)="setParticipantAmount(person.userId, $event)" />
+            }
+          </li>
+        }
+      </ul>
+
+      @if (draftMode() === 'EQUAL') {
+        <p class="mt-2 text-xs text-muted">
+          Split {{ includedCount() }} ways.
+          <!-- Said out loud because it is the thing people query: an uneven
+               division has to put the odd penny somewhere. -->
+          Where it does not divide evenly, the extra goes a penny at a time.
+        </p>
+      } @else {
+        <div class="mt-2 flex flex-wrap items-center gap-3 text-xs">
+          @if (remainingMinor() === null) {
+            <span class="text-muted">Enter an amount for everybody included.</span>
+          } @else if (remainingMinor() === 0) {
+            <span class="text-muted">The shares add up.</span>
+          } @else if (remainingMinor()! > 0) {
+            <span class="text-danger">{{ money(remainingMinor()!) }} still unallocated.</span>
+          } @else {
+            <span class="text-danger">{{ money(-remainingMinor()!) }} over the total.</span>
+          }
+          <button type="button" class="btn-ghost px-2 py-1 text-xs" (click)="prefillEqually()">
+            Fill equally
+          </button>
+        </div>
+      }
+    </div>
+
+    <div class="flex items-center gap-2">
+      <button type="submit" class="btn-primary" [disabled]="!canSubmit()">Save expense</button>
+      <button type="button" class="btn-ghost" (click)="cancel()">Cancel</button>
+    </div>
+  </form>
+</ng-template>
