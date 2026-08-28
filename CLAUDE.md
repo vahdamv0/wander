@@ -204,6 +204,17 @@ configuration. `InstanceConfigStore` loads it once when the signed-in shell
 mounts, and features that depend on it treat "not answered yet" as available so
 nothing flickers into existence.
 
+`GET /api/config/sign-in` is the one **public** endpoint here, carrying
+`registrationEnabled` alone. The login page runs before anybody has a session, so
+it cannot read the authenticated config — which is why it used to offer "Create
+one" on an instance with sign-ups switched off. It leaks nothing: an anonymous
+caller learns the same thing by posting to `/api/auth/register` and reading the
+403. This is also the one place that inverts the rule above and treats "not
+answered yet" as *un*available — a "Create one" link that vanishes as somebody
+reaches for it is worse than one that appears a moment late, and not offering
+registration is the entire point. Keep the rest of `/api/config` authenticated:
+one anonymous endpoint for one boolean, not the operator's configuration.
+
 ## Talking to Nominatim
 
 Place search is a proxy (`/api/geo/search`), authenticated like everything else —

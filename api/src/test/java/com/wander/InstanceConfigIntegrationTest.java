@@ -36,6 +36,15 @@ class InstanceConfigIntegrationTest extends IntegrationTestBase {
     }
 
     @Test
+    void whetherSignUpsAreAcceptedIsReadableBeforeSigningIn() {
+        // Deliberately public: the login page has to know this before anybody has
+        // a session, which is exactly why it used to get it wrong.
+        var response = http().get().uri("/api/config/sign-in").retrieve().toEntity(String.class);
+        assertThat(response.getStatusCode().value()).isEqualTo(200);
+        assertThat(asMap(response.getBody())).containsEntry("registrationEnabled", true);
+    }
+
+    @Test
     void configIsNotReadableAnonymously() {
         var response = http().get().uri("/api/config").retrieve().toEntity(String.class);
         assertThat(response.getStatusCode().value()).isEqualTo(401);

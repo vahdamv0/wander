@@ -97,6 +97,10 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Auth entry points and the healthcheck.
                         .requestMatchers("/api/auth/login", "/api/auth/register", "/api/health").permitAll()
+                        // Whether this instance accepts sign-ups, which the login
+                        // page has to know before anybody has a session. One
+                        // boolean; the rest of /api/config stays authenticated.
+                        .requestMatchers("/api/config/sign-in").permitAll()
                         // The OpenAPI document is what generates the typed client.
                         .requestMatchers("/v3/api-docs", "/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**")
                         .permitAll()

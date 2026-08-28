@@ -4,8 +4,10 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.wander.common.PublicEndpoint;
 import com.wander.config.dto.InstanceConfig;
 import com.wander.config.dto.MapConfig;
+import com.wander.config.dto.SignInConfig;
 
 /**
  * Read-only instance settings for the client.
@@ -22,6 +24,21 @@ public class InstanceConfigController {
 
     public InstanceConfigController(WanderProperties properties) {
         this.properties = properties;
+    }
+
+    /**
+     * Public, and the only endpoint here that is.
+     *
+     * The sign-in page runs before anybody has a session, so it cannot read the
+     * authenticated config above — which is why the login page went on offering
+     * "Create one" on an instance with registration switched off. Deliberately
+     * the narrowest thing that fixes that: one boolean, not the operator's
+     * configuration.
+     */
+    @GetMapping("/sign-in")
+    @PublicEndpoint
+    public SignInConfig getSignInConfig() {
+        return new SignInConfig(properties.registrationEnabled());
     }
 
     @GetMapping

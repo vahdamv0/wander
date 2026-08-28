@@ -20,6 +20,7 @@ export type { PlaceSuggestion } from './models/place-suggestion';
 export type { PlaceView } from './models/place-view';
 export type { RegisterRequest } from './models/register-request';
 export type { SessionUser } from './models/session-user';
+export type { SignInConfig } from './models/sign-in-config';
 export type { TripDay } from './models/trip-day';
 export type { TripItinerary } from './models/trip-itinerary';
 export type { TripMemberView } from './models/trip-member-view';
@@ -68,3 +69,5 @@ export type { SearchPlaces$Params as SearchPlaces$Params } from './fn/geo-contro
 export { searchPlaces as searchPlaces } from './fn/geo-controller/search-places';
 export type { GetInstanceConfig$Params as GetInstanceConfig$Params } from './fn/instance-config-controller/get-instance-config';
 export { getInstanceConfig as getInstanceConfig } from './fn/instance-config-controller/get-instance-config';
+export type { GetSignInConfig$Params as GetSignInConfig$Params } from './fn/instance-config-controller/get-sign-in-config';
+export { getSignInConfig as getSignInConfig } from './fn/instance-config-controller/get-sign-in-config';
