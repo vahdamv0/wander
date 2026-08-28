@@ -2,6 +2,7 @@ import { Component, DestroyRef, computed, effect, inject, input, signal, untrack
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { PackingGroup, PackingItemView } from '../../api';
+import { ageLabel, messageOf } from '../../core/errors';
 import { SessionStore } from '../../core/session.store';
 import { TripChange, TripSyncService } from '../../core/trip-sync';
 import { PackingRepo } from '../../repo/packing.repo';
@@ -39,6 +40,8 @@ export class PackingPage {
   protected readonly saving = this.repo.saving;
   protected readonly canEdit = this.repo.canEdit;
   protected readonly syncStatus = this.sync.status;
+  /** Set when this page is showing a copy from the device rather than the server. */
+  protected readonly savedAt = this.repo.savedAt;
 
   protected readonly error = signal<string | null>(null);
 
@@ -216,13 +219,16 @@ export class PackingPage {
     }
   }
 
+  protected savedLabel(savedAt: number): string {
+    return `Saved copy · ${ageLabel(savedAt)}`;
+  }
+
   private async guard(action: () => Promise<void>): Promise<void> {
     this.error.set(null);
     try {
       await action();
     } catch (err: unknown) {
-      const body = (err as { error?: { message?: string } } | null)?.error;
-      this.error.set(body?.message ?? 'That did not work. Try again.');
+      this.error.set(messageOf(err, 'That did not work. Try again.'));
     }
   }
 }

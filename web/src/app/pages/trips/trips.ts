@@ -1,6 +1,7 @@
 import { Component, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { messageOf } from '../../core/errors';
 import { InstanceConfigStore } from '../../core/instance-config.store';
 import { TripRepo } from '../../repo/trip.repo';
 
@@ -74,8 +75,7 @@ export class TripsPage {
       this.endDate.set('');
       this.composing.set(false);
     } catch (err: unknown) {
-      const body = (err as { error?: { message?: string } } | null)?.error;
-      this.error.set(body?.message ?? 'Could not create the trip.');
+      this.error.set(messageOf(err, 'Could not create the trip.'));
     }
   }
 

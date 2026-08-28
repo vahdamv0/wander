@@ -1,4 +1,12 @@
 <div class="min-h-dvh">
+  @if (!online()) {
+    <!-- Stale data is shown, so it has to be labelled. This project has refused
+         to hide staleness everywhere else; a cache is not the place to start. -->
+    <p class="bg-surface-2 px-4 py-1.5 text-center text-xs text-muted" role="status">
+      You're offline — showing what was saved on this device. Changes can't be
+      saved until you reconnect.
+    </p>
+  }
   <header
     class="sticky top-0 z-10 border-b border-border bg-surface/85 backdrop-blur
            supports-[backdrop-filter]:bg-surface/70"

@@ -1,6 +1,7 @@
 import { Component, computed, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { TripMemberView } from '../../api';
+import { messageOf } from '../../core/errors';
 import { SessionStore } from '../../core/session.store';
 import { MemberRepo, TripRole } from '../../repo/member.repo';
 
@@ -122,8 +123,7 @@ export class TripMembers {
     try {
       await action();
     } catch (err: unknown) {
-      const body = (err as { error?: { message?: string } } | null)?.error;
-      this.error.set(body?.message ?? 'That did not work. Try again.');
+      this.error.set(messageOf(err, 'That did not work. Try again.'));
     }
   }
 }

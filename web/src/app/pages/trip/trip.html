@@ -56,6 +56,13 @@
           </svg>
           Expenses
         </a>
+        @if (savedAt(); as savedAt) {
+          <span class="rounded-full border border-border px-2 py-0.5 text-[0.6875rem] font-medium
+                       uppercase tracking-wide text-muted"
+                title="This page is showing what was saved on this device.">
+            {{ savedLabel(savedAt) }}
+          </span>
+        }
         <!-- Only worth saying when it is not working: "Live" on a trip nobody
              else is looking at is noise, but a page that has quietly stopped
              receiving other people's edits is worth knowing about. -->

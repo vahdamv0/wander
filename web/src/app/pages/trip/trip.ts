@@ -11,6 +11,7 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { PlaceSuggestion, PlaceView, TripDay } from '../../api';
 import { InstanceConfigStore } from '../../core/instance-config.store';
+import { ageLabel, messageOf } from '../../core/errors';
 import { SessionStore } from '../../core/session.store';
 import { TripChange, TripSyncService } from '../../core/trip-sync';
 import { GeoRepo } from '../../repo/geo.repo';
@@ -128,6 +129,8 @@ export class TripPage {
 
   /** Whether live updates are flowing, for the indicator in the header. */
   protected readonly syncStatus = this.sync.status;
+  /** Set when this page is showing a copy from the device rather than the server. */
+  protected readonly savedAt = this.repo.savedAt;
 
   /** Only the owner may rewrite the trip itself; editors change its content. */
   protected readonly isOwner = computed(() => this.trip()?.myRole === 'OWNER');
@@ -329,8 +332,7 @@ export class TripPage {
       // The days, and every place's date, may have moved underneath us.
       await this.reload();
     } catch (err: unknown) {
-      const body = (err as { error?: { message?: string } } | null)?.error;
-      this.error.set(body?.message ?? 'Could not save the trip.');
+      this.error.set(messageOf(err, 'Could not save the trip.'));
       // Only worth offering when the start moved: with the same start there is
       // no offset to shift by, and the retry would fail identically.
       this.offerShift.set(!shiftItinerary && startMoved);
@@ -550,13 +552,16 @@ export class TripPage {
     });
   }
 
+  protected savedLabel(savedAt: number): string {
+    return `Saved copy · ${ageLabel(savedAt)}`;
+  }
+
   private async guard(action: () => Promise<void>): Promise<void> {
     this.error.set(null);
     try {
       await action();
     } catch (err: unknown) {
-      const body = (err as { error?: { message?: string } } | null)?.error;
-      this.error.set(body?.message ?? 'That did not work. Try again.');
+      this.error.set(messageOf(err, 'That did not work. Try again.'));
     }
   }
 }

@@ -13,6 +13,10 @@ import {
   putDayNote,
   updatePlace,
 } from '../api';
+import { Connectivity } from '../core/connectivity';
+import { OfflineError } from '../core/errors';
+import { OfflineCache, cacheKeys } from '../core/offline-cache';
+import { SessionStore } from '../core/session.store';
 
 /**
  * One trip's itinerary, as signals. Like TripRepo this is where offline support
@@ -26,14 +30,20 @@ import {
 @Injectable({ providedIn: 'root' })
 export class PlaceRepo {
   private readonly api = inject(Api);
+  private readonly cache = inject(OfflineCache);
+  private readonly session = inject(SessionStore);
+  private readonly connectivity = inject(Connectivity);
 
   private readonly _itinerary = signal<TripItinerary | null>(null);
   private readonly _loading = signal(false);
+  /** When this came from the device rather than the server. Null when fresh. */
+  private readonly _savedAt = signal<number | null>(null);
   /** Set while a write is in flight, so the page can disable its controls. */
   private readonly _saving = signal(false);
 
   readonly itinerary = this._itinerary.asReadonly();
   readonly loading = this._loading.asReadonly();
+  readonly savedAt = this._savedAt.asReadonly();
   readonly saving = this._saving.asReadonly();
 
   readonly trip = computed(() => this._itinerary()?.trip ?? null);
@@ -52,7 +62,10 @@ export class PlaceRepo {
     }
     this._loading.set(true);
     try {
-      this._itinerary.set(await this.api.invoke(getItinerary, { tripId }));
+      const read = await this.cache.readThrough(this.session.user()?.id ?? null,
+        cacheKeys.itinerary(tripId), () => this.api.invoke(getItinerary, { tripId }));
+      this._itinerary.set(read.body);
+      this._savedAt.set(read.savedAt);
     } finally {
       this._loading.set(false);
     }
@@ -91,6 +104,9 @@ export class PlaceRepo {
    * failure puts the old order back.
    */
   async move(tripId: number, placeId: number, dayDate: string, position: number): Promise<void> {
+    // Checked before the optimistic reorder, not after: moving the row and then
+    // snapping it back is worse than not moving it.
+    this.requireOnline();
     const snapshot = this._itinerary();
     const optimistic = snapshot && withMovedPlace(snapshot.days, placeId, dayDate, position);
     if (snapshot && optimistic) {
@@ -111,7 +127,16 @@ export class PlaceRepo {
     }
   }
 
+
+  /** Nothing is queued offline, so a write that cannot be sent is refused outright. */
+  private requireOnline(): void {
+    if (!this.connectivity.online()) {
+      throw new OfflineError();
+    }
+  }
+
   private async write(tripId: number, call: () => Promise<unknown>): Promise<void> {
+    this.requireOnline();
     this._saving.set(true);
     try {
       await call();

@@ -2,6 +2,7 @@ import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { Api, getSignInConfig } from '../../api';
+import { messageOf } from '../../core/errors';
 import { SessionStore } from '../../core/session.store';
 import { BrandMark } from '../../shell/brand-mark';
 
@@ -63,7 +64,7 @@ export class LoginPage {
       }
       await this.router.navigate(['/trips']);
     } catch (err: unknown) {
-      this.error.set(messageOf(err));
+      this.error.set(messageOf(err, 'Something went wrong. Please try again.'));
     } finally {
       this.busy.set(false);
     }
@@ -73,10 +74,4 @@ export class LoginPage {
     this.mode.update((m) => (m === 'login' ? 'register' : 'login'));
     this.error.set(null);
   }
-}
-
-/** Pulls the server's error envelope out, falling back to something readable. */
-function messageOf(err: unknown): string {
-  const body = (err as { error?: { message?: string } } | null)?.error;
-  return body?.message ?? 'Something went wrong. Please try again.';
 }

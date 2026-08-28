@@ -8,6 +8,10 @@ import {
   listMembers,
   removeMember,
 } from '../api';
+import { Connectivity } from '../core/connectivity';
+import { OfflineError } from '../core/errors';
+import { OfflineCache, cacheKeys } from '../core/offline-cache';
+import { SessionStore } from '../core/session.store';
 
 /**
  * The role names, taken from the generated model rather than written out again —
@@ -27,21 +31,30 @@ export type TripRole = TripMemberView['role'];
 @Injectable({ providedIn: 'root' })
 export class MemberRepo {
   private readonly api = inject(Api);
+  private readonly cache = inject(OfflineCache);
+  private readonly session = inject(SessionStore);
+  private readonly connectivity = inject(Connectivity);
 
   private readonly _members = signal<TripMemberView[]>([]);
   private readonly _loading = signal(false);
+  /** When this came from the device rather than the server. Null when fresh. */
+  private readonly _savedAt = signal<number | null>(null);
   private readonly _saving = signal(false);
   /** Which trip's list we hold, so a live update knows whether anyone is looking. */
   private _loadedTripId: number | null = null;
 
   readonly members = this._members.asReadonly();
   readonly loading = this._loading.asReadonly();
+  readonly savedAt = this._savedAt.asReadonly();
   readonly saving = this._saving.asReadonly();
 
   async load(tripId: number): Promise<void> {
     this._loading.set(true);
     try {
-      this._members.set(await this.api.invoke(listMembers, { tripId }));
+      const read = await this.cache.readThrough(this.session.user()?.id ?? null,
+        cacheKeys.members(tripId), () => this.api.invoke(listMembers, { tripId }));
+      this._members.set(read.body);
+      this._savedAt.set(read.savedAt);
       this._loadedTripId = tripId;
     } finally {
       this._loading.set(false);
@@ -84,6 +97,7 @@ export class MemberRepo {
    * so reloading the list would turn a success into an error on screen.
    */
   async leave(tripId: number, userId: number): Promise<void> {
+    this.requireOnline();
     this._saving.set(true);
     try {
       await this.api.invoke(removeMember, { tripId, userId });
@@ -99,7 +113,16 @@ export class MemberRepo {
     this._loadedTripId = null;
   }
 
+
+  /** Nothing is queued offline, so a write that cannot be sent is refused outright. */
+  private requireOnline(): void {
+    if (!this.connectivity.online()) {
+      throw new OfflineError();
+    }
+  }
+
   private async write(tripId: number, call: () => Promise<unknown>): Promise<void> {
+    this.requireOnline();
     this._saving.set(true);
     try {
       await call();

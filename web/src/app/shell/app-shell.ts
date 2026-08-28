@@ -1,5 +1,6 @@
 import { Component, inject } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { Connectivity } from '../core/connectivity';
 import { InstanceConfigStore } from '../core/instance-config.store';
 import { SessionStore } from '../core/session.store';
 import { BrandMark } from './brand-mark';
@@ -19,8 +20,14 @@ export class AppShell {
   private readonly session = inject(SessionStore);
   private readonly router = inject(Router);
   private readonly config = inject(InstanceConfigStore);
+  private readonly connectivity = inject(Connectivity);
 
   protected readonly user = this.session.user;
+  /**
+   * Said once, in the frame, so every page inherits it. The pages themselves say
+   * how old *their* copy is, which is the part that differs between them.
+   */
+  protected readonly online = this.connectivity.online;
 
   constructor() {
     // Here rather than in an app initializer: the endpoint is authenticated, and
