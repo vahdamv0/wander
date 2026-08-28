@@ -18,8 +18,13 @@ import com.wander.common.RateLimitedException;
  *
  * Blocking a thread here is cheap: virtual threads are on, so a parked request
  * is not holding a platform thread.
+ *
+ * Public, and a **bean**, because more than one feature now talks to Nominatim:
+ * place search and enrichment's tag lookup. Two gates would mean two requests a
+ * second from one instance, which is exactly the thing this class exists to
+ * prevent — the limit belongs to the upstream, not to the caller.
  */
-class RateGate {
+public class RateGate {
 
     private final long minIntervalNanos;
     private final long maxWaitNanos;
@@ -27,7 +32,7 @@ class RateGate {
     /** Guarded by {@code this}: the moment the last permitted call went out. */
     private long lastPassNanos = Long.MIN_VALUE;
 
-    RateGate(long minIntervalMillis, long maxWaitMillis) {
+    public RateGate(long minIntervalMillis, long maxWaitMillis) {
         this.minIntervalNanos = TimeUnit.MILLISECONDS.toNanos(minIntervalMillis);
         this.maxWaitNanos = TimeUnit.MILLISECONDS.toNanos(maxWaitMillis);
     }
@@ -37,7 +42,7 @@ class RateGate {
      *
      * @throws RateLimitedException if the wait would be longer than the maximum
      */
-    void pass() {
+    public void pass() {
         long waitNanos;
         synchronized (this) {
             long now = System.nanoTime();
