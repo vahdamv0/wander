@@ -4,10 +4,16 @@
 export interface PlaceView {
   address?: string;
   dayDate: string;
+  enrichable: boolean;
   id: number;
   latitude?: number;
   longitude?: number;
   name: string;
   notes?: string;
+  photoAuthor?: string;
+  photoLicence?: string;
+  photoSourceUrl?: string;
+  photoThumbUrl?: string;
+  photoUrl?: string;
   position: number;
 }

@@ -59,6 +59,36 @@ public class Place {
     @Column
     private String address;
 
+    /**
+     * The geocoder's own reference for this place — `node/240109189` — or null for
+     * one typed by hand.
+     *
+     * Kept so the place can be asked about later: everything an enrichment knows
+     * hangs off this, and matching back by name and coordinates instead would be
+     * a guess that sometimes describes the building next door.
+     */
+    @Column(name = "osm_ref", length = 40)
+    private String osmRef;
+
+    /**
+     * A photo chosen from the candidates, with the credit that has to appear
+     * wherever it does. The five move together — see {@link #setPhoto}.
+     */
+    @Column(name = "photo_url", length = 500)
+    private String photoUrl;
+
+    @Column(name = "photo_thumb_url", length = 500)
+    private String photoThumbUrl;
+
+    @Column(name = "photo_author", length = 300)
+    private String photoAuthor;
+
+    @Column(name = "photo_licence", length = 120)
+    private String photoLicence;
+
+    @Column(name = "photo_source_url", length = 500)
+    private String photoSourceUrl;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt = Instant.now();
 
@@ -135,6 +165,59 @@ public class Place {
 
     public String getAddress() {
         return address;
+    }
+
+    public String getOsmRef() {
+        return osmRef;
+    }
+
+    public void setOsmRef(String osmRef) {
+        this.osmRef = osmRef;
+    }
+
+    public String getPhotoUrl() {
+        return photoUrl;
+    }
+
+    public String getPhotoThumbUrl() {
+        return photoThumbUrl;
+    }
+
+    public String getPhotoAuthor() {
+        return photoAuthor;
+    }
+
+    public String getPhotoLicence() {
+        return photoLicence;
+    }
+
+    public String getPhotoSourceUrl() {
+        return photoSourceUrl;
+    }
+
+    /**
+     * All five together, or all five cleared. A URL without its author and licence
+     * is a picture this project has no right to display, so there is deliberately
+     * no way to set one without the other four.
+     */
+    public void setPhoto(String url, String thumbUrl, String author, String licence,
+            String sourceUrl) {
+        if (url == null) {
+            this.photoUrl = null;
+            this.photoThumbUrl = null;
+            this.photoAuthor = null;
+            this.photoLicence = null;
+            this.photoSourceUrl = null;
+            return;
+        }
+        if (author == null || author.isBlank() || licence == null || licence.isBlank()) {
+            throw new IllegalArgumentException("A photo needs its author and licence");
+        }
+        this.photoUrl = url;
+        this.photoThumbUrl = thumbUrl == null ? url : thumbUrl;
+        this.photoAuthor = author;
+        this.photoLicence = licence;
+        this.photoSourceUrl = sourceUrl;
     }
 
     public Instant getCreatedAt() {

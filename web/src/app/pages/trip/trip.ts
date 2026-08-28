@@ -471,6 +471,10 @@ export class TripPage {
         latitude: location?.latitude,
         longitude: location?.longitude,
         address: location?.address,
+        // The geocoder's own reference for the hit they picked. Kept because it
+        // is the only thing that can identify this place upstream afterwards, and
+        // it cannot be recovered once the moment of choosing has passed.
+        osmRef: location?.ref,
       });
       // The form stays open — adding several places to one day is the common
       // case — but the draft and its search results go.

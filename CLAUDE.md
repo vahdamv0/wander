@@ -66,6 +66,16 @@ Java record → springdoc → `api/build/openapi.json` (written by
 - **Trip access goes through `TripAccessService`.** `requireMember` for read,
   `requireRole` for write. A non-member gets **404**, not 403; a member with too
   weak a role gets 403. New trip-scoped endpoints must go through it.
+- **A place from search keeps the geocoder's reference.** `places.osm_ref` holds
+  `node/240109189`, sent by the client from the suggestion it picked, for the same
+  reason the coordinates are: the user chose one candidate of several and a later
+  re-search can rank a different one first. It is the only thing that can identify
+  a place upstream afterwards, so a place saved without it can never be asked
+  about — which is why it is stored before anything reads it. Null forever for a
+  place typed by hand, and `PlaceView.enrichable` is how the client asks. A kept
+  photo lives beside it, and `Place.setPhoto` takes its author and licence or
+  refuses: a Commons image is licensed *per image*, so a URL without its credit is
+  a picture this project has no right to draw.
 - **A day is addressed by its date.** Days are derived from the trip's range and
   have no rows, so anything hung off one carries a plain `day_date` — `places`
   does, and so does `day_notes`, whose real key is the unique `(trip_id,

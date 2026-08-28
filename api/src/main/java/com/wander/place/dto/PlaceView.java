@@ -18,10 +18,29 @@ public record PlaceView(
         Double latitude,
         Double longitude,
         /** The geocoder's formatted address line, when there was one. */
-        String address) {
+        String address,
+        /**
+         * True when this place came from a search and can therefore be asked
+         * about. The reference itself is not sent — the client never needs it,
+         * and it is the server that does the asking.
+         */
+        @NotNull boolean enrichable,
+        /**
+         * A photo somebody kept, if any. The credit travels with it because it
+         * has to be shown wherever the picture is: a Commons image is licensed
+         * per image, and the terms for one say nothing about the next.
+         */
+        String photoThumbUrl,
+        String photoUrl,
+        String photoAuthor,
+        String photoLicence,
+        String photoSourceUrl) {
 
     public static PlaceView of(Place place) {
         return new PlaceView(place.getId(), place.getDayDate(), place.getSortOrder(), place.getName(),
-                place.getNotes(), place.getLatitude(), place.getLongitude(), place.getAddress());
+                place.getNotes(), place.getLatitude(), place.getLongitude(), place.getAddress(),
+                place.getOsmRef() != null,
+                place.getPhotoThumbUrl(), place.getPhotoUrl(), place.getPhotoAuthor(),
+                place.getPhotoLicence(), place.getPhotoSourceUrl());
     }
 }

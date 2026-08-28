@@ -91,6 +91,9 @@ public class PlaceService {
         // Rejects half a point with a 400 rather than letting the database
         // CHECK turn it into a 500.
         place.setLocation(request.latitude(), request.longitude(), blankToNull(request.address()));
+        // Kept whether or not anything reads it yet: a place saved without it can
+        // never be enriched, and there is no way to work it out afterwards.
+        place.setOsmRef(blankToNull(request.osmRef()));
         Place saved = places.save(place);
         // Announced, not sent: the event fires after this transaction commits and
         // says only that the itinerary moved. See TripChange.

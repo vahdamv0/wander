@@ -232,4 +232,31 @@ class PlaceIntegrationTest extends IntegrationTestBase {
                 """);
         assertThat(response.getStatusCode().value()).isEqualTo(400);
     }
+
+    @Test
+    void aPlaceFromSearchKeepsTheGeocodersReference() throws Exception {
+        Session owner = register("owner");
+        Object tripId = asMap(post(owner, "/api/trips", """
+                {"name":"Kyoto","startDate":"2027-03-28","endDate":"2027-03-30"}
+                """).getBody()).get("id");
+
+        // What the client sends when somebody picks a suggestion: the point *and*
+        // the reference it came with.
+        var fromSearch = post(owner, "/api/trips/" + tripId + "/places", """
+                {"dayDate":"2027-03-28","name":"Fushimi Inari","latitude":34.9671,
+                 "longitude":135.7727,"address":"Fushimi Ward, Kyoto","osmRef":"way/34633854"}
+                """);
+        assertThat(fromSearch.getStatusCode().value()).isEqualTo(201);
+        // The reference itself never comes back — the client has no use for it,
+        // and the server is what does the asking.
+        assertThat(asMap(fromSearch.getBody())).containsEntry("enrichable", true)
+                .doesNotContainKey("osmRef");
+
+        // Typed by hand: no reference, and that is permanent rather than missing.
+        var typed = post(owner, "/api/trips/" + tripId + "/places", """
+                {"dayDate":"2027-03-28","name":"That cafe we liked"}
+                """);
+        assertThat(asMap(typed.getBody())).containsEntry("enrichable", false);
+        assertThat(asMap(typed.getBody()).get("photoUrl")).isNull();
+    }
 }

@@ -22,5 +22,13 @@ public record CreatePlaceRequest(
         @Size(max = 2000) String notes,
         @DecimalMin("-90") @DecimalMax("90") Double latitude,
         @DecimalMin("-180") @DecimalMax("180") Double longitude,
-        @Size(max = 500) String address) {
+        @Size(max = 500) String address,
+        /**
+         * The geocoder's own reference for the picked suggestion, e.g.
+         * `node/240109189`. Sent by the client for the same reason the
+         * coordinates are — it came back with the hit the user chose, and
+         * re-deriving it later would mean guessing which of several candidates
+         * they meant. Absent for a place typed by hand, permanently.
+         */
+        @Size(max = 40) String osmRef) {
 }
