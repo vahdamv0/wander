@@ -21,6 +21,7 @@ export type { InstanceConfig } from './models/instance-config';
 export type { LoginRequest } from './models/login-request';
 export type { MapConfig } from './models/map-config';
 export type { MovePlaceRequest } from './models/move-place-request';
+export type { PaymentRequest } from './models/payment-request';
 export type { PersonBalance } from './models/person-balance';
 export type { PlaceSuggestion } from './models/place-suggestion';
 export type { PlaceView } from './models/place-view';
@@ -61,6 +62,8 @@ export type { ListExpenses$Params as ListExpenses$Params } from './fn/expense-co
 export { listExpenses as listExpenses } from './fn/expense-controller/list-expenses';
 export type { CreateExpense$Params as CreateExpense$Params } from './fn/expense-controller/create-expense';
 export { createExpense as createExpense } from './fn/expense-controller/create-expense';
+export type { RecordPayment$Params as RecordPayment$Params } from './fn/expense-controller/record-payment';
+export { recordPayment as recordPayment } from './fn/expense-controller/record-payment';
 export type { PutDayNote$Params as PutDayNote$Params } from './fn/day-note-controller/put-day-note';
 export { putDayNote as putDayNote } from './fn/day-note-controller/put-day-note';
 export type { List$Params as List$Params } from './fn/trip-controller/list';

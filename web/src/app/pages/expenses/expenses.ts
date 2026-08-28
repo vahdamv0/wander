@@ -11,7 +11,7 @@ import {
 import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
-import { ExpenseView } from '../../api';
+import { ExpenseView, SettlementView } from '../../api';
 import { formatMoney, parseMoney, toAmountInput } from '../../core/money';
 import { SessionStore } from '../../core/session.store';
 import { TripChange, TripSyncService } from '../../core/trip-sync';
@@ -59,7 +59,8 @@ export class ExpensesPage {
   readonly tripId = input.required<string>();
 
   protected readonly trip = this.repo.trip;
-  protected readonly expenses = this.repo.expenses;
+  /** Expenses and payments together — the ledger shows both, marked differently. */
+  protected readonly entries = this.repo.entries;
   protected readonly summary = this.repo.summary;
   protected readonly loading = this.repo.loading;
   protected readonly saving = this.repo.saving;
@@ -70,6 +71,14 @@ export class ExpensesPage {
   protected readonly error = signal<string | null>(null);
   /** Open form: 'new', an expense id, or null. */
   protected readonly editing = signal<number | 'new' | null>(null);
+  /** Whether the record-a-payment form is open. Separate from `editing`: they are different things. */
+  protected readonly paying = signal(false);
+
+  protected readonly payFrom = signal<number | null>(null);
+  protected readonly payTo = signal<number | null>(null);
+  protected readonly payAmount = signal('');
+  protected readonly payDate = signal('');
+  protected readonly payNote = signal('');
 
   protected readonly draftDescription = signal('');
   protected readonly draftAmount = signal('');
@@ -115,6 +124,22 @@ export class ExpensesPage {
       allocated += amount;
     }
     return total - allocated;
+  });
+
+  protected readonly payAmountMinor = computed(() => parseMoney(this.payAmount(), this.currency()));
+
+  protected readonly canRecordPayment = computed(() => {
+    const amount = this.payAmountMinor();
+    return (
+      !this.saving() &&
+      amount !== null &&
+      amount >= 1 &&
+      this.payFrom() !== null &&
+      this.payTo() !== null &&
+      // Paying yourself is not settling up, and the server refuses it anyway.
+      this.payFrom() !== this.payTo() &&
+      !!this.payDate()
+    );
   });
 
   protected readonly canSubmit = computed(() => {
@@ -186,6 +211,7 @@ export class ExpensesPage {
 
   protected openNew(): void {
     this.error.set(null);
+    this.paying.set(false);
     this.draftDescription.set('');
     this.draftAmount.set('');
     // Today, which is what somebody entering an expense as it happens wants —
@@ -203,6 +229,55 @@ export class ExpensesPage {
       })),
     );
     this.editing.set('new');
+  }
+
+  /**
+   * Opens the payment form, optionally filled in from a suggested transfer.
+   *
+   * Prefilling from a suggestion is the path that matters: the summary already
+   * says "Bob pays Alice €40", and making somebody retype that is how a ledger
+   * stops being kept up to date.
+   */
+  protected startPayment(suggestion?: SettlementView): void {
+    this.error.set(null);
+    this.editing.set(null);
+    this.payFrom.set(suggestion?.fromUserId ?? this.session.user()?.id ?? null);
+    this.payTo.set(suggestion?.toUserId ?? null);
+    this.payAmount.set(
+      suggestion ? toAmountInput(suggestion.amountMinor, this.currency()) : '',
+    );
+    this.payDate.set(new Date().toISOString().slice(0, 10));
+    this.payNote.set('');
+    this.paying.set(true);
+  }
+
+  protected cancelPayment(): void {
+    this.paying.set(false);
+    this.error.set(null);
+  }
+
+  protected async savePayment(): Promise<void> {
+    const amountMinor = this.payAmountMinor();
+    const fromUserId = this.payFrom();
+    const toUserId = this.payTo();
+    if (amountMinor === null || fromUserId === null || toUserId === null) {
+      return;
+    }
+    await this.guard(async () => {
+      await this.repo.pay(this.id(), {
+        fromUserId,
+        toUserId,
+        amountMinor,
+        paidOn: this.payDate(),
+        note: this.payNote().trim() || undefined,
+      });
+      this.paying.set(false);
+    });
+  }
+
+  /** Who received the money in a payment — its single share. */
+  protected recipientOf(payment: ExpenseView): string {
+    return payment.shares[0]?.displayName ?? '';
   }
 
   protected openEdit(expense: ExpenseView): void {

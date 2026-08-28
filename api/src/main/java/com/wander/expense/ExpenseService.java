@@ -12,10 +12,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.wander.common.NotFoundException;
+import com.wander.common.ConflictException;
 import com.wander.expense.dto.ExpenseRequest;
 import com.wander.expense.dto.ExpenseShareInput;
 import com.wander.expense.dto.ExpenseSummary;
 import com.wander.expense.dto.ExpenseView;
+import com.wander.expense.dto.PaymentRequest;
 import com.wander.expense.dto.PersonBalance;
 import com.wander.expense.dto.SettlementView;
 import com.wander.expense.dto.TripExpenses;
@@ -80,7 +82,7 @@ public class ExpenseService {
 
         Expense expense = new Expense(trip, request.description().strip(), request.amountMinor(),
                 request.spentOn(), requireMemberUser(tripId, request.paidByUserId(), "paidByUserId"),
-                request.splitMode());
+                request.splitMode(), ExpenseKind.EXPENSE);
         applySplit(tripId, expense, request);
         Expense saved = expenses.save(expense);
 
@@ -92,6 +94,12 @@ public class ExpenseService {
     public ExpenseView update(Long userId, Long tripId, Long expenseId, ExpenseRequest request) {
         access.requireRole(tripId, userId, CAN_EDIT);
         Expense expense = require(tripId, expenseId);
+        if (expense.isPayment()) {
+            // A payment's shape is derived, not given: rewriting it through this
+            // body could put its single share on the wrong person and reverse a
+            // balance. Remove it and record it again instead.
+            throw new ConflictException("A payment is recorded or removed, not edited");
+        }
 
         expense.setDescription(request.description().strip());
         expense.setAmountMinor(request.amountMinor());
@@ -113,6 +121,39 @@ public class ExpenseService {
         // there is no second delete to forget.
         expenses.delete(require(tripId, expenseId));
         changes.expensesChanged(tripId, userId);
+    }
+
+    /**
+     * Records that somebody settled up.
+     *
+     * Stored as an expense whose payer is the person handing money over and whose
+     * single share belongs to the person receiving it. Nothing else in this class
+     * changes, because that is exactly what makes the balances come out right:
+     * `paid` rises for the payer and `owed` rises for the recipient, so a -40 and
+     * a +40 both become zero.
+     */
+    @Transactional
+    public ExpenseView recordPayment(Long userId, Long tripId, PaymentRequest request) {
+        TripMember member = access.requireRole(tripId, userId, CAN_EDIT);
+        if (request.fromUserId().equals(request.toUserId())) {
+            throw new IllegalArgumentException("A payment needs two different people");
+        }
+
+        User from = requireMemberUser(tripId, request.fromUserId(), "fromUserId");
+        User to = requireMemberUser(tripId, request.toUserId(), "toUserId");
+        String note = request.note() == null || request.note().isBlank()
+                ? "Payment"
+                : request.note().strip();
+
+        // EXACT, because the amount is given rather than divided — and the whole
+        // amount goes to one person, so there is nothing for the splitter to do.
+        Expense payment = new Expense(member.getTrip(), note, request.amountMinor(), request.paidOn(),
+                from, SplitMode.EXACT, ExpenseKind.PAYMENT);
+        payment.replaceShares(Map.of(to.getId(), request.amountMinor()), ignored -> to);
+        Expense saved = expenses.save(payment);
+
+        changes.expensesChanged(tripId, userId);
+        return ExpenseView.of(saved);
     }
 
     /**
@@ -161,17 +202,30 @@ public class ExpenseService {
      * around it.
      */
     private ExpenseSummary summarise(Long tripId, List<Expense> all) {
+        // Expenses and payments are accumulated apart. The net is the same either
+        // way, but the four figures are what a person checks their own memory
+        // against, and "your share" has to mean your share of the bills.
         Map<Long, Long> paid = new LinkedHashMap<>();
         Map<Long, Long> owed = new LinkedHashMap<>();
+        Map<Long, Long> paidBack = new LinkedHashMap<>();
+        Map<Long, Long> received = new LinkedHashMap<>();
         Map<Long, String> names = new LinkedHashMap<>();
         long total = 0;
 
         for (Expense expense : all) {
-            total += expense.getAmountMinor();
-            paid.merge(expense.getPaidBy().getId(), expense.getAmountMinor(), Long::sum);
+            boolean payment = expense.isPayment();
+            // A payment moves money between members; it is not something the trip
+            // spent. It still moves the net, which is how settling up clears a
+            // balance at all.
+            if (!payment) {
+                total += expense.getAmountMinor();
+            }
+            (payment ? paidBack : paid)
+                    .merge(expense.getPaidBy().getId(), expense.getAmountMinor(), Long::sum);
             names.putIfAbsent(expense.getPaidBy().getId(), expense.getPaidBy().getDisplayName());
             for (ExpenseShare share : expense.getShares()) {
-                owed.merge(share.getUser().getId(), share.getAmountMinor(), Long::sum);
+                (payment ? received : owed)
+                        .merge(share.getUser().getId(), share.getAmountMinor(), Long::sum);
                 names.putIfAbsent(share.getUser().getId(), share.getUser().getDisplayName());
             }
         }
@@ -188,14 +242,19 @@ public class ExpenseService {
         Map<Long, Long> nets = new LinkedHashMap<>();
         List<Long> everybody = new ArrayList<>(names.keySet());
         for (Long id : everybody) {
-            if (currentMembers.contains(id) || paid.containsKey(id) || owed.containsKey(id)) {
-                nets.put(id, paid.getOrDefault(id, 0L) - owed.getOrDefault(id, 0L));
+            boolean involved = paid.containsKey(id) || owed.containsKey(id)
+                    || paidBack.containsKey(id) || received.containsKey(id);
+            if (currentMembers.contains(id) || involved) {
+                nets.put(id, paid.getOrDefault(id, 0L) + paidBack.getOrDefault(id, 0L)
+                        - owed.getOrDefault(id, 0L) - received.getOrDefault(id, 0L));
             }
         }
 
         List<PersonBalance> balances = nets.entrySet().stream()
                 .map(entry -> new PersonBalance(entry.getKey(), names.get(entry.getKey()),
                         paid.getOrDefault(entry.getKey(), 0L), owed.getOrDefault(entry.getKey(), 0L),
+                        paidBack.getOrDefault(entry.getKey(), 0L),
+                        received.getOrDefault(entry.getKey(), 0L),
                         entry.getValue(), currentMembers.contains(entry.getKey())))
                 // Most owed first, then most owing, so the two ends of the ledger
                 // are the two ends of the list.

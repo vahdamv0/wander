@@ -27,6 +27,8 @@ export type { ListExpenses$Params as ListExpenses$Params } from './fn/expense-co
 export { listExpenses as listExpenses } from './fn/expense-controller/list-expenses';
 export type { CreateExpense$Params as CreateExpense$Params } from './fn/expense-controller/create-expense';
 export { createExpense as createExpense } from './fn/expense-controller/create-expense';
+export type { RecordPayment$Params as RecordPayment$Params } from './fn/expense-controller/record-payment';
+export { recordPayment as recordPayment } from './fn/expense-controller/record-payment';
 export type { PutDayNote$Params as PutDayNote$Params } from './fn/day-note-controller/put-day-note';
 export { putDayNote as putDayNote } from './fn/day-note-controller/put-day-note';
 export type { List$Params as List$Params } from './fn/trip-controller/list';

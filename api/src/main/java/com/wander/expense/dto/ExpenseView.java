@@ -5,6 +5,7 @@ import java.util.Comparator;
 import java.util.List;
 
 import com.wander.expense.Expense;
+import com.wander.expense.ExpenseKind;
 import com.wander.expense.SplitMode;
 
 import jakarta.validation.constraints.NotNull;
@@ -28,12 +29,18 @@ public record ExpenseView(
         @NotNull Long paidByUserId,
         @NotNull String paidByName,
         @NotNull SplitMode splitMode,
+        /**
+         * PAYMENT for somebody settling up. The client draws those differently and
+         * leaves them out of anything it describes as a cost — a payment's single
+         * share is the person who received the money, not somebody who owes it.
+         */
+        @NotNull ExpenseKind kind,
         @NotNull List<ExpenseShareView> shares) {
 
     public static ExpenseView of(Expense expense) {
         return new ExpenseView(expense.getId(), expense.getDescription(), expense.getAmountMinor(),
                 expense.getSpentOn(), expense.getPaidBy().getId(), expense.getPaidBy().getDisplayName(),
-                expense.getSplitMode(),
+                expense.getSplitMode(), expense.getKind(),
                 expense.getShares().stream()
                         .map(ExpenseShareView::of)
                         // Stable order, so a re-read never reshuffles the split on screen.

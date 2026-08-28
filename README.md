@@ -203,10 +203,10 @@ tables under a running instance. Don't lower a gate to land a change.
    and live sync — add somebody by email, make them an editor or a viewer, hand
    the trip over, and watch each other's edits appear without reloading. Still to
    come: invite links for people who have no account yet.
-4. **Money and stuff.** Expenses with splits and balances are done ✅ — one
-   currency per trip, amounts in integer minor units, equal or exact splits, and
-   a "who owes whom" summary reduced to the fewest payments. Still to come:
-   recording a settlement so balances clear, then packing lists and reservations.
+4. **Money and stuff.** Expenses are done ✅ — one currency per trip, amounts in
+   integer minor units, equal or exact splits, a "who owes whom" summary reduced
+   to the fewest payments, and recording those payments so balances actually
+   clear. Still to come: packing lists and reservations.
 5. **Offline.** IndexedDB reads and a replaying write queue, inside the repos.
 
 ## Licence
