@@ -444,3 +444,91 @@ test('write, edit, and clear the note on a day', async ({ page }) => {
   await expect(page.locator('[role=alert]')).toHaveCount(0);
   expect(consoleErrors, 'unexpected console errors').toEqual([]);
 });
+
+/**
+ * Sharing, in two browsers.
+ *
+ * Two contexts rather than two pages: a session is a cookie, and one context
+ * would just log the first account out. This is the one flow that cannot be
+ * checked from a single browser at all — the point is that what A did shows up
+ * for B, with the rights A gave them and no others.
+ */
+test('share a trip with somebody, who then sees it read-only', async ({ browser }) => {
+  const stamp = Date.now();
+  const guestEmail = `e2e-guest-${stamp}@example.com`;
+
+  const ownerContext = await browser.newContext();
+  const guestContext = await browser.newContext();
+  const owner = await ownerContext.newPage();
+  const guest = await guestContext.newPage();
+
+  const consoleErrors: string[] = [];
+  for (const page of [owner, guest]) {
+    page.on('console', (message) => {
+      if (message.type() === 'error' && !message.text().includes('401')) {
+        consoleErrors.push(message.text());
+      }
+    });
+    page.on('pageerror', (error) => consoleErrors.push(error.message));
+  }
+
+  const register = async (page: typeof owner, email: string, name: string) => {
+    await page.goto('/login');
+    await page.getByText('Create one').click();
+    await page.locator('input[name=email]').fill(email);
+    await page.locator('input[name=displayName]').fill(name);
+    await page.locator('input[name=password]').fill('correct-horse-battery');
+    await page.locator('button[type=submit]').click();
+    await expect(page).toHaveURL(/\/trips$/);
+  };
+
+  await register(owner, `e2e-owner-${stamp}@example.com`, 'Trip Owner');
+  await register(guest, guestEmail, 'Trip Guest');
+
+  // The guest has nothing yet, which is what makes the appearance below mean
+  // something.
+  await expect(guest.getByText('No trips yet')).toBeVisible();
+
+  await owner.getByRole('button', { name: 'Plan your first trip' }).click();
+  await owner.locator('input[name=name]').fill('Oslo');
+  await owner.locator('input[name=startDate]').fill('2027-08-02');
+  await owner.locator('input[name=endDate]').fill('2027-08-04');
+  await owner.getByRole('button', { name: 'Create trip' }).click();
+  await owner.getByRole('link', { name: /Oslo/ }).click();
+  await expect(owner).toHaveURL(/\/trips\/\d+$/);
+
+  // The panel fetches nothing until it is opened, so the count appears with it.
+  await owner.getByRole('button', { name: /People/ }).click();
+  // exact: true throughout — the row's controls carry the member's name in their
+  // screen-reader labels, so a loose match finds three elements.
+  await expect(owner.getByText('Trip Owner (you)')).toBeVisible();
+
+  await owner.locator('input[name=memberEmail]').fill(guestEmail);
+  await owner.locator('select[name=memberRole]').selectOption('VIEWER');
+  await owner.getByRole('button', { name: 'Add', exact: true }).click();
+  await expect(owner.getByText('Trip Guest', { exact: true })).toBeVisible();
+  await expect(owner.getByText(guestEmail)).toBeVisible();
+
+  // Over in the other browser: the trip is simply there now.
+  await guest.reload();
+  await guest.getByRole('link', { name: /Oslo/ }).click();
+  await expect(guest).toHaveURL(/\/trips\/\d+$/);
+  await expect(guest.getByText('Read only')).toBeVisible();
+  await expect(guest.getByRole('heading', { name: /^Day 1/ })).toBeVisible();
+  // A viewer gets no controls at all — not a control that fails on click.
+  await expect(guest.getByRole('button', { name: 'Add place' })).toHaveCount(0);
+
+  // And they can see who else is on it, without being able to change it.
+  await guest.getByRole('button', { name: /People/ }).click();
+  await expect(guest.getByText('Trip Owner', { exact: true })).toBeVisible();
+  await expect(guest.locator('input[name=memberEmail]')).toHaveCount(0);
+
+  // Leaving is the one membership change a viewer may make.
+  await guest.getByRole('button', { name: 'Leave trip' }).click();
+  await expect(guest).toHaveURL(/\/trips$/);
+  await expect(guest.getByText('No trips yet')).toBeVisible();
+
+  expect(consoleErrors, 'unexpected console errors').toEqual([]);
+  await ownerContext.close();
+  await guestContext.close();
+});

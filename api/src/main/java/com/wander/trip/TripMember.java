@@ -72,6 +72,15 @@ public class TripMember {
         return role;
     }
 
+    /**
+     * The one mutable field. A membership's trip and user never change — a
+     * different pair is a different row — but a role does, and transferring
+     * ownership sets two of them in one transaction.
+     */
+    public void setRole(TripRole role) {
+        this.role = role;
+    }
+
     public Instant getJoinedAt() {
         return joinedAt;
     }

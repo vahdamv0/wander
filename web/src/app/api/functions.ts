@@ -11,6 +11,14 @@ export type { MovePlace$Params as MovePlace$Params } from './fn/place-controller
 export { movePlace as movePlace } from './fn/place-controller/move-place';
 export type { GetItinerary$Params as GetItinerary$Params } from './fn/place-controller/get-itinerary';
 export { getItinerary as getItinerary } from './fn/place-controller/get-itinerary';
+export type { ChangeMemberRole$Params as ChangeMemberRole$Params } from './fn/trip-member-controller/change-member-role';
+export { changeMemberRole as changeMemberRole } from './fn/trip-member-controller/change-member-role';
+export type { ListMembers$Params as ListMembers$Params } from './fn/trip-member-controller/list-members';
+export { listMembers as listMembers } from './fn/trip-member-controller/list-members';
+export type { AddMember$Params as AddMember$Params } from './fn/trip-member-controller/add-member';
+export { addMember as addMember } from './fn/trip-member-controller/add-member';
+export type { RemoveMember$Params as RemoveMember$Params } from './fn/trip-member-controller/remove-member';
+export { removeMember as removeMember } from './fn/trip-member-controller/remove-member';
 export type { PutDayNote$Params as PutDayNote$Params } from './fn/day-note-controller/put-day-note';
 export { putDayNote as putDayNote } from './fn/day-note-controller/put-day-note';
 export type { List$Params as List$Params } from './fn/trip-controller/list';

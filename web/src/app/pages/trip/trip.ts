@@ -8,12 +8,13 @@ import {
 } from '@angular/cdk/drag-drop';
 import { Component, computed, inject, input, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { PlaceSuggestion, PlaceView, TripDay } from '../../api';
 import { InstanceConfigStore } from '../../core/instance-config.store';
 import { GeoRepo } from '../../repo/geo.repo';
 import { PlaceRepo } from '../../repo/place.repo';
 import { TripMap } from './trip-map';
+import { TripMembers } from './trip-members';
 
 /**
  * How long to sit on a keystroke before searching. The geocoder allows one
@@ -39,6 +40,7 @@ const SEARCH_DEBOUNCE_MS = 400;
     FormsModule,
     RouterLink,
     TripMap,
+    TripMembers,
   ],
   templateUrl: './trip.html',
 })
@@ -46,6 +48,7 @@ export class TripPage {
   private readonly repo = inject(PlaceRepo);
   private readonly geo = inject(GeoRepo);
   private readonly config = inject(InstanceConfigStore);
+  private readonly router = inject(Router);
 
   /** Bound from the route, as a string — coerced once here. */
   readonly tripId = input.required<string>();
@@ -110,6 +113,20 @@ export class TripPage {
 
   private id(): number {
     return Number(this.tripId());
+  }
+
+  /**
+   * Somebody's role changed, possibly our own: a transfer of ownership demotes
+   * the caller, and `canEdit` comes from the itinerary's `myRole`, so the rest
+   * of the page is stale until it is re-read.
+   */
+  protected async onRolesChanged(): Promise<void> {
+    await this.reload();
+  }
+
+  /** We left the trip; it is a 404 for us now, so there is nothing to show. */
+  protected async onLeft(): Promise<void> {
+    await this.router.navigate(['/trips']);
   }
 
   private async reload(): Promise<void> {
