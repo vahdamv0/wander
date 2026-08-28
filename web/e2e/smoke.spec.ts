@@ -691,6 +691,12 @@ test('one person edits, the other sees it without reloading', async ({ browser }
  * below is definitively made while nobody is listening.
  */
 test('a dropped connection catches up when it comes back', async ({ browser }) => {
+  // Legitimately slow: this test waits out a real exponential backoff — four
+  // refused retries at 0.5s, 1s, 2s, 4s — before the client reconnects, which is
+  // 8-13 seconds of the run doing nothing on purpose. Alone it finishes inside the
+  // default 30s; behind eighteen other tests the setup pushes it past. Tripling
+  // the budget is the honest fix, rather than shortening a wait the feature needs.
+  test.slow();
   const stamp = Date.now();
   const viewerEmail = `e2e-gap-viewer-${stamp}@example.com`;
 

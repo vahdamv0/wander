@@ -1,6 +1,8 @@
 package com.wander.place.dto;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
+import java.util.List;
 
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
@@ -19,7 +21,14 @@ import jakarta.validation.constraints.Size;
 public record CreatePlaceRequest(
         @NotNull LocalDate dayDate,
         @NotBlank @Size(max = 160) String name,
-        @Size(max = 2000) String notes,
+        /**
+         * Notes, in order. A list even though the add form has one box: one shape
+         * for notes everywhere is worth more than a convenience that would make
+         * "create" and "replace" mean different things.
+         */
+        List<@Size(max = 2000) String> notes,
+        /** The hour, when it has one. Local to the place; the day comes from `dayDate`. */
+        LocalTime startsAt,
         @DecimalMin("-90") @DecimalMax("90") Double latitude,
         @DecimalMin("-180") @DecimalMax("180") Double longitude,
         @Size(max = 500) String address,

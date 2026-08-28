@@ -3,5 +3,6 @@
 
 export interface UpdatePlaceRequest {
   name: string;
-  notes?: string;
+  notes?: Array<string>;
+  startsAt?: string;
 }

@@ -41,8 +41,25 @@ public class Place {
     @Column(nullable = false)
     private String name;
 
-    @Column
-    private String notes;
+    /**
+     * Notes, in order, replaced as a set. `Place` owns them outright — a note
+     * without its place is meaningless — so the association cascades and orphans
+     * are removed, which is also what makes deleting a place take them with it.
+     */
+    @jakarta.persistence.OneToMany(mappedBy = "place",
+            cascade = jakarta.persistence.CascadeType.ALL, orphanRemoval = true,
+            fetch = FetchType.EAGER)
+    @jakarta.persistence.OrderBy("position asc")
+    private java.util.List<PlaceNote> notes = new java.util.ArrayList<>();
+
+    /**
+     * The time of day, or null for something with no particular hour.
+     *
+     * A plain time: the day comes from `dayDate` and the zone from where the place
+     * is, so neither needs storing. Not a sort key either — see V13.
+     */
+    @Column(name = "starts_at")
+    private java.time.LocalTime startsAt;
 
     /**
      * Where the place is, when it came from a search. Null for one typed by
@@ -104,12 +121,11 @@ public class Place {
         // JPA
     }
 
-    public Place(Trip trip, LocalDate dayDate, int sortOrder, String name, String notes) {
+    public Place(Trip trip, LocalDate dayDate, int sortOrder, String name) {
         this.trip = trip;
         this.dayDate = dayDate;
         this.sortOrder = sortOrder;
         this.name = name;
-        this.notes = notes;
         this.createdAt = Instant.now();
     }
 
@@ -155,12 +171,40 @@ public class Place {
         this.name = name;
     }
 
-    public String getNotes() {
+    public java.util.List<PlaceNote> getNotes() {
         return notes;
     }
 
-    public void setNotes(String notes) {
-        this.notes = notes;
+    /**
+     * Replaces the notes with the given bodies, in order.
+     *
+     * Rows for positions that already exist are reused rather than deleted and
+     * recreated. Not an optimisation: `Expense.replaceShares` had to learn the
+     * same thing, because Hibernate orders inserts before orphan deletes inside
+     * one flush and a delete-then-insert of the same row trips any constraint on
+     * it. There is no unique constraint here today, but the reuse also keeps note
+     * ids stable, which anything referring to one later would want.
+     */
+    public void replaceNotes(java.util.List<String> bodies) {
+        while (notes.size() > bodies.size()) {
+            notes.remove(notes.size() - 1);
+        }
+        for (int i = 0; i < bodies.size(); i++) {
+            if (i < notes.size()) {
+                notes.get(i).setBody(bodies.get(i));
+                notes.get(i).setPosition(i);
+            } else {
+                notes.add(new PlaceNote(this, bodies.get(i), i));
+            }
+        }
+    }
+
+    public java.time.LocalTime getStartsAt() {
+        return startsAt;
+    }
+
+    public void setStartsAt(java.time.LocalTime startsAt) {
+        this.startsAt = startsAt;
     }
 
     public Double getLatitude() {

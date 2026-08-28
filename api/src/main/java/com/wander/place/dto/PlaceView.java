@@ -1,8 +1,11 @@
 package com.wander.place.dto;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
+import java.util.List;
 
 import com.wander.place.Place;
+import com.wander.place.PlaceNote;
 
 import jakarta.validation.constraints.NotNull;
 
@@ -12,8 +15,10 @@ public record PlaceView(
         @NotNull LocalDate dayDate,
         @NotNull int position,
         @NotNull String name,
-        /** Nullable on purpose: most places never get a note. */
-        String notes,
+        /** In order, and usually empty: most places never get a note. */
+        @NotNull List<String> notes,
+        /** The hour, when the place has one. */
+        LocalTime startsAt,
         /** Null unless the place came from a search — both coordinates or neither. */
         Double latitude,
         Double longitude,
@@ -40,7 +45,8 @@ public record PlaceView(
 
     public static PlaceView of(Place place) {
         return new PlaceView(place.getId(), place.getDayDate(), place.getSortOrder(), place.getName(),
-                place.getNotes(), place.getLatitude(), place.getLongitude(), place.getAddress(),
+                place.getNotes().stream().map(PlaceNote::getBody).toList(), place.getStartsAt(),
+                place.getLatitude(), place.getLongitude(), place.getAddress(),
                 place.getCategory(), place.getOsmRef() != null,
                 place.getPhotoThumbUrl(), place.getPhotoUrl(), place.getPhotoAuthor(),
                 place.getPhotoLicence(), place.getPhotoSourceUrl());

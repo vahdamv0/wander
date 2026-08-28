@@ -122,12 +122,12 @@ class PlaceIntegrationTest extends IntegrationTestBase {
         Object place = addPlace(owner, tripId, "2027-11-04", "Bar");
 
         var updated = put(owner, "/api/trips/" + tripId + "/places/" + place, """
-                {"name":"Bar Cañete","notes":"Book ahead, opens 19:30"}
+                {"name":"Bar Cañete","notes":["Book ahead, opens 19:30"]}
                 """);
         assertThat(updated.getStatusCode().value()).isEqualTo(200);
         assertThat(asMap(updated.getBody()))
                 .containsEntry("name", "Bar Cañete")
-                .containsEntry("notes", "Book ahead, opens 19:30")
+                .containsEntry("notes", List.of("Book ahead, opens 19:30"))
                 // Editing text leaves the day and the rank alone.
                 .containsEntry("dayDate", "2027-11-04")
                 .containsEntry("position", 0);
@@ -262,5 +262,71 @@ class PlaceIntegrationTest extends IntegrationTestBase {
         assertThat(asMap(typed.getBody()).get("photoUrl")).isNull();
         // No category either, and none invented from the name.
         assertThat(asMap(typed.getBody()).get("category")).isNull();
+    }
+
+    @Test
+    void aPlaceHoldsSeveralNotesInOrderAndTheyAreWrittenWhole() throws Exception {
+        Session owner = register("owner");
+        Object tripId = asMap(post(owner, "/api/trips", """
+                {"name":"Tokyo","startDate":"2027-11-05","endDate":"2027-11-07"}
+                """).getBody()).get("id");
+
+        var created = post(owner, "/api/trips/" + tripId + "/places", """
+                {"dayDate":"2027-11-05","name":"Senso-ji","startsAt":"08:00:00",
+                 "notes":["Come before eight; by ten it is shoulder to shoulder.",
+                          "Free entry. Nakamise sells ningyo-yaki baked while you watch."]}
+                """);
+        assertThat(created.getStatusCode().value()).isEqualTo(201);
+        Object placeId = asMap(created.getBody()).get("id");
+        assertThat(asMap(created.getBody()).get("notes").toString())
+                .contains("Come before eight").contains("Nakamise");
+        assertThat(asMap(created.getBody())).containsEntry("startsAt", "08:00:00");
+
+        // Written whole: sending one note removes the other, which is how a note
+        // is deleted. Blank bodies are dropped rather than stored as empty rows.
+        var updated = put(owner, "/api/trips/" + tripId + "/places/" + placeId, """
+                {"name":"Senso-ji Temple","notes":["Only this one","","   "],"startsAt":null}
+                """);
+        assertThat(updated.getStatusCode().value()).isEqualTo(200);
+        assertThat(asMap(updated.getBody())).containsEntry("notes", List.of("Only this one"));
+        assertThat(asMap(updated.getBody()).get("startsAt")).isNull();
+
+        // And clearing them entirely leaves no rows behind.
+        var cleared = put(owner, "/api/trips/" + tripId + "/places/" + placeId, """
+                {"name":"Senso-ji Temple","notes":[]}
+                """);
+        assertThat(asMap(cleared.getBody())).containsEntry("notes", List.of());
+    }
+
+    @Test
+    void aTimeDoesNotDisturbTheDaysOrder() throws Exception {
+        Session owner = register("owner");
+        Object tripId = asMap(post(owner, "/api/trips", """
+                {"name":"Tokyo","startDate":"2027-11-05","endDate":"2027-11-06"}
+                """).getBody()).get("id");
+
+        // Added late-then-early, so time order and manual order disagree.
+        post(owner, "/api/trips/" + tripId + "/places", """
+                {"dayDate":"2027-11-05","name":"Evening thing","startsAt":"19:30:00"}
+                """);
+        post(owner, "/api/trips/" + tripId + "/places", """
+                {"dayDate":"2027-11-05","name":"Morning thing","startsAt":"08:00:00"}
+                """);
+
+        // The day keeps the order somebody dragged them into. Sorting by time
+        // would fight that and would strand the untimed places.
+        assertThat(daysOf(owner, tripId).get(0).get("places").toString())
+                .contains("Evening thing");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> places =
+                (List<Map<String, Object>>) daysOf(owner, tripId).get(0).get("places");
+        assertThat(places).extracting(place -> place.get("name"))
+                .containsExactly("Evening thing", "Morning thing");
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> daysOf(Session caller, Object tripId) {
+        return (List<Map<String, Object>>) asMap(
+                get(caller, "/api/trips/" + tripId + "/itinerary").getBody()).get("days");
     }
 }

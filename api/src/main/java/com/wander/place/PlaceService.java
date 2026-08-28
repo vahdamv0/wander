@@ -86,8 +86,9 @@ public class PlaceService {
         trip.requireCovers(request.dayDate());
 
         int end = places.findByTripIdAndDayDateOrderBySortOrderAsc(tripId, request.dayDate()).size();
-        Place place = new Place(trip, request.dayDate(), end, request.name(),
-                blankToNull(request.notes()));
+        Place place = new Place(trip, request.dayDate(), end, request.name());
+        place.replaceNotes(cleaned(request.notes()));
+        place.setStartsAt(request.startsAt());
         // Rejects half a point with a 400 rather than letting the database
         // CHECK turn it into a 500.
         place.setLocation(request.latitude(), request.longitude(), blankToNull(request.address()));
@@ -107,7 +108,10 @@ public class PlaceService {
         access.requireRole(tripId, userId, CAN_EDIT);
         Place place = require(tripId, placeId);
         place.setName(request.name());
-        place.setNotes(blankToNull(request.notes()));
+        // Written whole. A blank body is dropped rather than stored, so emptying a
+        // box is how a note is removed — the same meaning a day note gives it.
+        place.replaceNotes(cleaned(request.notes()));
+        place.setStartsAt(request.startsAt());
         changes.itineraryChanged(tripId, userId);
         return PlaceView.of(place);
     }
@@ -167,6 +171,23 @@ public class PlaceService {
         for (int i = 0; i < day.size(); i++) {
             day.get(i).setSortOrder(i);
         }
+    }
+
+    /**
+     * The bodies worth storing: trimmed, with the blanks dropped.
+     *
+     * A form with three boxes and one filled in should not leave two empty notes
+     * behind, and "no notes" is the absence of rows rather than rows holding
+     * nothing — the same rule `day_notes` follows.
+     */
+    private static List<String> cleaned(List<String> bodies) {
+        if (bodies == null) {
+            return List.of();
+        }
+        return bodies.stream()
+                .filter(body -> body != null && !body.isBlank())
+                .map(String::strip)
+                .toList();
     }
 
     private static String blankToNull(String value) {

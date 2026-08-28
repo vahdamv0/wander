@@ -10,11 +10,12 @@ export interface PlaceView {
   latitude?: number;
   longitude?: number;
   name: string;
-  notes?: string;
+  notes: Array<string>;
   photoAuthor?: string;
   photoLicence?: string;
   photoSourceUrl?: string;
   photoThumbUrl?: string;
   photoUrl?: string;
   position: number;
+  startsAt?: string;
 }
