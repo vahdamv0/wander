@@ -15,5 +15,12 @@ public record InstanceConfig(
         @NotNull boolean searchEnabled,
         /** Preselected in the new-trip form. ISO 4217. */
         @NotNull String defaultCurrency,
+        /**
+         * False means the trip page never asks for a forecast. Saves a request
+         * per trip page on an instance with weather off — and the endpoint would
+         * answer "unavailable" anyway, so this is the client not asking a question
+         * it already knows the answer to.
+         */
+        @NotNull boolean weatherEnabled,
         @NotNull MapConfig map) {
 }

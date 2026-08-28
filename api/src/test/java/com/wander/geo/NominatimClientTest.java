@@ -30,6 +30,8 @@ class NominatimClientTest {
                 new WanderProperties.Geocoding(true, "http://localhost:1", "", "en", 1000, 2000, 600, 500),
                 new WanderProperties.Enrichment(true, "http://localhost:1", "http://localhost:1",
                         30, 4, 200, 4000),
+                new WanderProperties.Weather(true, "http://localhost:1", 16, 180, "test",
+                        "http://localhost:1", 200, 4000),
                 new WanderProperties.MapTiles(true, "http://localhost:1/{z}/{x}/{y}.png", "test", 19));
     }
 

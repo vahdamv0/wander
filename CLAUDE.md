@@ -457,6 +457,55 @@ that crosses a timezone.
   domestic trip carries noise. The exception is a flight's arrival, which is
   labelled whenever it differs from the departure.
 
+## The forecast on a day card
+
+A fifth upstream, behind the same shape as the others: `WeatherClient` is the seam
+the tests replace, `openMeteoGate` is its own `RateGate`, and
+`wander.weather.enabled` turns it off for an instance with no outbound network.
+
+**Open-Meteo, because it needs no API key** — a self-hoster should not have to
+register an account with a weather company. Verified from its terms: free tier is
+"less than 10'000 API calls per day, 5'000 per hour and 600 per minute",
+**non-commercial**, and the data is **CC BY 4.0, attribution required**. So the
+credit travels to the client *with the data*, exactly as the tile attribution
+travels with the tile URL, and an operator pointing this at something else changes
+one setting and the credit follows.
+
+- **A forecast has a horizon (~16 days), and that is designed for rather than
+  hidden.** A day outside it produces no row, no view and **no request**. A trip
+  next July shows nothing at all until July, and the day card renders nothing — not
+  a dash, not a placeholder. `WeatherIntegrationTest` asserts the *absence*, which
+  is the half that would rot silently.
+- **A day's location is its first located place**, and a day with nothing on it
+  borrows from the **nearest planned day**, preferring the one before. Not the
+  average of the trip's points: on a Tokyo-then-Kyoto trip that average is a
+  mountain range neither is near, and it costs a third outbound call to ask about.
+- **One call per location, not per day.** A response covers the whole horizon, so a
+  fortnight in one city costs one call. This is the difference between fitting in
+  that daily budget and not.
+- **A stored row remembers the point it was fetched for**, so moving a day's first
+  place refetches it. Age alone would keep showing Kyoto's weather for a day now
+  spent in Kanazawa, for the whole TTL. The TTL is *minutes* (180), not days: a
+  forecast changes through the day, unlike an enrichment.
+- **An outage here is not an error.** The service logs and returns what it has,
+  possibly nothing, and the endpoint answers 200. That is the opposite of the
+  geocoder, where silently returning no results would read as "no such place" —
+  weather is decoration on a page whose job is the itinerary.
+- **The response is columnar**: parallel arrays under `daily`, assembled by index.
+  A short array is the horizon, not an error, and a hole in one column must not
+  become a zero on somebody's card. Both are in `OpenMeteoWeatherClientTest`.
+- **`WeatherCodes` maps WMO codes to words on the server**; the client picks an
+  icon from a six-way band of the same code. The words are content and want one
+  copy; the glyph is presentation.
+- **The forecast is the one read not cached offline.** `WeatherRepo` skips
+  `OfflineCache` deliberately — a prediction with a shelf life of hours, shown with
+  no way to say how old it is, is worse than an empty space. No connection, no
+  weather, itinerary unaffected.
+- `InstanceConfig.weatherEnabled` exists so the client does not make a request it
+  already knows the answer to. The trip page asks when a computed
+  `weatherAnchors` string changes — each day's first location, rounded — so
+  renaming a place or reordering two restaurants does not refetch.
+
 ## Live sync
 
 Two people on one trip see each other's changes without reloading.
@@ -583,6 +632,7 @@ WebSocket sync are in; what remains of sharing is invite links for people who
 have no account yet. Milestone 4 is done: expenses with splits, balances and
 settling up, packing lists, and reservations. Milestone 5 is half done — offline
 *reads* are in; the write queue is deliberately not, and a decision rather than an
-omission. See
+omission. The day card is finished: a note, what the day cost, and the forecast
+when there is one. See
 the roadmap in README.md. Deliberately **out** of scope until asked:
 plugins, i18n, MCP, offline. Keep v1 small.

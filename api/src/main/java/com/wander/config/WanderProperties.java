@@ -29,6 +29,8 @@ public record WanderProperties(
 
         @DefaultValue Enrichment enrichment,
 
+        @DefaultValue Weather weather,
+
         @DefaultValue MapTiles map) {
 
     /**
@@ -88,6 +90,42 @@ public record WanderProperties(
             /** How many photo candidates to offer. More is a longer strip nobody scrolls. */
             @DefaultValue("4") int photoCount,
             /** Gap between outbound Wikimedia calls, and how long a caller waits for the gate. */
+            @DefaultValue("200") long minIntervalMillis,
+            @DefaultValue("4000") long maxWaitMillis) {
+    }
+
+    /**
+     * The forecast on a day card.
+     *
+     * Open-Meteo by default, because it needs no API key: a self-hoster should
+     * not have to register an account with a weather company to find out whether
+     * it will rain on day three.
+     *
+     * **The free tier is non-commercial and CC BY 4.0.** An operator running this
+     * commercially needs their own arrangement — which is why the base URL and
+     * the attribution are both settings, and why the attribution travels to the
+     * client with the data rather than being compiled into the Angular app.
+     */
+    public record Weather(
+            @DefaultValue("true") boolean enabled,
+            @DefaultValue("https://api.open-meteo.com") String baseUrl,
+            /**
+             * How far ahead a forecast exists. Sixteen is Open-Meteo's maximum;
+             * days beyond it get no weather at all rather than a placeholder,
+             * because for a trip in nine months there is genuinely nothing to
+             * show.
+             */
+            @DefaultValue("16") int horizonDays,
+            /**
+             * How long a stored forecast stands. Minutes, not days: a forecast
+             * changes through the day, which is the whole difference between this
+             * cache and the enrichment one.
+             */
+            @DefaultValue("180") int cacheMinutes,
+            /** Shown wherever a forecast is. CC BY 4.0 requires it. */
+            @DefaultValue("Weather data by Open-Meteo.com (CC BY 4.0)") String attribution,
+            @DefaultValue("https://open-meteo.com/") String attributionUrl,
+            /** Gap between outbound calls, and how long a caller waits for the gate. */
             @DefaultValue("200") long minIntervalMillis,
             @DefaultValue("4000") long maxWaitMillis) {
     }

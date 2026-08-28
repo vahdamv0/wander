@@ -71,6 +71,8 @@ export type { Login$Params as Login$Params } from './fn/auth-controller/login';
 export { login as login } from './fn/auth-controller/login';
 export type { Me$Params as Me$Params } from './fn/auth-controller/me';
 export { me as me } from './fn/auth-controller/me';
+export type { GetTripWeather$Params as GetTripWeather$Params } from './fn/weather-controller/get-trip-weather';
+export { getTripWeather as getTripWeather } from './fn/weather-controller/get-trip-weather';
 export type { Health$Params as Health$Params } from './fn/health-controller/health';
 export { health as health } from './fn/health-controller/health';
 export type { SearchPlaces$Params as SearchPlaces$Params } from './fn/geo-controller/search-places';

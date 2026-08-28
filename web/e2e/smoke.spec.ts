@@ -1637,3 +1637,83 @@ test('a place panel shows your notes and what is known, each credited', async ({
 
   expect(consoleErrors, 'unexpected console errors').toEqual([]);
 });
+
+/**
+ * The forecast on a day card.
+ *
+ * The endpoint is stubbed rather than left to reach Open-Meteo. Two reasons and
+ * both matter: this suite stays off other people's services and rate budgets, and
+ * a real forecast is a moving target — the interesting assertions here are about a
+ * day that has *no* forecast, which a live answer cannot be made to produce.
+ */
+test('a day shows its forecast, and a day past the horizon shows nothing', async ({ page }) => {
+  const consoleErrors: string[] = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error' && !message.text().includes('401')) {
+      consoleErrors.push(message.text());
+    }
+  });
+  page.on('pageerror', (error) => consoleErrors.push(error.message));
+
+  // A trip starting tomorrow, so the first days are inside any horizon.
+  const day = (offset: number) =>
+    new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
+
+  let weatherCalls = 0;
+  await page.route('**/api/trips/*/weather', async (route) => {
+    weatherCalls++;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        available: true,
+        attribution: 'Weather data by Open-Meteo.com (CC BY 4.0)',
+        attributionUrl: 'https://open-meteo.com/',
+        // Day one and day two only. Day three is the one being tested.
+        days: [
+          { date: day(1), tempMaxC: 19.4, tempMinC: 7.2, weatherCode: 3, summary: 'Overcast' },
+          { date: day(2), tempMaxC: 15.1, tempMinC: 6.8, weatherCode: 61, summary: 'Rain' },
+        ],
+      }),
+    });
+  });
+
+  await page.goto('/login');
+  await page.getByText('Create one').click();
+  await page.locator('input[name=email]').fill(`e2e-weather-${Date.now()}@example.com`);
+  await page.locator('input[name=displayName]').fill('Weather Tester');
+  await page.locator('input[name=password]').fill('correct-horse-battery');
+  await page.locator('button[type=submit]').click();
+
+  await page.getByRole('button', { name: 'Plan your first trip' }).click();
+  await page.locator('input[name=name]').fill('Forecast');
+  await page.locator('input[name=startDate]').fill(day(1));
+  await page.locator('input[name=endDate]').fill(day(3));
+  await page.getByRole('button', { name: 'Create trip' }).click();
+  await page.getByRole('link', { name: /Forecast/ }).click();
+
+  const days = page.locator('ol > li.card');
+  // Rounded for display — 19.4 and 7.2 become 19 and 7.
+  await expect(days.nth(0).getByText('19° / 7°')).toBeVisible();
+  await expect(days.nth(1).getByText('15° / 7°')).toBeVisible();
+
+  // The day the stub said nothing about. Nothing on the card, not a dash and not
+  // a zero: a placeholder would imply the number is on its way.
+  await expect(days.nth(2).getByText(/°/)).toHaveCount(0);
+
+  // The licence obliges the credit, and it is only there because there is a
+  // forecast on screen to credit.
+  await expect(page.getByRole('link', { name: /Open-Meteo/ })).toBeVisible();
+
+  // Adding a place changes no day's location — the first day had none, so it now
+  // has one, which is exactly the case that should ask again.
+  const before = weatherCalls;
+  await days.nth(0).getByRole('button', { name: 'Add place' }).click();
+  await days.nth(0).locator('input[name=name]').fill('Somewhere with no coordinates');
+  await days.nth(0).getByRole('button', { name: 'Add place', exact: true }).last().click();
+  await expect(days.nth(0).getByText('Somewhere with no coordinates')).toBeVisible();
+  // A place with no coordinates cannot move a forecast, so nothing is re-asked.
+  expect(weatherCalls, 'a place with no location is not a reason to refetch').toBe(before);
+
+  expect(consoleErrors, 'unexpected console errors').toEqual([]);
+});

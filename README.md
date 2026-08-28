@@ -17,6 +17,8 @@ container, one Postgres.
   dates carries the itinerary with it rather than stranding it
 - Places on a day: add, rename, annotate, delete, and drag into order — within a
   day or into another one, with buttons as the keyboard equivalent
+- What each day cost, on the day itself, and the weather forecast for it when one
+  exists — Open-Meteo, no API key, and honestly blank beyond the forecast horizon
 - A note on each day, and place search over Nominatim, proxied and cached, so a
   place keeps its coordinates
 - A Leaflet map beside the itinerary: a pin per located place, numbered by day
@@ -226,6 +228,10 @@ tables under a running instance. Don't lower a gate to land a change.
    to the fewest payments, and recording those payments so balances actually
    clear, a packing list grouped by who is bringing what, and bookings kept on a
    real clock — each time in the zone it happens in.
+   The day card is finished alongside it: the day's own note, **what the day
+   cost** (grouped from the expenses, payments excluded), and **the forecast**
+   from Open-Meteo when there is one — no API key, CC BY 4.0, and nothing at all
+   for a day past the ~16-day horizon rather than a placeholder.
 5. **Offline.** Reads are done ✅ — a service worker for the app shell and
    IndexedDB inside the repos, so a trip you have opened is readable with no
    signal, honestly labelled as a saved copy. Writes are refused rather than
