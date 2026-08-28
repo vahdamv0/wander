@@ -6,12 +6,15 @@ import {
   CdkDropList,
   CdkDropListGroup,
 } from '@angular/cdk/drag-drop';
-import { Component, computed, inject, input, signal } from '@angular/core';
+import { Component, DestroyRef, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { PlaceSuggestion, PlaceView, TripDay } from '../../api';
 import { InstanceConfigStore } from '../../core/instance-config.store';
+import { SessionStore } from '../../core/session.store';
+import { TripChange, TripSyncService } from '../../core/trip-sync';
 import { GeoRepo } from '../../repo/geo.repo';
+import { MemberRepo } from '../../repo/member.repo';
 import { PlaceRepo } from '../../repo/place.repo';
 import { TripMap } from './trip-map';
 import { TripMembers } from './trip-members';
@@ -22,6 +25,13 @@ import { TripMembers } from './trip-members';
  * character would spend that budget on prefixes nobody wanted.
  */
 const SEARCH_DEBOUNCE_MS = 400;
+
+/**
+ * How hard to try to catch up after a live update. Nobody is watching a pushed
+ * re-read fail, so it retries itself: 0.5s, 1s, 2s, then gives up and says so.
+ */
+const REFRESH_ATTEMPTS = 4;
+const REFRESH_BACKOFF_MS = 500;
 
 /**
  * One trip: its derived days, top to bottom, with the places on each.
@@ -49,6 +59,10 @@ export class TripPage {
   private readonly geo = inject(GeoRepo);
   private readonly config = inject(InstanceConfigStore);
   private readonly router = inject(Router);
+  private readonly members = inject(MemberRepo);
+  private readonly session = inject(SessionStore);
+  private readonly sync = inject(TripSyncService);
+  private readonly destroyRef = inject(DestroyRef);
 
   /** Bound from the route, as a string — coerced once here. */
   readonly tripId = input.required<string>();
@@ -106,9 +120,126 @@ export class TripPage {
   /** Skeleton rows: a field, not an inline literal — see CLAUDE.md on `@for`. */
   protected readonly skeletons = [0, 1, 2];
 
+  /** Whether live updates are flowing, for the indicator in the header. */
+  protected readonly syncStatus = this.sync.status;
+
   constructor() {
     // input() is set before the first render, so reading it here is safe.
     queueMicrotask(() => void this.reload());
+    queueMicrotask(() => this.sync.watch(this.id()));
+
+    // Somebody else changed something. The service only reports; deciding what
+    // to re-read is this page's job, because it is what knows which repos are on
+    // screen.
+    effect(() => {
+      const change = this.sync.lastChange();
+      if (change && change.tripId === this.id()) {
+        untracked(() => void this.onRemoteChange(change));
+      }
+    });
+
+    // A resumption is not an event: whatever happened while the socket was down
+    // was never delivered, so re-read both sides unconditionally.
+    effect(() => {
+      if (this.sync.reconnected() > 0) {
+        untracked(() => void this.resync());
+      }
+    });
+
+    // A socket that outlives the page keeps a server session alive and goes on
+    // delivering events to nobody.
+    this.destroyRef.onDestroy(() => this.sync.stop());
+  }
+
+  /**
+   * Re-reads what the change affects.
+   *
+   * The guard is the pair of "it was me" and "and I am still mid-write": our own
+   * write re-reads when it completes, so acting on the echo as well would be a
+   * second request for the same news. Checking `saving` rather than only the
+   * actor is what keeps a *second tab of the same account* working — that tab is
+   * not saving, so it reloads like anybody else.
+   */
+  private async onRemoteChange(change: TripChange): Promise<void> {
+    const mine = change.actorUserId === this.session.user()?.id;
+    if (mine && this.saving()) {
+      return;
+    }
+
+    if (change.kind === 'TRIP_DELETED') {
+      // No message: this page is about to unmount, and a trip's absence from the
+      // list it lands on is its own explanation.
+      await this.router.navigate(['/trips']);
+      return;
+    }
+
+    if (change.kind === 'MEMBERS') {
+      if (change.revokedUserId === this.session.user()?.id) {
+        this.members.clear();
+        await this.router.navigate(['/trips']);
+        return;
+      }
+      // Our own role may have moved, and `canEdit` comes from the itinerary.
+      this.wantMembers = true;
+    }
+
+    await this.refreshFromServer();
+  }
+
+  private async resync(): Promise<void> {
+    this.wantMembers = true;
+    await this.refreshFromServer();
+  }
+
+  /** Set when a live update means the member list is stale too. */
+  private wantMembers = false;
+  private refreshing = false;
+  private refreshAgain = false;
+
+  /**
+   * Re-reads what a live update invalidated, and **keeps trying**.
+   *
+   * The retry is the whole point. A push-driven re-read has no user behind it to
+   * notice it failed and press the button again: one dropped request during a
+   * lift-flicker leaves the page quietly stale, showing an itinerary that is
+   * wrong with no indication that it is — and the next event might be hours
+   * away. `reload()` on its own swallows the failure into an error message,
+   * which is right for a page load and useless here.
+   *
+   * Single-flight, because several changes arriving together (a drag renumbers a
+   * day, so does a delete) should cost one re-read, not one each. Anything that
+   * lands mid-flight sets the flag and gets folded into one more pass.
+   */
+  private async refreshFromServer(): Promise<void> {
+    if (this.refreshing) {
+      this.refreshAgain = true;
+      return;
+    }
+    this.refreshing = true;
+    try {
+      do {
+        this.refreshAgain = false;
+        for (let attempt = 0; ; attempt++) {
+          try {
+            if (this.wantMembers) {
+              await this.members.refreshIfLoaded(this.id());
+              this.wantMembers = false;
+            }
+            await this.repo.load(this.id());
+            this.error.set(null);
+            break;
+          } catch {
+            if (attempt >= REFRESH_ATTEMPTS - 1) {
+              this.error.set('This trip may be out of date — could not reach the server.');
+              break;
+            }
+            await new Promise((resolve) => setTimeout(resolve, REFRESH_BACKOFF_MS * 2 ** attempt));
+          }
+        }
+      } while (this.refreshAgain);
+    } finally {
+      this.refreshing = false;
+    }
   }
 
   private id(): number {

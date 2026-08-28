@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.wander.common.NotFoundException;
+import com.wander.sync.TripChanges;
 import com.wander.trip.dto.CreateTripRequest;
 import com.wander.trip.dto.TripSummary;
 import com.wander.user.User;
@@ -20,13 +21,15 @@ public class TripService {
     private final TripMemberRepository members;
     private final UserRepository users;
     private final TripAccessService access;
+    private final TripChanges changes;
 
     public TripService(TripRepository trips, TripMemberRepository members, UserRepository users,
-            TripAccessService access) {
+            TripAccessService access, TripChanges changes) {
         this.trips = trips;
         this.members = members;
         this.users = users;
         this.access = access;
+        this.changes = changes;
     }
 
     @Transactional
@@ -71,5 +74,7 @@ public class TripService {
         // Memberships go with it: trip_members declares ON DELETE CASCADE, so
         // deleting rows here first would just duplicate what the database does.
         trips.delete(member.getTrip());
+        // Tells the other members' open pages before hanging up on them.
+        changes.tripDeleted(tripId, userId);
     }
 }

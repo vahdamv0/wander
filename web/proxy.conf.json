@@ -1,4 +1,5 @@
 {
-  "/api": { "target": "http://localhost:8080", "secure": false },
+  "//": "ws:true on /api is what lets the dev server proxy /api/ws/trips/{id}; without it the handshake 404s under `npm start` and works only in the packaged jar.",
+  "/api": { "target": "http://localhost:8080", "secure": false, "ws": true },
   "/v3": { "target": "http://localhost:8080", "secure": false }
 }

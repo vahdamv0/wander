@@ -140,6 +140,21 @@ Java record → springdoc → `api/build/openapi.json` (written by
   flag around our own moves; without it the first frame silently disables
   itself. Map furniture is styled from the same tokens as everything else, in
   `@layer components`, because Leaflet builds those nodes outside any template.
+- **WebSocket is imported in exactly one file**, for the same reason as Leaflet:
+  `core/trip-sync.ts` owns the socket, the backoff, the keepalive and the
+  release on destroy. It *reports* and decides nothing — the trip page chooses
+  what to re-read, because it is what knows which repos are on screen. Its
+  `TripChange` interface is **the one hand-written copy of a server payload in
+  this project**: the OpenAPI document describes HTTP operations, so a frame
+  cannot appear in it and there is nothing to generate. That is affordable only
+  because the payload is invalidation-only; anything richer belongs on the REST
+  side where the contract loop owns it.
+- **A pushed re-read retries itself.** Nobody is watching it: if the single
+  request a live event triggers is dropped, the page sits there quietly wrong and
+  the next event may be hours away. `TripPage.refreshFromServer` retries with
+  backoff and is single-flight, so several events arriving together cost one
+  re-read. A *reconnection* re-reads unconditionally — events during the gap were
+  never delivered, and there is no replay.
 - **`@for` needs a collection from the component, not an inline array literal.**
   `@for (x of [1, 2]; ...)` does not survive the block-syntax parser and fails at
   runtime with `newCollection[Symbol.iterator] is not a function`.
@@ -195,6 +210,38 @@ The client sends a picked suggestion's coordinates when creating a place rather
 than having the server re-geocode the name: the user chose one candidate of
 several, and a second search can rank a different one first.
 
+## Live sync
+
+Two people on one trip see each other's changes without reloading.
+`/api/ws/trips/{tripId}` is a plain WebSocket — no STOMP, no SockJS: the client
+sends nothing but keepalive, and the payload is one small event.
+
+- **Invalidation, not state.** A frame says *what* changed (`ITINERARY`,
+  `MEMBERS`, `TRIP_DELETED`), never what it changed to, and the client answers by
+  re-reading. The server owns place ranks and renumbers a whole day on every
+  move, so sending state would be a second serialisation path that can disagree
+  with `GET /itinerary` — and `PlaceRepo` already re-reads after its own writes.
+- **Broadcast after commit.** Services call `TripChanges`, which publishes a
+  Spring application event; `TripSyncBroadcaster` listens at
+  `AFTER_COMMIT`. A plain `@EventListener` would announce writes that then rolled
+  back, and no HTTP test would notice. `TripChangeCommitTest` is what holds this.
+- **The handshake is the only access check, and `EndpointAuthRatchetTest` cannot
+  see it.** That test walks `RequestMappingHandlerMapping`, and a handler
+  registered through `WebSocketConfigurer` is not a `@RequestMapping`. So
+  `TripSyncHandshake` authenticates *and* calls `requireMember` itself, and
+  `TripSyncIntegrationTest` is the ratchet for this one endpoint. Do not remove
+  those two tests.
+- **Losing access closes the socket.** Membership is resolved once, at the
+  handshake, which is only safe because `TripChange.revokedUserId` makes the
+  handler hang up on somebody who was removed — and a deleted trip closes every
+  socket on it. A socket that outlived its membership would keep being told about
+  a trip its owner may no longer read.
+- **Sessions are wrapped in `ConcurrentWebSocketSessionDecorator`.** A
+  `WebSocketSession` is not safe for concurrent sends, and broadcasts arrive on
+  whichever thread committed — two people saving at once is the normal case.
+- The dev server needs `"ws": true` on `/api` in `web/proxy.conf.json`, or the
+  handshake 404s under `npm start` and works only in the packaged jar.
+
 ## Browser tests
 
 `cd web && npm run e2e` (Playwright) against a running instance — start the app
@@ -205,6 +252,14 @@ the CSRF cookie needs one GET before the first POST. Both looked perfect to curl
 The suite asserts on console errors too — a template that throws every change
 detection still renders, so a status code alone proves nothing.
 
+Sharing and live sync are tested with **two browser contexts**, not two pages: a
+session is a cookie, so one context would simply log the first account out. The
+reconnection test drops the socket with Playwright's `routeWebSocket` and refuses
+the first few retries, which makes the outage a few seconds wide instead of a
+race. Note that Chromium's offline emulation leaves an already-open WebSocket
+alone and only breaks HTTP — useful for testing that a failed re-read retries,
+useless for testing reconnection.
+
 ## Scope discipline
 
 Milestone 0 (accounts, trips, the contract loop, one container) is done, and so
@@ -212,7 +267,7 @@ is "days and places": derived days, places with ordering owned by the
 server (`PlaceService` renumbers a day on every move or delete, and the client
 re-reads instead of patching ranks), Nominatim search behind a proxy that
 caches and rate-limits, a Leaflet map, drag ordering, and a note per day.
-Milestone 3 is half done: members, roles and ownership transfer are in; what
-remains of sharing is invite links for people with no account yet and WebSocket
-sync. See the roadmap in README.md. Deliberately **out** of scope until asked:
+Milestone 3 is done bar one piece: members, roles, ownership transfer and live
+WebSocket sync are in; what remains of sharing is invite links for people who
+have no account yet. See the roadmap in README.md. Deliberately **out** of scope until asked:
 plugins, i18n, MCP, offline. Keep v1 small.

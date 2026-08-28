@@ -19,12 +19,25 @@
           {{ placeCount() }} {{ placeCount() === 1 ? 'place' : 'places' }}
         </p>
       </div>
-      @if (!canEdit()) {
-        <span class="rounded-full border border-border px-2 py-0.5 text-[0.6875rem] font-medium
-                     uppercase tracking-wide text-muted">
-          Read only
-        </span>
-      }
+      <div class="flex shrink-0 items-center gap-2">
+        <!-- Only worth saying when it is not working: "Live" on a trip nobody
+             else is looking at is noise, but a page that has quietly stopped
+             receiving other people's edits is worth knowing about. -->
+        @if (syncStatus() === 'offline') {
+          <span class="inline-flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5
+                       text-[0.6875rem] font-medium uppercase tracking-wide text-muted"
+                title="Live updates are not getting through. Reload to see other people's changes.">
+            <span class="size-1.5 rounded-full bg-muted"></span>
+            Reconnecting
+          </span>
+        }
+        @if (!canEdit()) {
+          <span class="rounded-full border border-border px-2 py-0.5 text-[0.6875rem] font-medium
+                       uppercase tracking-wide text-muted">
+            Read only
+          </span>
+        }
+      </div>
     </header>
   } @else if (!loading()) {
     <p class="card mt-3 px-6 py-14 text-center text-sm text-muted">

@@ -7,6 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.wander.day.dto.DayNoteRequest;
 import com.wander.day.dto.DayNoteView;
+import com.wander.sync.TripChanges;
 import com.wander.trip.Trip;
 import com.wander.trip.TripAccessService;
 import com.wander.trip.TripMember;
@@ -27,10 +28,12 @@ public class DayNoteService {
 
     private final DayNoteRepository notes;
     private final TripAccessService access;
+    private final TripChanges changes;
 
-    public DayNoteService(DayNoteRepository notes, TripAccessService access) {
+    public DayNoteService(DayNoteRepository notes, TripAccessService access, TripChanges changes) {
         this.notes = notes;
         this.access = access;
+        this.changes = changes;
     }
 
     @Transactional
@@ -38,6 +41,10 @@ public class DayNoteService {
         TripMember member = access.requireRole(tripId, userId, CAN_EDIT);
         Trip trip = member.getTrip();
         trip.requireCovers(dayDate);
+
+        // A note rides along on the itinerary, so a change to one is an itinerary
+        // change as far as anybody watching is concerned.
+        changes.itineraryChanged(tripId, userId);
 
         String text = request.note() == null || request.note().isBlank() ? null : request.note().strip();
         if (text == null) {

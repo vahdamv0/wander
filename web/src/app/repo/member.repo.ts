@@ -31,6 +31,8 @@ export class MemberRepo {
   private readonly _members = signal<TripMemberView[]>([]);
   private readonly _loading = signal(false);
   private readonly _saving = signal(false);
+  /** Which trip's list we hold, so a live update knows whether anyone is looking. */
+  private _loadedTripId: number | null = null;
 
   readonly members = this._members.asReadonly();
   readonly loading = this._loading.asReadonly();
@@ -40,8 +42,20 @@ export class MemberRepo {
     this._loading.set(true);
     try {
       this._members.set(await this.api.invoke(listMembers, { tripId }));
+      this._loadedTripId = tripId;
     } finally {
       this._loading.set(false);
+    }
+  }
+
+  /**
+   * Re-reads only if this trip's list has actually been loaded. The People panel
+   * is collapsed until somebody opens it, and a live update is no reason to
+   * start fetching a list nobody is looking at.
+   */
+  async refreshIfLoaded(tripId: number): Promise<void> {
+    if (this._loadedTripId === tripId) {
+      await this.load(tripId);
     }
   }
 
@@ -82,6 +96,7 @@ export class MemberRepo {
   /** Forgets the list, for when the trip is no longer ours to see. */
   clear(): void {
     this._members.set([]);
+    this._loadedTripId = null;
   }
 
   private async write(tripId: number, call: () => Promise<unknown>): Promise<void> {

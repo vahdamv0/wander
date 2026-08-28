@@ -18,6 +18,7 @@ import com.wander.place.dto.PlaceView;
 import com.wander.place.dto.TripDay;
 import com.wander.place.dto.TripItinerary;
 import com.wander.place.dto.UpdatePlaceRequest;
+import com.wander.sync.TripChanges;
 import com.wander.trip.Trip;
 import com.wander.trip.TripAccessService;
 import com.wander.trip.TripMember;
@@ -43,11 +44,14 @@ public class PlaceService {
     private final PlaceRepository places;
     private final DayNoteRepository notes;
     private final TripAccessService access;
+    private final TripChanges changes;
 
-    public PlaceService(PlaceRepository places, DayNoteRepository notes, TripAccessService access) {
+    public PlaceService(PlaceRepository places, DayNoteRepository notes, TripAccessService access,
+            TripChanges changes) {
         this.places = places;
         this.notes = notes;
         this.access = access;
+        this.changes = changes;
     }
 
     @Transactional(readOnly = true)
@@ -87,7 +91,11 @@ public class PlaceService {
         // Rejects half a point with a 400 rather than letting the database
         // CHECK turn it into a 500.
         place.setLocation(request.latitude(), request.longitude(), blankToNull(request.address()));
-        return PlaceView.of(places.save(place));
+        Place saved = places.save(place);
+        // Announced, not sent: the event fires after this transaction commits and
+        // says only that the itinerary moved. See TripChange.
+        changes.itineraryChanged(tripId, userId);
+        return PlaceView.of(saved);
     }
 
     @Transactional
@@ -96,6 +104,7 @@ public class PlaceService {
         Place place = require(tripId, placeId);
         place.setName(request.name());
         place.setNotes(blankToNull(request.notes()));
+        changes.itineraryChanged(tripId, userId);
         return PlaceView.of(place);
     }
 
@@ -124,6 +133,7 @@ public class PlaceService {
         if (!from.equals(to)) {
             renumber(target);
         }
+        changes.itineraryChanged(tripId, userId);
         return PlaceView.of(place);
     }
 
@@ -137,6 +147,7 @@ public class PlaceService {
         // The hole the delete left would otherwise make the next insert collide
         // with an existing rank.
         renumber(mutableDay(tripId, day));
+        changes.itineraryChanged(tripId, userId);
     }
 
     private Place require(Long tripId, Long placeId) {
