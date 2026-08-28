@@ -1104,13 +1104,18 @@ test('a trip can be renamed and moved, and will not strand its places', async ({
   await expect(page.getByRole('heading', { name: 'Kyoto' })).toBeVisible();
   await expect(page.getByText('Kansai')).toBeVisible();
 
-  // Shortening it over that place is refused, and the message says what is in the
-  // way rather than just failing.
+  // Shortening it over that place is refused, and the message names the place and
+  // its date rather than just counting it — the point of refusing instead of
+  // deleting is that somebody can go and move it.
   await page.getByRole('button', { name: 'Edit trip' }).click();
   await page.locator('input[name=tripEnd]').fill('2027-07-13');
   await page.getByRole('button', { name: 'Save trip' }).click();
   await expect(page.locator('[role=alert]')).toContainText('1 place');
+  await expect(page.locator('[role=alert]')).toContainText('Nishiki Market on 2027-07-15');
   await expect(page.locator('[role=alert]')).toContainText('Move or delete');
+  // The end date alone moved, so shifting could not rescue this and is not offered.
+  await expect(page.getByRole('button', { name: 'Move the itinerary with the trip' }))
+    .toHaveCount(0);
   // And the trip is untouched: still four days, still holding the place.
   await page.getByRole('button', { name: 'Cancel' }).click();
   await expect(page.getByRole('heading', { name: /^Day 4/ })).toBeVisible();
@@ -1125,6 +1130,72 @@ test('a trip can be renamed and moved, and will not strand its places', async ({
   // The place is still on the last day of the trip, not left behind on the 15th.
   await expect(page.locator('ol > li.card').nth(3).getByText('Nishiki Market')).toBeVisible();
   await expect(page.getByRole('heading', { name: /^Day 4/ })).toBeVisible();
+
+  expect(consoleErrors, 'unexpected console errors').toEqual([]);
+});
+
+/**
+ * Moving a trip *and* changing its length at once.
+ *
+ * The ambiguous case, and the one that sent a real user to the database to find
+ * out which places were in the way: "two days added at the front" wants the plan
+ * to keep its dates, "moved a month later and made longer" wants it to come
+ * along. The server refuses rather than guessing, and the page asks.
+ */
+test('moving and lengthening a trip at once offers to bring the itinerary', async ({ page }) => {
+  const consoleErrors: string[] = [];
+  page.on('console', (message) => {
+    // The refusal is provoked deliberately; see the trip-editing test above.
+    const expected = message.text().includes('401') || message.text().includes('409');
+    if (message.type() === 'error' && !expected) {
+      consoleErrors.push(message.text());
+    }
+  });
+  page.on('pageerror', (error) => consoleErrors.push(error.message));
+
+  await page.goto('/login');
+  await page.getByText('Create one').click();
+  await page.locator('input[name=email]').fill(`e2e-shift-${Date.now()}@example.com`);
+  await page.locator('input[name=displayName]').fill('Shift Tester');
+  await page.locator('input[name=password]').fill('correct-horse-battery');
+  await page.locator('button[type=submit]').click();
+
+  await expect(page).toHaveURL(/\/trips$/);
+  await page.getByRole('button', { name: 'Plan your first trip' }).click();
+  await page.locator('input[name=name]').fill('Kyoto in Spring');
+  await page.locator('input[name=startDate]').fill('2026-08-28');
+  await page.locator('input[name=endDate]').fill('2026-09-05');
+  await page.getByRole('button', { name: 'Create trip' }).click();
+  await page.getByRole('link', { name: /Kyoto in Spring/ }).click();
+  await expect(page).toHaveURL(/\/trips\/\d+$/);
+
+  const day1 = page.locator('ol > li.card').first();
+  await day1.getByRole('button', { name: 'Add place' }).click();
+  await day1.locator('input[name=name]').fill('Fushimi Inari Shrine');
+  await day1.getByRole('button', { name: 'Add place' }).click();
+  await expect(day1.getByText('Fushimi Inari Shrine')).toBeVisible();
+  await day1.locator('input[name=name]').fill('Shin-Osaka');
+  await day1.getByRole('button', { name: 'Add place' }).click();
+  await expect(day1.getByText('Shin-Osaka')).toBeVisible();
+  await day1.getByRole('button', { name: 'Done' }).click();
+
+  // Nine days becoming thirteen, a month later: refused, and both places named.
+  await page.getByRole('button', { name: 'Edit trip' }).click();
+  await page.locator('input[name=tripStart]').fill('2026-10-02');
+  await page.locator('input[name=tripEnd]').fill('2026-10-14');
+  await page.getByRole('button', { name: 'Save trip' }).click();
+  await expect(page.locator('[role=alert]')).toContainText('2 places');
+  await expect(page.locator('[role=alert]')).toContainText('Fushimi Inari Shrine on 2026-08-28');
+
+  // One click instead of two saves: this is the whole point of the offer.
+  await page.getByRole('button', { name: 'Move the itinerary with the trip' }).click();
+
+  await expect(page.getByText('13 days')).toBeVisible();
+  await expect(page.getByText('Fri, Oct 2')).toBeVisible();
+  const newDay1 = page.locator('ol > li.card').first();
+  await expect(newDay1.getByText('Fushimi Inari Shrine')).toBeVisible();
+  await expect(newDay1.getByText('Shin-Osaka')).toBeVisible();
+  await expect(page.locator('[role=alert]')).toHaveCount(0);
 
   expect(consoleErrors, 'unexpected console errors').toEqual([]);
 });

@@ -126,9 +126,15 @@ public class TripService {
         long newLength = ChronoUnit.DAYS.between(request.startDate(), request.endDate());
         long offset = ChronoUnit.DAYS.between(oldStart, request.startDate());
 
-        if (oldLength == newLength && offset != 0) {
+        boolean sameLength = oldLength == newLength;
+        // A same-length move always brings the itinerary; a length change does so
+        // only when the caller has said to. Either way the orphan check runs
+        // afterwards, so a shift that still strands something is refused and the
+        // transaction rolls back with nothing moved.
+        if (offset != 0 && (sameLength || Boolean.TRUE.equals(request.shiftItinerary()))) {
             shiftItinerary(tripId, offset);
-        } else if (oldLength != newLength) {
+        }
+        if (!sameLength) {
             requireNothingOrphaned(tripId, request.startDate(), request.endDate());
         }
 
@@ -187,29 +193,47 @@ public class TripService {
      * whether they are about to lose an afternoon's planning or a stray idea.
      */
     private void requireNothingOrphaned(Long tripId, LocalDate start, LocalDate end) {
-        long strandedPlaces = places.findByTripIdOrderByDayDateAscSortOrderAsc(tripId).stream()
+        List<Place> strandedPlaces = places.findByTripIdOrderByDayDateAscSortOrderAsc(tripId).stream()
                 .filter(place -> outside(place.getDayDate(), start, end))
-                .count();
-        long strandedNotes = notes.findByTripId(tripId).stream()
+                .toList();
+        List<DayNote> strandedNotes = notes.findByTripId(tripId).stream()
                 .filter(note -> outside(note.getDayDate(), start, end))
-                .count();
-        if (strandedPlaces == 0 && strandedNotes == 0) {
+                .toList();
+        if (strandedPlaces.isEmpty() && strandedNotes.isEmpty()) {
             return;
         }
 
+        // Named, not just counted. "2 places fall outside" says there is a problem
+        // and not where to look for it — the point of refusing instead of deleting
+        // is that somebody can go and move them, which needs knowing which ones.
         List<String> parts = new ArrayList<>();
-        if (strandedPlaces > 0) {
-            parts.add(strandedPlaces + (strandedPlaces == 1 ? " place" : " places"));
+        if (!strandedPlaces.isEmpty()) {
+            parts.add(strandedPlaces.size() + (strandedPlaces.size() == 1 ? " place" : " places")
+                    + " (" + describe(strandedPlaces.stream()
+                            .map(place -> place.getName() + " on " + place.getDayDate())
+                            .toList())
+                    + ")");
         }
-        if (strandedNotes > 0) {
-            parts.add(strandedNotes + (strandedNotes == 1 ? " note" : " notes"));
+        if (!strandedNotes.isEmpty()) {
+            parts.add(strandedNotes.size() + (strandedNotes.size() == 1 ? " note" : " notes")
+                    + " (" + describe(strandedNotes.stream()
+                            .map(note -> note.getDayDate().toString())
+                            .toList())
+                    + ")");
         }
         // The verb agrees with the whole subject, not with the last noun in it:
         // "1 place falls outside", "2 places and 1 note fall outside".
-        boolean single = strandedPlaces + strandedNotes == 1;
+        boolean single = strandedPlaces.size() + strandedNotes.size() == 1;
         throw new ConflictException(String.join(" and ", parts)
                 + (single ? " falls outside " : " fall outside ") + start + " to " + end
                 + (single ? ". Move or delete it first." : ". Move or delete them first."));
+    }
+
+    /** The first few, then a count: a message listing forty places helps nobody. */
+    private static String describe(List<String> items) {
+        int shown = Math.min(items.size(), 3);
+        String named = String.join(", ", items.subList(0, shown));
+        return items.size() > shown ? named + ", and " + (items.size() - shown) + " more" : named;
     }
 
     private static boolean outside(LocalDate day, LocalDate start, LocalDate end) {

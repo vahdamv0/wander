@@ -133,6 +133,12 @@ export class TripPage {
   protected readonly isOwner = computed(() => this.trip()?.myRole === 'OWNER');
 
   protected readonly editingTrip = signal(false);
+  /**
+   * Set when a save was refused and moving the itinerary along might rescue it.
+   * The server cannot guess whether "longer and later" means the plan follows the
+   * trip or stays put, so this is where the question gets asked.
+   */
+  protected readonly offerShift = signal(false);
   protected readonly tripName = signal('');
   protected readonly tripDestination = signal('');
   protected readonly tripStart = signal('');
@@ -289,27 +295,46 @@ export class TripPage {
     this.tripStart.set(trip.startDate);
     this.tripEnd.set(trip.endDate);
     this.tripCurrency.set(trip.currency);
+    this.offerShift.set(false);
     this.editingTrip.set(true);
   }
 
   protected cancelTripEdit(): void {
     this.editingTrip.set(false);
+    this.offerShift.set(false);
     this.error.set(null);
   }
 
-  protected async saveTrip(): Promise<void> {
-    await this.guard(async () => {
+  /**
+   * Saves the trip, optionally bringing the itinerary with it.
+   *
+   * Not routed through `guard` because a refusal here is not simply an error to
+   * display: when the start date moved, the same save may well succeed with the
+   * itinerary shifted along, and that offer is more useful than the message.
+   */
+  protected async saveTrip(shiftItinerary = false): Promise<void> {
+    this.error.set(null);
+    const startMoved = this.tripStart() !== this.trip()?.startDate;
+    try {
       await this.trips.update(this.id(), {
         name: this.tripName().trim(),
         destination: this.tripDestination().trim() || undefined,
         startDate: this.tripStart(),
         endDate: this.tripEnd(),
         currency: this.tripCurrency() || undefined,
+        shiftItinerary: shiftItinerary || undefined,
       });
       this.editingTrip.set(false);
+      this.offerShift.set(false);
       // The days, and every place's date, may have moved underneath us.
       await this.reload();
-    });
+    } catch (err: unknown) {
+      const body = (err as { error?: { message?: string } } | null)?.error;
+      this.error.set(body?.message ?? 'Could not save the trip.');
+      // Only worth offering when the start moved: with the same start there is
+      // no offset to shift by, and the retry would fail identically.
+      this.offerShift.set(!shiftItinerary && startMoved);
+    }
   }
 
   protected async onRolesChanged(): Promise<void> {

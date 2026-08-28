@@ -28,5 +28,17 @@ public record UpdateTripRequest(
          * Omitted leaves it alone.
          */
         @Pattern(regexp = "^[A-Z]{3}$", message = "must be a three-letter ISO 4217 code")
-        String currency) {
+        String currency,
+        /**
+         * Move the itinerary along with the start date, even though the trip's
+         * length is changing.
+         *
+         * A same-length move always shifts, because there is no other sensible
+         * reading of it. A length change is ambiguous — "we added two days at the
+         * front" wants the existing plan to keep its calendar dates, while "we
+         * moved it a month later and made it longer" wants the plan to come along
+         * — and the server cannot tell which is meant. So it refuses by default
+         * and the client asks.
+         */
+        Boolean shiftItinerary) {
 }

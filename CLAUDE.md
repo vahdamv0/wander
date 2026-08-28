@@ -80,8 +80,16 @@ Java record → springdoc → `api/build/openapi.json` (written by
   trip no longer has. Two rules cover it: a move of the **same length** shifts
   every place and note by the same offset (the "our flights changed" edit, which
   must not lose anything), and any other change that would leave content outside
-  the new range is **refused with 409** naming what is in the way — hiding those
-  rows or deleting them are both worse than being told to move them. Shifting the
+  the new range is **refused with 409** — hiding those rows or deleting them are
+  both worse than being told to move them. The refusal **names them** ("2 places
+  (Fushimi Inari Shrine on 2026-08-28, …)"), first three then a count: a message
+  that only counts them says there is a problem without saying where to look, and
+  a real user ended up querying the database to find out. A length change *and* a
+  move is genuinely ambiguous — "two days added at the front" wants the plan to
+  keep its dates, "moved a month later and made longer" wants it to come along —
+  so the server refuses rather than guessing and the client offers
+  `shiftItinerary: true` as a retry. A shift that would still strand something is
+  refused too, and rolls back. Shifting the
   notes deletes and reinserts them, because `uq_day_notes_trip_day` is not
   deferrable and an in-place shift collides mid-statement; `places` has no such
   constraint, which `V2` says it left out for exactly this reason. A trip's
