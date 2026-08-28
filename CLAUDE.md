@@ -305,8 +305,12 @@ Wikidata, Wikipedia and Commons.
 
 Place search is a proxy (`/api/geo/search`), authenticated like everything else —
 an open one would hand this instance's rate budget to anyone. Three rules the
-usage policy imposes and this code keeps: an identifying `User-Agent` (a default
-Java one gets 403'd), at most one outbound request a second **across the
+usage policy imposes and this code keeps: an identifying `User-Agent` — which is
+what the policy actually requires, "identifying the application (stock User-Agents
+as set by http libraries will not do)"; `wander.geocoding.contact-email` sharpens
+it into a contact but is **not** required by either Nominatim or Wikimedia, and the
+blank fallback `wander/<version> (self-hosted travel planner)` is already
+compliant, at most one outbound request a second **across the
 instance** — it is the instance that gets blocked, not a user, so `RateGate` is
 shared rather than per session — and results cached, which is what makes a
 typeahead affordable at that rate. Debouncing sits in the component, next to the
