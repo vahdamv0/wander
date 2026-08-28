@@ -383,3 +383,64 @@ test('drag a place within a day and into the next one', async ({ page }) => {
   await expect(page.locator('[role=alert]')).toHaveCount(0);
   expect(consoleErrors, 'unexpected console errors').toEqual([]);
 });
+
+/**
+ * A day's note: written from the day header, kept on the itinerary, and cleared
+ * by emptying the box. The clear path is the one worth a browser test — it is a
+ * PUT with an empty string, not a DELETE, so a client that sent `undefined`
+ * instead would look like it worked and change nothing.
+ */
+test('write, edit, and clear the note on a day', async ({ page }) => {
+  const consoleErrors: string[] = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error' && !message.text().includes('401')) {
+      consoleErrors.push(message.text());
+    }
+  });
+  page.on('pageerror', (error) => consoleErrors.push(error.message));
+
+  await page.goto('/login');
+  await page.getByText('Create one').click();
+  await page.locator('input[name=email]').fill(`e2e-notes-${Date.now()}@example.com`);
+  await page.locator('input[name=displayName]').fill('Note Tester');
+  await page.locator('input[name=password]').fill('correct-horse-battery');
+  await page.locator('button[type=submit]').click();
+
+  await expect(page).toHaveURL(/\/trips$/);
+  await page.getByRole('button', { name: 'Plan your first trip' }).click();
+  await page.locator('input[name=name]').fill('Porto');
+  await page.locator('input[name=startDate]').fill('2027-05-10');
+  await page.locator('input[name=endDate]').fill('2027-05-12');
+  await page.getByRole('button', { name: 'Create trip' }).click();
+
+  await page.getByRole('link', { name: /Porto/ }).click();
+  await expect(page).toHaveURL(/\/trips\/\d+$/);
+
+  const day1 = page.locator('ol > li.card').first();
+  await day1.getByRole('button', { name: /Add the note for day 1/ }).click();
+  await day1.locator('textarea[name=dayNote]').fill('Arrive late — dinner near the station.');
+  await day1.getByRole('button', { name: 'Save note' }).click();
+
+  // Rendered from the re-read itinerary, so this proves the note round-tripped.
+  await expect(day1.getByText('Arrive late — dinner near the station.')).toBeVisible();
+  // And only on the day it was written on.
+  const day2 = page.locator('ol > li.card').nth(1);
+  await expect(day2.getByText('Arrive late')).toHaveCount(0);
+
+  // It survives a reload, and the button now offers to edit rather than add.
+  await page.reload();
+  await expect(day1.getByText('Arrive late — dinner near the station.')).toBeVisible();
+
+  await day1.getByRole('button', { name: /Edit the note for day 1/ }).click();
+  await expect(day1.locator('textarea[name=dayNote]')).toHaveValue(
+    'Arrive late — dinner near the station.',
+  );
+  await day1.locator('textarea[name=dayNote]').fill('');
+  await day1.getByRole('button', { name: 'Save note' }).click();
+
+  await expect(day1.getByText('Arrive late')).toHaveCount(0);
+  await expect(day1.getByRole('button', { name: /Add the note for day 1/ })).toBeVisible();
+
+  await expect(page.locator('[role=alert]')).toHaveCount(0);
+  expect(consoleErrors, 'unexpected console errors').toEqual([]);
+});

@@ -182,9 +182,9 @@ tables under a running instance. Don't lower a gate to land a change.
 ## Roadmap
 
 1. **Milestone 0 — walking skeleton.** ✅ Accounts, trips, contract loop, one container.
-2. **Days and places.** Days from the date range ✅, places with ordering within
-   and across days ✅, place search over Nominatim ✅, a Leaflet map ✅, drag
-   ordering ✅ — day notes still to come.
+2. **Days and places.** ✅ Days from the date range, places with ordering within
+   and across days, place search over Nominatim, a Leaflet map, drag ordering,
+   and a note on each day.
 3. **Sharing.** Invites, the member list, roles beyond `OWNER`, and WebSocket
    sync so two people editing one day do not clobber each other.
 4. **Money and stuff.** Expenses with splits, packing lists, reservations.

@@ -65,6 +65,14 @@ Java record → springdoc → `api/build/openapi.json` (written by
 - **Trip access goes through `TripAccessService`.** `requireMember` for read,
   `requireRole` for write. A non-member gets **404**, not 403; a member with too
   weak a role gets 403. New trip-scoped endpoints must go through it.
+- **A day is addressed by its date.** Days are derived from the trip's range and
+  have no rows, so anything hung off one carries a plain `day_date` — `places`
+  does, and so does `day_notes`, whose real key is the unique `(trip_id,
+  day_date)`. `Trip.requireCovers` is the one range check both services call.
+  A day note is an upsert (`PUT .../days/{date}/note`) and a **blank note
+  deletes the row**: "no note" is the absence of a row, so there is one
+  representation of empty and no second endpoint to clear one. Notes ride along
+  on `TripItinerary`, so the page is still one request.
 - **Membership is the only grant.** No owner column on `trips` — `trip_members`
   is the single source of truth for who may see a trip.
 - **Flyway owns the schema**, Hibernate runs `ddl-auto: validate`. Schema changes
@@ -182,9 +190,9 @@ detection still renders, so a status code alone proves nothing.
 ## Scope discipline
 
 Milestone 0 (accounts, trips, the contract loop, one container) is done, and so
-is most of "days and places": derived days, places with ordering owned by the
+is "days and places": derived days, places with ordering owned by the
 server (`PlaceService` renumbers a day on every move or delete, and the client
-re-reads instead of patching ranks), and Nominatim search behind a proxy that
-caches and rate-limits, a Leaflet map, and drag ordering. Still open in that
-milestone: day notes. See the roadmap in README.md. Deliberately **out** of scope until asked:
+re-reads instead of patching ranks), Nominatim search behind a proxy that
+caches and rate-limits, a Leaflet map, drag ordering, and a note per day. Next is
+milestone 3, sharing. See the roadmap in README.md. Deliberately **out** of scope until asked:
 plugins, i18n, MCP, offline. Keep v1 small.

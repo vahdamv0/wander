@@ -10,6 +10,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.wander.common.NotFoundException;
+import com.wander.day.DayNote;
+import com.wander.day.DayNoteRepository;
 import com.wander.place.dto.CreatePlaceRequest;
 import com.wander.place.dto.MovePlaceRequest;
 import com.wander.place.dto.PlaceView;
@@ -39,10 +41,12 @@ public class PlaceService {
     private static final TripRole[] CAN_EDIT = { TripRole.OWNER, TripRole.EDITOR };
 
     private final PlaceRepository places;
+    private final DayNoteRepository notes;
     private final TripAccessService access;
 
-    public PlaceService(PlaceRepository places, TripAccessService access) {
+    public PlaceService(PlaceRepository places, DayNoteRepository notes, TripAccessService access) {
         this.places = places;
+        this.notes = notes;
         this.access = access;
     }
 
@@ -57,10 +61,16 @@ public class PlaceService {
                 .collect(Collectors.groupingBy(PlaceView::dayDate, java.util.LinkedHashMap::new,
                         Collectors.toList()));
 
+        // The day notes of the whole trip in one query, for the same reason the
+        // places come in one: the page is a single request.
+        Map<LocalDate, String> notesByDay = notes.findByTripId(tripId).stream()
+                .collect(Collectors.toMap(DayNote::getDayDate, DayNote::getNote));
+
         List<TripDay> days = new ArrayList<>(trip.dayCount());
         for (int i = 0; i < trip.dayCount(); i++) {
             LocalDate date = trip.getStartDate().plusDays(i);
-            days.add(new TripDay(date, i + 1, byDay.getOrDefault(date, List.of())));
+            days.add(new TripDay(date, i + 1, byDay.getOrDefault(date, List.of()),
+                    notesByDay.get(date)));
         }
         return new TripItinerary(TripSummary.of(trip, member.getRole()), days);
     }
@@ -69,7 +79,7 @@ public class PlaceService {
     public PlaceView create(Long userId, Long tripId, CreatePlaceRequest request) {
         TripMember member = access.requireRole(tripId, userId, CAN_EDIT);
         Trip trip = member.getTrip();
-        requireDayInTrip(trip, request.dayDate());
+        trip.requireCovers(request.dayDate());
 
         int end = places.findByTripIdAndDayDateOrderBySortOrderAsc(tripId, request.dayDate()).size();
         Place place = new Place(trip, request.dayDate(), end, request.name(),
@@ -92,7 +102,7 @@ public class PlaceService {
     @Transactional
     public PlaceView move(Long userId, Long tripId, Long placeId, MovePlaceRequest request) {
         TripMember member = access.requireRole(tripId, userId, CAN_EDIT);
-        requireDayInTrip(member.getTrip(), request.dayDate());
+        member.getTrip().requireCovers(request.dayDate());
 
         Place place = require(tripId, placeId);
         LocalDate from = place.getDayDate();
@@ -141,17 +151,6 @@ public class PlaceService {
     private static void renumber(List<Place> day) {
         for (int i = 0; i < day.size(); i++) {
             day.get(i).setSortOrder(i);
-        }
-    }
-
-    /**
-     * A place outside the trip's range would belong to a day the client never
-     * draws, so it would simply disappear.
-     */
-    private static void requireDayInTrip(Trip trip, LocalDate day) {
-        if (day.isBefore(trip.getStartDate()) || day.isAfter(trip.getEndDate())) {
-            throw new IllegalArgumentException("dayDate must fall between " + trip.getStartDate()
-                    + " and " + trip.getEndDate());
         }
     }
 

@@ -5,5 +5,6 @@ import { PlaceView } from '../models/place-view';
 export interface TripDay {
   date: string;
   index: number;
+  note?: string;
   places: Array<PlaceView>;
 }

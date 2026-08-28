@@ -8,6 +8,8 @@ export { Api } from './api';
 
 export type { CreatePlaceRequest } from './models/create-place-request';
 export type { CreateTripRequest } from './models/create-trip-request';
+export type { DayNoteRequest } from './models/day-note-request';
+export type { DayNoteView } from './models/day-note-view';
 export type { InstanceConfig } from './models/instance-config';
 export type { LoginRequest } from './models/login-request';
 export type { MapConfig } from './models/map-config';
@@ -31,6 +33,8 @@ export type { MovePlace$Params as MovePlace$Params } from './fn/place-controller
 export { movePlace as movePlace } from './fn/place-controller/move-place';
 export type { GetItinerary$Params as GetItinerary$Params } from './fn/place-controller/get-itinerary';
 export { getItinerary as getItinerary } from './fn/place-controller/get-itinerary';
+export type { PutDayNote$Params as PutDayNote$Params } from './fn/day-note-controller/put-day-note';
+export { putDayNote as putDayNote } from './fn/day-note-controller/put-day-note';
 export type { List$Params as List$Params } from './fn/trip-controller/list';
 export { list as list } from './fn/trip-controller/list';
 export type { Create$Params as Create$Params } from './fn/trip-controller/create';
