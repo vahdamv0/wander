@@ -3,21 +3,29 @@
 A self-hostable, collaborative travel planner. Spring Boot 4 + Angular 22, one
 container, one Postgres.
 
-> **Status: days and places, in progress.** The walking skeleton is done, and the
-> itinerary works: days come from the trip's date range, places can be searched
-> for by name over Nominatim, they can be reordered within and across days, and
-> they appear on a map, and they can be dragged into order within and across
-> days. Day notes are next.
+> **Status: usable.** Milestones 0 to 3 are done — accounts, trips, the
+> itinerary, sharing with roles, and live sync between browsers — and milestone
+> 4's money half is in. What remains before v1 is packing lists, reservations and
+> offline; see the roadmap below.
 
 ## What works today
 
-- Register / sign in / sign out, session-cookie auth with CSRF
-- Create and list trips, scoped to the people who are members of them
-- A trip's days are derived from its date range, never stored
+- Register / sign in / sign out, session-cookie auth with CSRF, sessions stored in
+  Postgres so a restart does not sign everybody out
+- Create, rename and reschedule trips, scoped to the people who are members of them
+- A trip's days are derived from its date range, never stored — and moving the
+  dates carries the itinerary with it rather than stranding it
 - Places on a day: add, rename, annotate, delete, and drag into order — within a
   day or into another one, with buttons as the keyboard equivalent
-- Place search over Nominatim, proxied and cached, so a place keeps its coordinates
+- A note on each day, and place search over Nominatim, proxied and cached, so a
+  place keeps its coordinates
 - A Leaflet map beside the itinerary: a pin per located place, numbered by day
+- Share a trip: members by email, owner / editor / viewer roles, and handing the
+  trip over to somebody else
+- Live sync over a WebSocket, so two people on one trip see each other's edits
+  without reloading
+- Expenses in one currency per trip: equal or exact splits, balances, who-owes-whom
+  reduced to the fewest payments, and recording those payments
 - Light / dark / follow-the-OS theming, all driven by design tokens
 - The Angular app and the API ship as a single jar
 

@@ -27,4 +27,7 @@ public interface ExpenseRepository extends JpaRepository<Expense, Long> {
     List<Expense> findForTrip(Long tripId);
 
     Optional<Expense> findByIdAndTripId(Long id, Long tripId);
+
+    /** Whether anything has been counted in this trip's currency yet. */
+    boolean existsByTripId(Long tripId);
 }

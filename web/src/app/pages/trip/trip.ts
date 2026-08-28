@@ -15,9 +15,14 @@ import { SessionStore } from '../../core/session.store';
 import { TripChange, TripSyncService } from '../../core/trip-sync';
 import { GeoRepo } from '../../repo/geo.repo';
 import { MemberRepo } from '../../repo/member.repo';
+import { TripRepo } from '../../repo/trip.repo';
 import { PlaceRepo } from '../../repo/place.repo';
 import { TripMap } from './trip-map';
 import { TripMembers } from './trip-members';
+
+/** Offered in the trip's edit form. The server accepts any three-letter code. */
+const CURRENCIES = ['EUR', 'USD', 'GBP', 'CHF', 'SEK', 'NOK', 'DKK', 'PLN', 'CZK',
+  'JPY', 'INR', 'AUD', 'CAD', 'NZD', 'SGD', 'ZAR', 'BRL', 'MXN'];
 
 /**
  * How long to sit on a keystroke before searching. The geocoder allows one
@@ -62,6 +67,7 @@ export class TripPage {
   private readonly members = inject(MemberRepo);
   private readonly session = inject(SessionStore);
   private readonly sync = inject(TripSyncService);
+  private readonly trips = inject(TripRepo);
   private readonly destroyRef = inject(DestroyRef);
 
   /** Bound from the route, as a string — coerced once here. */
@@ -122,6 +128,26 @@ export class TripPage {
 
   /** Whether live updates are flowing, for the indicator in the header. */
   protected readonly syncStatus = this.sync.status;
+
+  /** Only the owner may rewrite the trip itself; editors change its content. */
+  protected readonly isOwner = computed(() => this.trip()?.myRole === 'OWNER');
+
+  protected readonly editingTrip = signal(false);
+  protected readonly tripName = signal('');
+  protected readonly tripDestination = signal('');
+  protected readonly tripStart = signal('');
+  protected readonly tripEnd = signal('');
+  protected readonly tripCurrency = signal('');
+
+  /**
+   * The currencies the select offers, plus whatever this trip already uses — an
+   * instance may have been configured with one that is not on the list, and its
+   * own currency vanishing from its own edit form would be absurd.
+   */
+  protected readonly currencyOptions = computed(() => {
+    const own = this.trip()?.currency;
+    return own && !CURRENCIES.includes(own) ? [own, ...CURRENCIES] : CURRENCIES;
+  });
 
   constructor() {
     // input() is set before the first render, so reading it here is safe.
@@ -251,6 +277,41 @@ export class TripPage {
    * the caller, and `canEdit` comes from the itinerary's `myRole`, so the rest
    * of the page is stale until it is re-read.
    */
+  /** Opens the trip's own edit form, seeded with what it currently says. */
+  protected openTripEdit(): void {
+    const trip = this.trip();
+    if (!trip) {
+      return;
+    }
+    this.error.set(null);
+    this.tripName.set(trip.name);
+    this.tripDestination.set(trip.destination ?? '');
+    this.tripStart.set(trip.startDate);
+    this.tripEnd.set(trip.endDate);
+    this.tripCurrency.set(trip.currency);
+    this.editingTrip.set(true);
+  }
+
+  protected cancelTripEdit(): void {
+    this.editingTrip.set(false);
+    this.error.set(null);
+  }
+
+  protected async saveTrip(): Promise<void> {
+    await this.guard(async () => {
+      await this.trips.update(this.id(), {
+        name: this.tripName().trim(),
+        destination: this.tripDestination().trim() || undefined,
+        startDate: this.tripStart(),
+        endDate: this.tripEnd(),
+        currency: this.tripCurrency() || undefined,
+      });
+      this.editingTrip.set(false);
+      // The days, and every place's date, may have moved underneath us.
+      await this.reload();
+    });
+  }
+
   protected async onRolesChanged(): Promise<void> {
     await this.reload();
   }

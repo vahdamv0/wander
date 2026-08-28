@@ -1,5 +1,13 @@
 import { Injectable, inject, signal } from '@angular/core';
-import { Api, CreateTripRequest, TripSummary, create, list } from '../api';
+import {
+  Api,
+  CreateTripRequest,
+  TripSummary,
+  UpdateTripRequest,
+  create,
+  list,
+  updateTrip,
+} from '../api';
 
 /**
  * The repo layer: components talk to this, never to HTTP directly.
@@ -25,6 +33,21 @@ export class TripRepo {
     } finally {
       this._loading.set(false);
     }
+  }
+
+  /**
+   * Rewrites a trip. Owner only, and the server may refuse: shortening a range
+   * over places or notes comes back 409 with a message naming them, which is
+   * the useful thing to show rather than something vaguer.
+   */
+  async update(tripId: number, body: UpdateTripRequest): Promise<TripSummary> {
+    const updated = await this.api.invoke(updateTrip, { tripId, body });
+    // The list may not be loaded — this is usually called from the trip page —
+    // so patch it only where the trip is actually present.
+    this._trips.update((trips) =>
+      trips.map((trip) => (trip.id === tripId ? updated : trip)),
+    );
+    return updated;
   }
 
   async create(body: CreateTripRequest): Promise<TripSummary> {
