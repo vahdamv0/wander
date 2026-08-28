@@ -18,6 +18,7 @@ import { TripChange, TripSyncService } from '../../core/trip-sync';
 import { GeoRepo } from '../../repo/geo.repo';
 import { MemberRepo } from '../../repo/member.repo';
 import { TripRepo } from '../../repo/trip.repo';
+import { WeatherRepo } from '../../repo/weather.repo';
 import { PlaceRepo } from '../../repo/place.repo';
 import { PlaceDetail } from './place-detail';
 import { TripMap } from './trip-map';
@@ -72,6 +73,7 @@ export class TripPage {
   private readonly session = inject(SessionStore);
   private readonly sync = inject(TripSyncService);
   private readonly trips = inject(TripRepo);
+  private readonly weather = inject(WeatherRepo);
   private readonly destroyRef = inject(DestroyRef);
 
   /** Bound from the route, as a string — coerced once here. */
@@ -108,6 +110,30 @@ export class TripPage {
         0,
       ),
   );
+
+  /**
+   * What the forecast depends on: each day's first located place, rounded.
+   *
+   * A computed string, because it is what decides when to ask again. Re-reading
+   * the weather on every itinerary change would double the requests this page
+   * makes under live sync for a number that only moves when a day's *location*
+   * does — renaming a place or reordering two restaurants cannot change the
+   * weather. Rounded to about a kilometre, matching the server's own tolerance,
+   * so nudging a pin is not a refetch either.
+   */
+  private readonly weatherAnchors = computed(() =>
+    this.days()
+      .map((day) => {
+        const located = day.places.find((place) => place.latitude != null);
+        return located
+          ? `${day.date}:${located.latitude!.toFixed(2)},${located.longitude!.toFixed(2)}`
+          : day.date;
+      })
+      .join('|'),
+  );
+
+  protected readonly dayWeather = this.weather.byDate;
+  protected readonly weatherCredit = this.weather.attribution;
 
   protected readonly suggestions = this.geo.results;
   protected readonly searching = this.geo.searching;
@@ -213,9 +239,22 @@ export class TripPage {
       }
     });
 
+    // The forecast, once the instance has said it has one and the itinerary has
+    // said where. `weatherAnchors` is a computed string, so this fires on the
+    // first load and then only when a day's location actually moves.
+    effect(() => {
+      const enabled = this.config.weatherEnabled();
+      const anchors = this.weatherAnchors();
+      if (enabled && anchors) {
+        untracked(() => void this.weather.refresh(this.id()));
+      }
+    });
+
     // A socket that outlives the page keeps a server session alive and goes on
     // delivering events to nobody.
     this.destroyRef.onDestroy(() => this.sync.stop());
+    // Otherwise the next trip opens showing this one's temperatures for a moment.
+    this.destroyRef.onDestroy(() => this.weather.clear());
   }
 
   /**
@@ -606,6 +645,39 @@ export class TripPage {
   protected dayCost(day: TripDay): string | null {
     const trip = this.trip();
     return day.spentMinor == null || !trip ? null : formatMoney(day.spentMinor, trip.currency);
+  }
+
+  /** "19° / 7°" — rounded here, because rounding is a display choice. */
+  protected temperatureRange(date: string): string | null {
+    const day = this.dayWeather().get(date);
+    return day ? `${Math.round(day.tempMaxC)}° / ${Math.round(day.tempMinC)}°` : null;
+  }
+
+  protected conditions(date: string): string {
+    return this.dayWeather().get(date)?.summary ?? '';
+  }
+
+  /**
+   * A coarse band of the WMO code, for choosing an icon.
+   *
+   * The words come from the server — one copy of the WMO table, and it is content.
+   * The glyph is presentation, so it is chosen here, from six buckets rather than
+   * thirty: an icon that distinguished light drizzle from moderate drizzle would
+   * be two icons nobody could tell apart.
+   */
+  protected weatherIcon(date: string): 'clear' | 'cloud' | 'fog' | 'rain' | 'snow' | 'storm' | null {
+    const code = this.dayWeather().get(date)?.weatherCode;
+    if (code == null) {
+      return null;
+    }
+    if (code === 0 || code === 1) return 'clear';
+    if (code === 2 || code === 3) return 'cloud';
+    if (code === 45 || code === 48) return 'fog';
+    if (code >= 71 && code <= 77) return 'snow';
+    if (code === 85 || code === 86) return 'snow';
+    if (code >= 95) return 'storm';
+    if (code >= 51) return 'rain';
+    return 'cloud';
   }
 
   protected savedLabel(savedAt: number): string {

@@ -38,4 +38,17 @@ public class UpstreamGates {
         WanderProperties.Enrichment config = properties.enrichment();
         return new RateGate(config.minIntervalMillis(), config.maxWaitMillis());
     }
+
+    /**
+     * Open-Meteo. Its own gate again, and its own budget: the free tier is
+     * "less than 10'000 API calls per day" for the whole instance, which is
+     * plenty for day cards that are cached in hours and stingy for a bug that
+     * fetches in a loop. This is what makes the second case slow rather than a
+     * reason to be blocked.
+     */
+    @Bean
+    public RateGate openMeteoGate(WanderProperties properties) {
+        WanderProperties.Weather config = properties.weather();
+        return new RateGate(config.minIntervalMillis(), config.maxWaitMillis());
+    }
 }

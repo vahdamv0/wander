@@ -105,6 +105,23 @@ wander:
     enabled: ${WANDER_ENRICHMENT_ENABLED:true}
     cache-days: ${WANDER_ENRICHMENT_CACHE_DAYS:30}
     photo-count: ${WANDER_ENRICHMENT_PHOTO_COUNT:4}
+  weather:
+    # The forecast on a day card, from Open-Meteo — no API key, so a self-hoster
+    # does not have to register an account to use it. The free tier is
+    # **non-commercial** and the data is CC BY 4.0, which is why the attribution
+    # below is sent to the client and shown wherever a forecast is. An operator
+    # running this commercially needs their own arrangement and their own URL.
+    #
+    # A forecast exists about sixteen days out. Days past that show nothing at
+    # all rather than a placeholder — for a trip in nine months there is nothing
+    # to show, and pretending otherwise is worse than an empty space.
+    enabled: ${WANDER_WEATHER_ENABLED:true}
+    base-url: ${WANDER_WEATHER_URL:https://api.open-meteo.com}
+    horizon-days: ${WANDER_WEATHER_HORIZON_DAYS:16}
+    # Minutes, not days: a forecast changes through the day, unlike an enrichment.
+    cache-minutes: ${WANDER_WEATHER_CACHE_MINUTES:180}
+    attribution: ${WANDER_WEATHER_ATTRIBUTION:Weather data by Open-Meteo.com (CC BY 4.0)}
+    attribution-url: ${WANDER_WEATHER_ATTRIBUTION_URL:https://open-meteo.com/}
   map:
     # Tiles are fetched by the browser, so this is the one thing here that is
     # not proxied. Point it at your own tile server if you would rather your

@@ -6,4 +6,5 @@ export interface InstanceConfig {
   defaultCurrency: string;
   map: MapConfig;
   searchEnabled: boolean;
+  weatherEnabled: boolean;
 }
