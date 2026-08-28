@@ -133,8 +133,10 @@ class TripUpdateIntegrationTest extends IntegrationTestBase {
         // 409, and the message says what is in the way — the count is what tells
         // somebody whether they are about to lose an afternoon's planning.
         assertThat(refused.getStatusCode().value()).isEqualTo(409);
+        // Named, not just counted: the message has to say where to go and look.
         assertThat((String) asMap(refused.getBody()).get("message"))
                 .contains("2 places").contains("1 note").contains("2027-07-15")
+                .contains("Arashiyama on 2027-07-18").contains("Nishiki Market on 2027-07-19")
                 // Plural subject, plural verb.
                 .contains("fall outside");
 
@@ -154,8 +156,78 @@ class TripUpdateIntegrationTest extends IntegrationTestBase {
                 {"name":"Kyoto","startDate":"2027-07-12","endDate":"2027-07-15"}
                 """);
 
+        assertThat((String) asMap(refused.getBody()).get("message")).isEqualTo(
+                "1 place (Nishiki Market on 2027-07-19) falls outside 2027-07-12 to 2027-07-15."
+                        + " Move or delete it first.");
+    }
+
+    @Test
+    void aLongMessageNamesTheFirstFewAndCountsTheRest() {
+        Session owner = register("owner");
+        Object tripId = tripFor(owner, "2027-07-12", "2027-07-19");
+        for (int i = 0; i < 5; i++) {
+            addPlace(owner, tripId, "2027-07-19", "Place " + i);
+        }
+
+        var refused = put(owner, "/api/trips/" + tripId, """
+                {"name":"Kyoto","startDate":"2027-07-12","endDate":"2027-07-15"}
+                """);
+
+        // Three by name, then a count — a message listing forty places helps nobody.
         assertThat((String) asMap(refused.getBody()).get("message"))
-                .isEqualTo("1 place falls outside 2027-07-12 to 2027-07-15. Move or delete it first.");
+                .contains("5 places").contains("Place 0").contains("Place 2").contains("and 2 more")
+                .doesNotContain("Place 3");
+    }
+
+    @Test
+    void aTripCanBeMovedAndLengthenedInOneGoWhenAsked() {
+        Session owner = register("owner");
+        Object tripId = tripFor(owner, "2026-08-28", "2026-09-05");
+        addPlace(owner, tripId, "2026-08-28", "Fushimi Inari");
+        addPlace(owner, tripId, "2026-08-28", "Shin-Osaka");
+
+        String body = """
+                {"name":"Kyoto","startDate":"2026-10-02","endDate":"2026-10-14"%s}
+                """;
+
+        // Ambiguous on its own: the length changed, so "does the plan come along?"
+        // has no single right answer and the default is to refuse.
+        assertThat(put(owner, "/api/trips/" + tripId, body.formatted(""))
+                .getStatusCode().value()).isEqualTo(409);
+
+        // Asked explicitly, it comes along: both places keep their day of the trip.
+        assertThat(put(owner, "/api/trips/" + tripId, body.formatted(",\"shiftItinerary\":true"))
+                .getStatusCode().value()).isEqualTo(200);
+
+        List<Map<String, Object>> days = daysOf(owner, tripId);
+        assertThat(days).hasSize(13);
+        assertThat(days.get(0)).containsEntry("date", "2026-10-02");
+        assertThat(placesOf(days.get(0))).hasSize(2);
+    }
+
+    @Test
+    void shiftingThatWouldStillStrandSomethingChangesNothing() {
+        Session owner = register("owner");
+        Object tripId = tripFor(owner, "2027-07-12", "2027-07-19");
+        addPlace(owner, tripId, "2027-07-12", "First day");
+        addPlace(owner, tripId, "2027-07-19", "Last day");
+
+        // Shifted forward by one, the last day's place lands on the 20th, which the
+        // shorter trip does not reach.
+        var refused = put(owner, "/api/trips/" + tripId, """
+                {"name":"Kyoto","startDate":"2027-07-13","endDate":"2027-07-16",
+                 "shiftItinerary":true}
+                """);
+        assertThat(refused.getStatusCode().value()).isEqualTo(409);
+
+        // And the shift rolled back with the refusal: nothing moved.
+        assertThat(asMap(get(owner, "/api/trips/" + tripId).getBody()))
+                .containsEntry("startDate", "2027-07-12");
+        List<Map<String, Object>> days = daysOf(owner, tripId);
+        assertThat(placesOf(days.get(0))).singleElement()
+                .satisfies(place -> assertThat(place).containsEntry("name", "First day"));
+        assertThat(placesOf(days.get(7))).singleElement()
+                .satisfies(place -> assertThat(place).containsEntry("name", "Last day"));
     }
 
     @Test

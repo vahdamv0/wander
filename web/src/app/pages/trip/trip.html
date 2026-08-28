@@ -120,6 +120,23 @@
             </span>
           </label>
         </div>
+        @if (offerShift()) {
+          <!-- The refusal named what is in the way; this is the one-click way out
+               of it, and it is offered rather than assumed because "two days added
+               at the front" and "the whole trip moved later" want opposite things
+               from the same date change. -->
+          <div class="rounded-control bg-surface-2 px-3 py-2 text-sm">
+            <p class="text-muted">
+              Those days can come along: every place and note keeps its position in
+              the trip, on the new dates.
+            </p>
+            <button type="button" class="btn-ghost mt-1.5 px-2 py-1 text-xs"
+                    [disabled]="saving()" (click)="saveTrip(true)">
+              Move the itinerary with the trip
+            </button>
+          </div>
+        }
+
         <div class="flex items-center gap-2">
           <button type="submit" class="btn-primary" [disabled]="saving() || !tripName().trim()">
             Save trip

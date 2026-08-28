@@ -6,5 +6,6 @@ export interface UpdateTripRequest {
   destination?: string;
   endDate: string;
   name: string;
+  shiftItinerary?: boolean;
   startDate: string;
 }
