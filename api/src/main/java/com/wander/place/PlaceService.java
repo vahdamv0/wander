@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.wander.common.NotFoundException;
 import com.wander.day.DayNote;
 import com.wander.day.DayNoteRepository;
+import com.wander.expense.ExpenseRepository;
 import com.wander.place.dto.CreatePlaceRequest;
 import com.wander.place.dto.MovePlaceRequest;
 import com.wander.place.dto.PlaceView;
@@ -43,13 +44,15 @@ public class PlaceService {
 
     private final PlaceRepository places;
     private final DayNoteRepository notes;
+    private final ExpenseRepository expenses;
     private final TripAccessService access;
     private final TripChanges changes;
 
-    public PlaceService(PlaceRepository places, DayNoteRepository notes, TripAccessService access,
-            TripChanges changes) {
+    public PlaceService(PlaceRepository places, DayNoteRepository notes, ExpenseRepository expenses,
+            TripAccessService access, TripChanges changes) {
         this.places = places;
         this.notes = notes;
+        this.expenses = expenses;
         this.access = access;
         this.changes = changes;
     }
@@ -70,11 +73,18 @@ public class PlaceService {
         Map<LocalDate, String> notesByDay = notes.findByTripId(tripId).stream()
                 .collect(Collectors.toMap(DayNote::getDayDate, DayNote::getNote));
 
+        // And what each day cost, in the same one-query-for-the-trip shape. The
+        // expenses page owns the money; this is the one number from it that
+        // belongs on a day, because "we spent a lot on the day we did nothing" is
+        // a thing you only notice with the two side by side.
+        Map<LocalDate, Long> spentByDay = expenses.sumPerDay(tripId).stream()
+                .collect(Collectors.toMap(row -> (LocalDate) row[0], row -> (Long) row[1]));
+
         List<TripDay> days = new ArrayList<>(trip.dayCount());
         for (int i = 0; i < trip.dayCount(); i++) {
             LocalDate date = trip.getStartDate().plusDays(i);
             days.add(new TripDay(date, i + 1, byDay.getOrDefault(date, List.of()),
-                    notesByDay.get(date)));
+                    notesByDay.get(date), spentByDay.get(date)));
         }
         return new TripItinerary(TripSummary.of(trip, member.getRole()), days);
     }

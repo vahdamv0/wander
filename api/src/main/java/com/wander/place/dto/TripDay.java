@@ -15,5 +15,15 @@ public record TripDay(
         @NotNull int index,
         @NotNull List<PlaceView> places,
         /** The day's own note, or null when it has none. Most days have none. */
-        String note) {
+        String note,
+        /**
+         * What was spent on this day, in the trip's minor units, or null when
+         * nothing was — payments excluded, as in the trip total.
+         *
+         * Null rather than zero, and the distinction is the point: zero would have
+         * the day card print "0.00" on every day of a trip nobody has recorded
+         * money for, which is a claim about the world rather than an absence of
+         * one.
+         */
+        Long spentMinor) {
 }

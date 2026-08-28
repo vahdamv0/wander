@@ -120,6 +120,13 @@ Java record → springdoc → `api/build/openapi.json` (written by
   constraint, which `V2` says it left out for exactly this reason. A trip's
   **currency moves only while it has no expenses** — after that the stored amounts
   mean something in it.
+- **The itinerary carries one number from the money feature: what each day cost.**
+  Grouped in the database by `ExpenseRepository.sumPerDay`, payments excluded for
+  the same reason the trip total excludes them, and a day with nothing spent comes
+  back **null rather than zero** — a card printing "0.00" on every untouched day
+  would be a claim nobody entered. It rides along on `TripItinerary` like the day
+  notes do, because the page is one request; the number is a link to the expenses
+  page, not a second place to edit money.
 - **Membership is the only grant.** No owner column on `trips` — `trip_members`
   is the single source of truth for who may see a trip. It needed no migration to
   become a real feature: the table has carried `role` and `UNIQUE (trip_id,

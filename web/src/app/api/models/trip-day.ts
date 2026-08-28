@@ -7,4 +7,5 @@ export interface TripDay {
   index: number;
   note?: string;
   places: Array<PlaceView>;
+  spentMinor?: number;
 }

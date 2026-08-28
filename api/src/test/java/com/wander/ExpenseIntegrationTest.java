@@ -495,6 +495,59 @@ class ExpenseIntegrationTest extends IntegrationTestBase {
         assertThat(trip).containsEntry("currency", "EUR");
     }
 
+    /**
+     * The one number from this feature that appears on the itinerary.
+     *
+     * Worth its own test because the two things it must get right are both
+     * invisible from the expenses page: a day with nothing spent has to come back
+     * *absent* rather than zero, and a settling-up payment must not make the day
+     * it happened on look expensive.
+     */
+    @Test
+    void theItineraryCarriesWhatEachDayCostAndLeavesPaymentsOutOfIt() {
+        Session alice = register("alice");
+        Session bob = register("bob");
+        Object tripId = tripFor(alice, "EUR");
+        Object bobId = addMember(alice, tripId, bob, "EDITOR");
+        Object aliceId = userIdOf(alice, tripId, alice);
+
+        // Two things on day one, one on day two, and day three left alone.
+        assertThat(post(alice, "/api/trips/" + tripId + "/expenses", """
+                {"description":"Lunch","amountMinor":2400,"spentOn":"2027-05-01",
+                 "paidByUserId":%s,"splitMode":"EQUAL",
+                 "shares":[{"userId":%s},{"userId":%s}]}
+                """.formatted(aliceId, aliceId, bobId)).getStatusCode().value()).isEqualTo(201);
+        assertThat(post(alice, "/api/trips/" + tripId + "/expenses", """
+                {"description":"Tickets","amountMinor":1600,"spentOn":"2027-05-01",
+                 "paidByUserId":%s,"splitMode":"EQUAL",
+                 "shares":[{"userId":%s},{"userId":%s}]}
+                """.formatted(aliceId, aliceId, bobId)).getStatusCode().value()).isEqualTo(201);
+        assertThat(post(alice, "/api/trips/" + tripId + "/expenses", """
+                {"description":"Hotel","amountMinor":9000,"spentOn":"2027-05-02",
+                 "paidByUserId":%s,"splitMode":"EQUAL",
+                 "shares":[{"userId":%s},{"userId":%s}]}
+                """.formatted(aliceId, aliceId, bobId)).getStatusCode().value()).isEqualTo(201);
+
+        // Bob settles up on day three. Money moved, nothing was spent.
+        assertThat(post(bob, "/api/trips/" + tripId + "/expenses/payments", """
+                {"fromUserId":%s,"toUserId":%s,"amountMinor":5000,"paidOn":"2027-05-03"}
+                """.formatted(bobId, aliceId)).getStatusCode().value()).isEqualTo(201);
+
+        List<Map<String, Object>> days =
+                listOf(asMap(get(alice, "/api/trips/" + tripId + "/itinerary").getBody()), "days");
+        assertThat(days).hasSize(4);
+        assertThat(asLong(days.get(0).get("spentMinor")))
+                .as("both of day one's expenses, added up")
+                .isEqualTo(4000L);
+        assertThat(asLong(days.get(1).get("spentMinor"))).isEqualTo(9000L);
+        assertThat(days.get(2).get("spentMinor"))
+                .as("a payment is not a cost, so the day it happened on has none")
+                .isNull();
+        assertThat(days.get(3).get("spentMinor"))
+                .as("absent, not zero — nothing was spent is not the same as nothing cost anything")
+                .isNull();
+    }
+
     @Test
     void aCurrencyThatIsNotAThreeLetterCodeIsRejected() {
         Session alice = register("alice");

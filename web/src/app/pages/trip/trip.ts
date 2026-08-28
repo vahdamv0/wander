@@ -12,6 +12,7 @@ import { Router, RouterLink } from '@angular/router';
 import { PlaceSuggestion, PlaceView, TripDay } from '../../api';
 import { InstanceConfigStore } from '../../core/instance-config.store';
 import { ageLabel, messageOf } from '../../core/errors';
+import { formatMoney } from '../../core/money';
 import { SessionStore } from '../../core/session.store';
 import { TripChange, TripSyncService } from '../../core/trip-sync';
 import { GeoRepo } from '../../repo/geo.repo';
@@ -593,6 +594,18 @@ export class TripPage {
       day: 'numeric',
       month: 'short',
     });
+  }
+
+  /**
+   * What the day cost, in the trip's currency, or null when nothing was spent.
+   *
+   * Null and zero are kept distinct all the way from the server: a day card that
+   * printed "0.00" on every untouched day would be saying something about the
+   * trip that nobody entered.
+   */
+  protected dayCost(day: TripDay): string | null {
+    const trip = this.trip();
+    return day.spentMinor == null || !trip ? null : formatMoney(day.spentMinor, trip.currency);
   }
 
   protected savedLabel(savedAt: number): string {
