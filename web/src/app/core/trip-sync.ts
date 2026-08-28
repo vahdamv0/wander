@@ -17,6 +17,7 @@ export type TripChangeKind =
   | 'MEMBERS'
   | 'EXPENSES'
   | 'PACKING'
+  | 'RESERVATIONS'
   | 'TRIP_DELETED';
 
 export interface TripChange {
@@ -218,6 +219,7 @@ export class TripSyncService {
         'MEMBERS',
         'EXPENSES',
         'PACKING',
+        'RESERVATIONS',
         'TRIP_DELETED',
       ];
       if (!parsed.kind || !kinds.includes(parsed.kind)) {

@@ -35,6 +35,10 @@ public record TripChange(
         return new TripChange(tripId, TripChangeKind.PACKING, actorUserId, null);
     }
 
+    public static TripChange reservations(Long tripId, Long actorUserId) {
+        return new TripChange(tripId, TripChangeKind.RESERVATIONS, actorUserId, null);
+    }
+
     public static TripChange members(Long tripId, Long actorUserId) {
         return new TripChange(tripId, TripChangeKind.MEMBERS, actorUserId, null);
     }

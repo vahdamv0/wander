@@ -1301,3 +1301,98 @@ test('packing items land in the right section and tick across browsers', async (
   await ownerContext.close();
   await friendContext.close();
 });
+
+/**
+ * Bookings, and the only interesting thing about them: the clock.
+ *
+ * The browser is pinned to Europe/London so "the viewer's own zone" is a known
+ * quantity — which is what decides whether a time gets a zone label at all. A
+ * booking in Tokyo must say so; one at home must not, or every row on a domestic
+ * trip carries noise.
+ */
+test('bookings show each time in its own zone, ordered by when they really happen', async ({
+  browser,
+}) => {
+  const context = await browser.newContext({ timezoneId: 'Europe/London' });
+  const page = await context.newPage();
+
+  const consoleErrors: string[] = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error' && !message.text().includes('401')) {
+      consoleErrors.push(message.text());
+    }
+  });
+  page.on('pageerror', (error) => consoleErrors.push(error.message));
+
+  await page.goto('/login');
+  await page.getByText('Create one').click();
+  await page.locator('input[name=email]').fill(`e2e-book-${Date.now()}@example.com`);
+  await page.locator('input[name=displayName]').fill('Booking Tester');
+  await page.locator('input[name=password]').fill('correct-horse-battery');
+  await page.locator('button[type=submit]').click();
+
+  await expect(page).toHaveURL(/\/trips$/);
+  await page.getByRole('button', { name: 'Plan your first trip' }).click();
+  await page.locator('input[name=name]').fill('Japan');
+  await page.locator('input[name=startDate]').fill('2027-07-12');
+  await page.locator('input[name=endDate]').fill('2027-07-20');
+  await page.getByRole('button', { name: 'Create trip' }).click();
+  await page.getByRole('link', { name: /Japan/ }).click();
+  await page.getByRole('link', { name: 'Bookings' }).click();
+  await expect(page).toHaveURL(/\/reservations$/);
+  await expect(page.getByText('No bookings yet')).toBeVisible();
+
+  // Added second, but it happens first: 23:00 in Tokyo on the 12th is 14:00 UTC,
+  // while 09:15 in London on the 12th is 08:15 UTC. Only the instants say so.
+  const addBooking = async (fields: {
+    kind: string;
+    title: string;
+    startDate: string;
+    startTime: string;
+    startZone: string;
+    endDate?: string;
+    endTime?: string;
+    endZone?: string;
+  }) => {
+    await page.getByRole('button', { name: 'Add a booking' }).click();
+    await page.locator('select[name=kind]').selectOption(fields.kind);
+    await page.locator('input[name=title]').fill(fields.title);
+    await page.locator('input[name=startDate]').fill(fields.startDate);
+    await page.locator('input[name=startTime]').fill(fields.startTime);
+    await page.locator('select[name=startZone]').selectOption(fields.startZone);
+    if (fields.endDate) {
+      await page.locator('input[name=endDate]').fill(fields.endDate);
+      await page.locator('input[name=endTime]').fill(fields.endTime!);
+      await page.locator('select[name=endZone]').selectOption(fields.endZone ?? fields.startZone);
+    }
+    await page.getByRole('button', { name: 'Save booking' }).click();
+    await expect(page.getByText(fields.title, { exact: true })).toBeVisible();
+  };
+
+  await addBooking({
+    kind: 'TRAIN', title: 'Late train in Tokyo',
+    startDate: '2027-07-12', startTime: '23:00', startZone: 'Asia/Tokyo',
+  });
+  await addBooking({
+    kind: 'FLIGHT', title: 'BA512 to Osaka',
+    startDate: '2027-07-12', startTime: '09:15', startZone: 'Europe/London',
+    endDate: '2027-07-13', endTime: '07:40', endZone: 'Asia/Tokyo',
+  });
+
+  const rows = page.locator('ul > li.card');
+  // Ordered by instant, so the London flight comes first despite being added second.
+  await expect(rows.locator('p.font-medium')).toHaveText(['BA512 to Osaka', 'Late train in Tokyo']);
+
+  // Departure is in the viewer's own zone, so it carries no label...
+  const flight = rows.filter({ hasText: 'BA512' });
+  await expect(flight).toContainText('9:15');
+  // ...but the arrival is in another zone and says so.
+  await expect(flight).toContainText('7:40');
+  await expect(flight).toContainText('GMT+9');
+
+  // A time somewhere else is labelled even when it is the only time on the row.
+  await expect(rows.filter({ hasText: 'Late train' })).toContainText('GMT+9');
+
+  expect(consoleErrors, 'unexpected console errors').toEqual([]);
+  await context.close();
+});

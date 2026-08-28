@@ -28,6 +28,9 @@ container, one Postgres.
   reduced to the fewest payments, and recording those payments
 - A packing list per trip: shared items and per-person ones, ticked off live, with
   a note of who packed each shared thing
+- Bookings — flights, trains, hotels, tables — stored as instants with the zone
+  they were booked in, so a flight keeps London time for its departure and Tokyo
+  time for its arrival, and the list is ordered by when things really happen
 - Light / dark / follow-the-OS theming, all driven by design tokens
 - The Angular app and the API ship as a single jar
 
@@ -216,8 +219,8 @@ tables under a running instance. Don't lower a gate to land a change.
 4. **Money and stuff.** Expenses are done ✅ — one currency per trip, amounts in
    integer minor units, equal or exact splits, a "who owes whom" summary reduced
    to the fewest payments, and recording those payments so balances actually
-   clear, and a packing list grouped by who is bringing what. Still to come:
-   reservations.
+   clear, a packing list grouped by who is bringing what, and bookings kept on a
+   real clock — each time in the zone it happens in.
 5. **Offline.** IndexedDB reads and a replaying write queue, inside the repos.
 
 ## Licence

@@ -33,6 +33,10 @@ public class TripChanges {
         events.publishEvent(TripChange.packing(tripId, actorUserId));
     }
 
+    public void reservationsChanged(Long tripId, Long actorUserId) {
+        events.publishEvent(TripChange.reservations(tripId, actorUserId));
+    }
+
     public void membersChanged(Long tripId, Long actorUserId) {
         events.publishEvent(TripChange.members(tripId, actorUserId));
     }
