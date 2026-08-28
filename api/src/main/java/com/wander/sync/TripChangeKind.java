@@ -15,6 +15,8 @@ public enum TripChangeKind {
     MEMBERS,
     /** An expense, or its split, changed. Re-read the ledger. */
     EXPENSES,
+    /** Something on the packing list changed. Re-read it. */
+    PACKING,
     /** The trip is gone. Nothing to re-read. */
     TRIP_DELETED
 }

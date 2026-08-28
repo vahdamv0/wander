@@ -29,6 +29,15 @@
             Edit trip
           </button>
         }
+        <a [routerLink]="['/trips', tripId(), 'packing']"
+           class="inline-flex items-center gap-1.5 text-sm text-muted hover:text-fg">
+          <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M5 8h14v12H5V8Z" />
+            <path d="M9 8V5h6v3M5 12h14" />
+          </svg>
+          Packing
+        </a>
         <a [routerLink]="['/trips', tripId(), 'expenses']"
            class="inline-flex items-center gap-1.5 text-sm text-muted hover:text-fg">
           <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"

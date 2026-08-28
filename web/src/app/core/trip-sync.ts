@@ -12,7 +12,12 @@ import { SessionStore } from './session.store';
  * almost no surface on which to drift. Anything richer belongs on the REST side
  * where the contract loop can own it.
  */
-export type TripChangeKind = 'ITINERARY' | 'MEMBERS' | 'EXPENSES' | 'TRIP_DELETED';
+export type TripChangeKind =
+  | 'ITINERARY'
+  | 'MEMBERS'
+  | 'EXPENSES'
+  | 'PACKING'
+  | 'TRIP_DELETED';
 
 export interface TripChange {
   tripId: number;
@@ -208,12 +213,14 @@ export class TripSyncService {
       const parsed = JSON.parse(data) as Partial<TripChange>;
       // Every kind the server can send has to be listed here. An unlisted one is
       // dropped silently, which looks exactly like a socket that is not working.
-      if (
-        parsed.kind !== 'ITINERARY' &&
-        parsed.kind !== 'MEMBERS' &&
-        parsed.kind !== 'EXPENSES' &&
-        parsed.kind !== 'TRIP_DELETED'
-      ) {
+      const kinds: TripChangeKind[] = [
+        'ITINERARY',
+        'MEMBERS',
+        'EXPENSES',
+        'PACKING',
+        'TRIP_DELETED',
+      ];
+      if (!parsed.kind || !kinds.includes(parsed.kind)) {
         return null;
       }
       return {

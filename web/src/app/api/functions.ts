@@ -21,6 +21,16 @@ export type { MovePlace$Params as MovePlace$Params } from './fn/place-controller
 export { movePlace as movePlace } from './fn/place-controller/move-place';
 export type { GetItinerary$Params as GetItinerary$Params } from './fn/place-controller/get-itinerary';
 export { getItinerary as getItinerary } from './fn/place-controller/get-itinerary';
+export type { UpdatePackingItem$Params as UpdatePackingItem$Params } from './fn/packing-controller/update-packing-item';
+export { updatePackingItem as updatePackingItem } from './fn/packing-controller/update-packing-item';
+export type { DeletePackingItem$Params as DeletePackingItem$Params } from './fn/packing-controller/delete-packing-item';
+export { deletePackingItem as deletePackingItem } from './fn/packing-controller/delete-packing-item';
+export type { SetPackingItemPacked$Params as SetPackingItemPacked$Params } from './fn/packing-controller/set-packing-item-packed';
+export { setPackingItemPacked as setPackingItemPacked } from './fn/packing-controller/set-packing-item-packed';
+export type { ListPacking$Params as ListPacking$Params } from './fn/packing-controller/list-packing';
+export { listPacking as listPacking } from './fn/packing-controller/list-packing';
+export type { CreatePackingItem$Params as CreatePackingItem$Params } from './fn/packing-controller/create-packing-item';
+export { createPackingItem as createPackingItem } from './fn/packing-controller/create-packing-item';
 export type { ChangeMemberRole$Params as ChangeMemberRole$Params } from './fn/trip-member-controller/change-member-role';
 export { changeMemberRole as changeMemberRole } from './fn/trip-member-controller/change-member-role';
 export type { ListMembers$Params as ListMembers$Params } from './fn/trip-member-controller/list-members';

@@ -179,10 +179,16 @@
     @apply opacity-0 transition-opacity;
   }
 
+  /* Two group names, because a packing row is not a place row but reveals its
+     controls the same way. A `.row-actions` whose group is not listed here is
+     invisible and unreachable by mouse, which is a silent way to ship a dead
+     control. */
   .group\/place:hover .row-actions,
   .group\/place:hover .drag-handle,
   .group\/place:focus-within .row-actions,
-  .group\/place:focus-within .drag-handle {
+  .group\/place:focus-within .drag-handle,
+  .group\/item:hover .row-actions,
+  .group\/item:focus-within .row-actions {
     @apply opacity-100;
   }
 

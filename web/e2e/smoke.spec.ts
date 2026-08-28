@@ -1199,3 +1199,105 @@ test('moving and lengthening a trip at once offers to bring the itinerary', asyn
 
   expect(consoleErrors, 'unexpected console errors').toEqual([]);
 });
+
+/**
+ * The packing list, in two browsers.
+ *
+ * The section an item sits in *is* who is bringing it, so the assertions are
+ * about things landing in the right one — and about a tick made in one browser
+ * moving the other's count without a reload.
+ */
+test('packing items land in the right section and tick across browsers', async ({ browser }) => {
+  const stamp = Date.now();
+  const friendEmail = `e2e-pack-friend-${stamp}@example.com`;
+
+  const ownerContext = await browser.newContext();
+  const friendContext = await browser.newContext();
+  const owner = await ownerContext.newPage();
+  const friend = await friendContext.newPage();
+
+  const consoleErrors: string[] = [];
+  for (const page of [owner, friend]) {
+    page.on('console', (message) => {
+      if (message.type() === 'error' && !message.text().includes('401')) {
+        consoleErrors.push(message.text());
+      }
+    });
+    page.on('pageerror', (error) => consoleErrors.push(error.message));
+  }
+
+  const register = async (page: typeof owner, email: string, name: string) => {
+    await page.goto('/login');
+    await page.getByText('Create one').click();
+    await page.locator('input[name=email]').fill(email);
+    await page.locator('input[name=displayName]').fill(name);
+    await page.locator('input[name=password]').fill('correct-horse-battery');
+    await page.locator('button[type=submit]').click();
+    await expect(page).toHaveURL(/\/trips$/);
+  };
+
+  await register(owner, `e2e-pack-owner-${stamp}@example.com`, 'Pack Owner');
+  await register(friend, friendEmail, 'Pack Friend');
+
+  await owner.getByRole('button', { name: 'Plan your first trip' }).click();
+  await owner.locator('input[name=name]').fill('Norway');
+  await owner.locator('input[name=startDate]').fill('2027-06-01');
+  await owner.locator('input[name=endDate]').fill('2027-06-05');
+  await owner.getByRole('button', { name: 'Create trip' }).click();
+  await owner.getByRole('link', { name: /Norway/ }).click();
+
+  await owner.getByRole('button', { name: /People/ }).click();
+  await owner.locator('input[name=memberEmail]').fill(friendEmail);
+  await owner.locator('select[name=memberRole]').selectOption('EDITOR');
+  await owner.getByRole('button', { name: 'Add', exact: true }).click();
+  await expect(owner.getByText('Pack Friend', { exact: true })).toBeVisible();
+
+  await owner.getByRole('link', { name: 'Packing' }).click();
+  await expect(owner).toHaveURL(/\/packing$/);
+  // Everybody gets a section straight away, including the one who has added
+  // nothing: an absent section reads as missing data.
+  await expect(owner.getByRole('heading', { name: 'Everyone' })).toBeVisible();
+  await expect(owner.getByRole('heading', { name: /Pack Friend/ })).toBeVisible();
+
+  await friend.goto(owner.url());
+  await expect(friend.getByRole('heading', { name: 'Packing' })).toBeVisible();
+
+  // Typing into a section is what assigns the item — no name to pick. Each add is
+  // waited for before the next: the submit button is disabled while a save is in
+  // flight, so a second Enter arriving too quickly would land on nothing.
+  const addItem = async (section: string, description: string) => {
+    await owner.getByLabel(`Add an item for ${section}`).fill(description);
+    await owner.getByLabel(`Add an item for ${section}`).press('Enter');
+    await expect(owner.getByText(description, { exact: true })).toBeVisible();
+  };
+  await addItem('Everyone', 'Tent');
+  await addItem('Pack Friend', 'Chargers');
+
+  // Scoped by heading, not by text: every row's assignee select contains an
+  // "Everyone" option, so `hasText` would match every section at once.
+  const sectionOf = (page: typeof owner, heading: string | RegExp) =>
+    page.locator('li.card').filter({ has: page.getByRole('heading', { name: heading }) });
+  const friendSection = sectionOf(friend, /Pack Friend/);
+  const sharedSection = sectionOf(friend, 'Everyone');
+  // Both arrive in the other browser on their own, in the right sections.
+  // exact: true throughout — every row carries the item's name in the screen-reader
+  // labels of its controls, so a loose match finds four elements.
+  await expect(sharedSection.getByText('Tent', { exact: true })).toBeVisible();
+  await expect(friendSection.getByText('Chargers', { exact: true })).toBeVisible();
+
+  // The friend packs the shared tent; the owner's count moves without a reload,
+  // and it says who did it — the useful half of "packed" on a shared item.
+  await sharedSection.getByRole('checkbox').first().check();
+  await expect(friend.getByText('1 of 2 packed')).toBeVisible();
+  await expect(owner.getByText('· Pack Friend')).toBeVisible();
+  await expect(owner.getByText('1 of 2 packed')).toBeVisible();
+
+  // A packed item stays where it was rather than jumping to the bottom.
+  await addItem('Everyone', 'First-aid kit');
+  await expect(sectionOf(owner, 'Everyone').locator('li span.truncate'))
+    .toHaveText(['Tent', 'First-aid kit']);
+
+  expect(consoleErrors, 'unexpected console errors').toEqual([]);
+  await ownerContext.close();
+  await friendContext.close();
+});
