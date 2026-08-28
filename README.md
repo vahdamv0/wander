@@ -26,6 +26,8 @@ container, one Postgres.
   without reloading
 - Expenses in one currency per trip: equal or exact splits, balances, who-owes-whom
   reduced to the fewest payments, and recording those payments
+- A packing list per trip: shared items and per-person ones, ticked off live, with
+  a note of who packed each shared thing
 - Light / dark / follow-the-OS theming, all driven by design tokens
 - The Angular app and the API ship as a single jar
 
@@ -214,7 +216,8 @@ tables under a running instance. Don't lower a gate to land a change.
 4. **Money and stuff.** Expenses are done ✅ — one currency per trip, amounts in
    integer minor units, equal or exact splits, a "who owes whom" summary reduced
    to the fewest payments, and recording those payments so balances actually
-   clear. Still to come: packing lists and reservations.
+   clear, and a packing list grouped by who is bringing what. Still to come:
+   reservations.
 5. **Offline.** IndexedDB reads and a replaying write queue, inside the repos.
 
 ## Licence

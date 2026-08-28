@@ -315,6 +315,32 @@ rules are narrow on purpose.
   rows would silently forgive a debt, and refusing the removal would make it
   impossible to leave a trip you had spent money on.
 
+## Packing lists
+
+The first thing in this project that belongs to a *person* on a trip rather than
+to the trip.
+
+- **One list, with an optional assignee.** `packing_items.assignee_user_id` is
+  nullable and that null is meaningful — it is the shared pile, not a missing
+  value. A list per member plus a shared one would have been two concepts, and
+  reassigning would be a delete and a create instead of a field change.
+- **No `sort_order`.** A packing list is grouped, not ranked, so creation order is
+  enough and none of `PlaceService`'s renumbering is needed. Adding drag ordering
+  later is a column, not an unpicking.
+- **Ticking has its own endpoint** (`PUT .../packed`), because it is by far the
+  commonest action and sending the whole item to flip a boolean lets a tick
+  silently undo a rename that arrived in between.
+- **The server groups**, unlike money where the point was that the client
+  calculates nothing. Here it is because the server knows the member list: a
+  member who has added nothing still needs a section, since an absent one reads as
+  missing data. Somebody who leaves keeps their items, flagged `stillAMember`.
+- **`PackingRepo.setPacked` is the second optimistic write**, after
+  `PlaceRepo.move`, and for the same reason — the checkbox has already moved under
+  the user's finger. It carries the ticker's *name* along with the boolean, or the
+  row says "packed" without saying by whom until something forces a re-read, which
+  on a shared item is the useful half. Unlike `move` it does not re-read: the
+  server's answer to a tick is exactly what was sent.
+
 ## Live sync
 
 Two people on one trip see each other's changes without reloading.
@@ -322,7 +348,7 @@ Two people on one trip see each other's changes without reloading.
 sends nothing but keepalive, and the payload is one small event.
 
 - **Invalidation, not state.** A frame says *what* changed (`ITINERARY`,
-  `MEMBERS`, `EXPENSES`, `TRIP_DELETED`), never what it changed to, and the client
+  `MEMBERS`, `EXPENSES`, `PACKING`, `TRIP_DELETED`), never what it changed to, and the client
   answers by re-reading. A new kind has to be added to the union **and** to
   `parse()` in `core/trip-sync.ts`, which drops anything it does not recognise —
   forgetting the second half looks exactly like a broken socket. The server owns place ranks and renumbers a whole day on every
@@ -372,6 +398,13 @@ the CSRF cookie needs one GET before the first POST. Both looked perfect to curl
 The suite asserts on console errors too — a template that throws every change
 detection still renders, so a status code alone proves nothing.
 
+**Match item text with `{ exact: true }`.** Rows carry their subject's name in the
+screen-reader labels of their controls ("Rename Tent", "Remove Tent", "Who is
+bringing Tent"), so a loose `getByText('Tent')` finds four elements and fails on
+strict mode. For the same reason, scope a section with
+`filter({ has: page.getByRole('heading', …) })` rather than `hasText`: an assignee
+select puts the word "Everyone" inside every section on the page.
+
 Sharing and live sync are tested with **two browser contexts**, not two pages: a
 session is a cookie, so one context would simply log the first account out. The
 reconnection test drops the socket with Playwright's `routeWebSocket` and refuses
@@ -389,7 +422,7 @@ re-reads instead of patching ranks), Nominatim search behind a proxy that
 caches and rate-limits, a Leaflet map, drag ordering, and a note per day.
 Milestone 3 is done bar one piece: members, roles, ownership transfer and live
 WebSocket sync are in; what remains of sharing is invite links for people who
-have no account yet. Milestone 4 has started: expenses with splits, balances
-and settling up are in; packing lists and reservations are untouched. See
+have no account yet. Milestone 4 has started: expenses with splits, balances,
+settling up and packing lists are in; reservations are untouched. See
 the roadmap in README.md. Deliberately **out** of scope until asked:
 plugins, i18n, MCP, offline. Keep v1 small.

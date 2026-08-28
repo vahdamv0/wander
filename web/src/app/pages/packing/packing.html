@@ -1,0 +1,179 @@
+<div class="mx-auto max-w-3xl px-4 py-8">
+  <a [routerLink]="['/trips', tripId()]"
+     class="inline-flex items-center gap-1.5 text-sm text-muted hover:text-fg">
+    <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" aria-hidden="true">
+      <path d="M15 18l-6-6 6-6" />
+    </svg>
+    Back to the trip
+  </a>
+
+  @if (trip(); as trip) {
+    <header class="mt-3 mb-6 flex flex-wrap items-end justify-between gap-3">
+      <div class="min-w-0">
+        <h1 class="truncate text-xl font-semibold tracking-tight">Packing</h1>
+        <p class="text-sm text-muted">
+          {{ trip.name }}
+          @if (totalCount()) {
+            · {{ packedCount() }} of {{ totalCount() }} packed
+          }
+        </p>
+      </div>
+      <div class="flex shrink-0 items-center gap-2">
+        @if (allPacked()) {
+          <span class="rounded-full border border-border px-2 py-0.5 text-[0.6875rem] font-medium
+                       uppercase tracking-wide text-muted">
+            All packed
+          </span>
+        }
+        @if (syncStatus() === 'offline') {
+          <span class="inline-flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5
+                       text-[0.6875rem] font-medium uppercase tracking-wide text-muted"
+                title="Live updates are not getting through. Reload to see other people's changes.">
+            <span class="size-1.5 rounded-full bg-muted"></span>
+            Reconnecting
+          </span>
+        }
+        @if (!canEdit()) {
+          <span class="rounded-full border border-border px-2 py-0.5 text-[0.6875rem] font-medium
+                       uppercase tracking-wide text-muted">
+            Read only
+          </span>
+        }
+      </div>
+    </header>
+  } @else if (!loading()) {
+    <p class="card mt-3 px-6 py-14 text-center text-sm text-muted">This trip is not available.</p>
+  }
+
+  @if (error()) {
+    <p class="mb-4 rounded-control bg-danger-soft px-3 py-2 text-sm text-danger" role="alert">
+      {{ error() }}
+    </p>
+  }
+
+  @if (trip()) {
+    <!-- One section per person, shared first. The section a thing sits in *is* who
+         is bringing it, which is why each has its own add box: typing into
+         somebody's list assigns to them, with no name to pick from a menu. -->
+    <ul class="grid grid-cols-1 gap-3">
+      @for (group of groups(); track keyOf(group)) {
+        <li class="card p-5">
+          <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+            <h2 class="text-sm font-semibold">
+              {{ labelOf(group) }}
+              @if (isMe(group)) {
+                <span class="font-normal text-muted">(you)</span>
+              }
+              @if (!group.stillAMember) {
+                <!-- Their items outlive their membership: quietly reassigning what
+                     somebody said they were bringing would be worse. -->
+                <span class="font-normal text-muted">· no longer on this trip</span>
+              }
+            </h2>
+            @if (group.items.length) {
+              <span class="text-xs text-muted">
+                {{ group.packedCount }} of {{ group.items.length }} packed
+              </span>
+            }
+          </div>
+
+          @if (group.items.length) {
+            <ul class="mt-3 grid grid-cols-1 gap-1">
+              @for (item of group.items; track item.id) {
+                <li class="group/item flex flex-wrap items-center gap-x-2 gap-y-1 rounded-control
+                           px-1.5 py-1 hover:bg-surface-2">
+                  @if (editing() === item.id) {
+                    <form class="flex w-full items-center gap-2" (ngSubmit)="saveEdit(item)">
+                      <input class="field flex-1 py-1 text-sm" name="itemDescription" autofocus
+                             [ngModel]="draftDescription()"
+                             (ngModelChange)="draftDescription.set($event)" />
+                      <button type="submit" class="btn-primary px-2 py-1 text-xs"
+                              [disabled]="saving() || !draftDescription().trim()">Save</button>
+                      <button type="button" class="btn-ghost px-2 py-1 text-xs"
+                              (click)="cancelEdit()">Cancel</button>
+                    </form>
+                  } @else {
+                    <label class="flex min-w-0 flex-1 items-center gap-2 text-sm">
+                      <input type="checkbox" class="size-4 shrink-0 accent-accent"
+                             [checked]="item.packed"
+                             [disabled]="!canEdit()"
+                             (change)="toggle(item)" />
+                      <!-- Packed items stay where they are, struck through: a list
+                           that reorders itself as you tick loses your place in it. -->
+                      <span class="truncate"
+                            [class.line-through]="item.packed"
+                            [class.text-muted]="item.packed">{{ item.description }}</span>
+                      @if (item.packed && item.packedByName) {
+                        <span class="shrink-0 text-xs text-muted">· {{ item.packedByName }}</span>
+                      }
+                    </label>
+                    @if (canEdit()) {
+                      <div class="row-actions flex shrink-0 items-center gap-1">
+                        <label class="sr-only" [attr.for]="'assign-' + item.id">
+                          Who is bringing {{ item.description }}
+                        </label>
+                        <select class="field py-0.5 text-xs"
+                                [id]="'assign-' + item.id"
+                                [disabled]="saving()"
+                                [ngModel]="item.assigneeUserId ?? ''"
+                                [ngModelOptions]="{ standalone: true }"
+                                (ngModelChange)="reassign(item, $event)">
+                          <option value="">Everyone</option>
+                          @for (person of groups(); track keyOf(person)) {
+                            @if (person.userId !== null && person.userId !== undefined) {
+                              <option [value]="person.userId">{{ person.displayName }}</option>
+                            }
+                          }
+                        </select>
+                        <button type="button" class="btn-ghost px-1.5" [disabled]="saving()"
+                                (click)="openEdit(item)">
+                          <span class="sr-only">Rename {{ item.description }}</span>
+                          <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                               stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
+                               aria-hidden="true">
+                            <path d="M4 20h4l10-10-4-4L4 16v4Z" />
+                          </svg>
+                        </button>
+                        <button type="button" class="btn-ghost px-1.5" [disabled]="saving()"
+                                (click)="remove(item)">
+                          <span class="sr-only">Remove {{ item.description }}</span>
+                          <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                               stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+                            <path d="M6 6l12 12M18 6L6 18" />
+                          </svg>
+                        </button>
+                      </div>
+                    }
+                  }
+                </li>
+              }
+            </ul>
+          } @else {
+            <p class="mt-3 text-sm text-muted">
+              @if (group.userId === null || group.userId === undefined) {
+                Nothing shared yet — the tent, the first-aid kit, that sort of thing.
+              } @else {
+                Nothing yet.
+              }
+            </p>
+          }
+
+          @if (canEdit()) {
+            <form class="mt-3 flex items-center gap-2" (ngSubmit)="add(group)">
+              <input class="field flex-1 py-1 text-sm"
+                     [attr.name]="'add-' + keyOf(group)"
+                     [attr.aria-label]="'Add an item for ' + labelOf(group)"
+                     [attr.placeholder]="'Add for ' + labelOf(group) + '…'"
+                     [ngModel]="draftFor(group)"
+                     [ngModelOptions]="{ standalone: true }"
+                     (ngModelChange)="setDraft(group, $event)" />
+              <button type="submit" class="btn-ghost px-2 py-1 text-xs"
+                      [disabled]="saving() || !draftFor(group).trim()">Add</button>
+            </form>
+          }
+        </li>
+      }
+    </ul>
+  }
+</div>

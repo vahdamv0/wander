@@ -193,6 +193,29 @@ class TripSyncIntegrationTest extends IntegrationTestBase {
     }
 
     @Test
+    void aPackingChangeIsItsOwnKindOfEvent() throws Exception {
+        Session owner = register("owner");
+        Session viewer = register("viewer");
+        Object tripId = tripFor(owner);
+        post(owner, "/api/trips/" + tripId + "/members", """
+                {"email":"%s","role":"VIEWER"}
+                """.formatted(viewer.email()));
+
+        Recorder watching = new Recorder();
+        WebSocketSession socket = connect(viewer, tripId, watching);
+
+        assertThat(post(owner, "/api/trips/" + tripId + "/packing", """
+                {"description":"Tent","assigneeUserId":null}
+                """).getStatusCode().value()).isEqualTo(201);
+
+        // Its own kind: the packing page and the day list are different pages, and
+        // each should re-read only what changed.
+        assertThat(asMap(watching.next())).containsEntry("kind", "PACKING");
+
+        socket.close();
+    }
+
+    @Test
     void nothingIsSaidAboutAWriteThatWasRefused() throws Exception {
         Session owner = register("owner");
         Session viewer = register("viewer");
