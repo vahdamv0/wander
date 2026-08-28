@@ -92,8 +92,16 @@ reads and a write queue land inside the repos and no component changes.
 an httpOnly cookie cannot be read by XSS and there is no refresh-token dance.
 Angular's `HttpClient` handles the `XSRF-TOKEN` cookie with no code.
 
-**Multi-tenant from the first migration.** `trip_members` exists even though only
-its `OWNER` row is written today. Access to a trip is decided by membership and
+**Sessions live in Postgres, not in the heap.** Spring Session JDBC, with its two
+tables owned by Flyway like everything else. Because the session *is* the
+credential here, an in-memory store would mean every restart signs out every
+user — on a self-hosted instance that is a deploy logging out the household, and
+live sync coming back from it asking people to log in again instead of
+reconnecting. It also means a second instance behind a load balancer needs no
+sticky sessions.
+
+**Multi-tenant from the first migration.** `trip_members` was there before it
+carried anything but an `OWNER` row. Access to a trip is decided by membership and
 nothing else — there is no owner column to fall out of step with it.
 
 **A non-member gets 404, not 403.** A 403 confirms the trip exists, which lets

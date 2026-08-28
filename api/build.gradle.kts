@@ -24,6 +24,9 @@ dependencies {
     // and the payload is one small invalidation event, so a broker and a
     // sub-protocol would be machinery with nothing to carry.
     implementation("org.springframework.boot:spring-boot-starter-websocket")
+    // Sessions in Postgres rather than in Tomcat's heap, so a restart does not
+    // sign everybody out. Flyway owns the two tables; see V5.
+    implementation("org.springframework.boot:spring-boot-starter-session-jdbc")
 
     runtimeOnly("org.postgresql:postgresql")
     // Boot 4 split every integration into its own module: flyway-core alone
