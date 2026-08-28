@@ -6,6 +6,8 @@ export { RequestBuilder } from './request-builder';
 export type { StrictHttpResponse } from './strict-http-response';
 export { Api } from './api';
 
+export type { AddMemberRequest } from './models/add-member-request';
+export type { ChangeRoleRequest } from './models/change-role-request';
 export type { CreatePlaceRequest } from './models/create-place-request';
 export type { CreateTripRequest } from './models/create-trip-request';
 export type { DayNoteRequest } from './models/day-note-request';
@@ -20,6 +22,7 @@ export type { RegisterRequest } from './models/register-request';
 export type { SessionUser } from './models/session-user';
 export type { TripDay } from './models/trip-day';
 export type { TripItinerary } from './models/trip-itinerary';
+export type { TripMemberView } from './models/trip-member-view';
 export type { TripSummary } from './models/trip-summary';
 export type { UpdatePlaceRequest } from './models/update-place-request';
 
@@ -33,6 +36,14 @@ export type { MovePlace$Params as MovePlace$Params } from './fn/place-controller
 export { movePlace as movePlace } from './fn/place-controller/move-place';
 export type { GetItinerary$Params as GetItinerary$Params } from './fn/place-controller/get-itinerary';
 export { getItinerary as getItinerary } from './fn/place-controller/get-itinerary';
+export type { ChangeMemberRole$Params as ChangeMemberRole$Params } from './fn/trip-member-controller/change-member-role';
+export { changeMemberRole as changeMemberRole } from './fn/trip-member-controller/change-member-role';
+export type { ListMembers$Params as ListMembers$Params } from './fn/trip-member-controller/list-members';
+export { listMembers as listMembers } from './fn/trip-member-controller/list-members';
+export type { AddMember$Params as AddMember$Params } from './fn/trip-member-controller/add-member';
+export { addMember as addMember } from './fn/trip-member-controller/add-member';
+export type { RemoveMember$Params as RemoveMember$Params } from './fn/trip-member-controller/remove-member';
+export { removeMember as removeMember } from './fn/trip-member-controller/remove-member';
 export type { PutDayNote$Params as PutDayNote$Params } from './fn/day-note-controller/put-day-note';
 export { putDayNote as putDayNote } from './fn/day-note-controller/put-day-note';
 export type { List$Params as List$Params } from './fn/trip-controller/list';

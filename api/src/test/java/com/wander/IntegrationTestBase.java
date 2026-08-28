@@ -31,8 +31,12 @@ abstract class IntegrationTestBase {
     @Autowired
     protected ObjectMapper json;
 
-    /** A logged-in browser: the session cookie plus the CSRF token that pairs with it. */
-    protected record Session(String cookie, String csrf) {
+    /**
+     * A logged-in browser: the session cookie plus the CSRF token that pairs
+     * with it. The email comes along because it is the account's public handle —
+     * adding somebody to a trip is done by address, not by user id.
+     */
+    protected record Session(String cookie, String csrf, String email) {
     }
 
     protected RestClient http() {
@@ -84,7 +88,7 @@ abstract class IntegrationTestBase {
         assertThat(session).as("session cookie after register").isNotNull();
         // The CSRF token is cookie-backed and survives the new session id.
         String refreshed = cookieValue(response, "XSRF-TOKEN");
-        return new Session("JSESSIONID=" + session, refreshed != null ? refreshed : csrf);
+        return new Session("JSESSIONID=" + session, refreshed != null ? refreshed : csrf, email);
     }
 
     /** The value of one Set-Cookie on a response, or null if it was not set. */

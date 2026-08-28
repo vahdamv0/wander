@@ -38,6 +38,15 @@
     </p>
   }
 
+  @if (trip(); as trip) {
+    <app-trip-members
+      [tripId]="trip.id"
+      [myRole]="trip.myRole"
+      (rolesChanged)="onRolesChanged()"
+      (left)="onLeft()"
+    />
+  }
+
   <!-- Map beside the days on a wide screen, above them on a narrow one. The
        itinerary is the page; the map is a second view of it. -->
   <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:items-start">

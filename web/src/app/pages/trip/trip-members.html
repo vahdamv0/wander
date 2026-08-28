@@ -1,0 +1,140 @@
+<!-- Collapsed by default, and nothing is fetched until it is opened: on most
+     trips the answer is "just me", and the itinerary is what the page is for.
+     The count shows once the list has actually been loaded. -->
+<section class="card mb-4 p-0">
+  <h2>
+    <button type="button"
+            class="flex w-full items-center justify-between gap-3 px-5 py-3.5 text-left"
+            [attr.aria-expanded]="open()"
+            (click)="toggle()">
+      <span class="flex min-w-0 items-center gap-2 text-sm font-semibold">
+        <svg class="size-4 shrink-0 text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M16 19v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1" />
+          <circle cx="9.5" cy="7" r="3" />
+          <path d="M17 11a3 3 0 1 0 0-6M21 19v-1a4 4 0 0 0-3-3.85" />
+        </svg>
+        People
+        @if (members().length) {
+          <span class="font-normal text-muted">{{ members().length }}</span>
+        }
+      </span>
+      <svg class="size-4 shrink-0 text-muted transition-transform"
+           [class.rotate-180]="open()"
+           viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round" aria-hidden="true">
+        <path d="M6 9l6 6 6-6" />
+      </svg>
+    </button>
+  </h2>
+
+  @if (open()) {
+    <div class="border-t border-border px-5 py-4">
+      @if (error()) {
+        <p class="mb-3 rounded-control bg-danger-soft px-3 py-2 text-sm text-danger" role="alert">
+          {{ error() }}
+        </p>
+      }
+
+      @if (isOwner()) {
+        <!-- By address, and the person must already have an account here: there
+             is no mail out of this instance to send an invitation with. -->
+        <form class="mb-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-end"
+              (ngSubmit)="add()">
+          <label class="label min-w-0">
+            Add somebody by email
+            <input class="field" name="memberEmail" type="email" autocomplete="off"
+                   placeholder="them@example.com"
+                   [ngModel]="draftEmail()"
+                   (ngModelChange)="draftEmail.set($event)" />
+          </label>
+          <label class="label">
+            Role
+            <select class="field" name="memberRole"
+                    [ngModel]="draftRole()"
+                    (ngModelChange)="draftRole.set($event)">
+              @for (role of assignable; track role) {
+                <option [value]="role">{{ roleLabel(role) }}</option>
+              }
+            </select>
+          </label>
+          <button type="submit" class="btn-primary" [disabled]="saving() || !draftEmail().trim()">
+            Add
+          </button>
+        </form>
+        <p class="mb-4 text-xs text-muted">
+          They need an account on this instance already. Editors change the
+          itinerary; viewers only read it.
+        </p>
+      }
+
+      @if (loading() && !members().length) {
+        <p class="text-sm text-muted">Loading…</p>
+      } @else {
+        <ul class="grid grid-cols-1 gap-2">
+          @for (member of members(); track member.userId) {
+            <li class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2
+                       rounded-control bg-surface-2 px-3 py-2">
+              <div class="min-w-0">
+                <p class="truncate text-sm font-medium">
+                  {{ member.displayName }}
+                  @if (isMe(member)) {
+                    <span class="font-normal text-muted">(you)</span>
+                  }
+                </p>
+                <p class="truncate text-xs text-muted">{{ member.email }}</p>
+              </div>
+
+              <div class="flex shrink-0 items-center gap-2">
+                @if (isOwner() && !isMe(member)) {
+                  <label class="sr-only" [attr.for]="'role-' + member.userId">
+                    Role for {{ member.displayName }}
+                  </label>
+                  <select class="field py-1 text-xs"
+                          [id]="'role-' + member.userId"
+                          [disabled]="saving()"
+                          [ngModel]="member.role"
+                          [ngModelOptions]="{ standalone: true }"
+                          (ngModelChange)="changeRole(member, $event)">
+                    @for (role of rowRoles; track role) {
+                      <option [value]="role">
+                        {{ role === 'OWNER' ? 'Owner — hand over the trip' : roleLabel(role) }}
+                      </option>
+                    }
+                  </select>
+                  <button type="button" class="btn-ghost px-1.5" [disabled]="saving()"
+                          [title]="'Remove ' + member.displayName + ' from this trip'"
+                          (click)="remove(member)">
+                    <span class="sr-only">Remove {{ member.displayName }}</span>
+                    <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+                      <path d="M6 6l12 12M18 6L6 18" />
+                    </svg>
+                  </button>
+                } @else {
+                  <span class="rounded-full border border-border px-2 py-0.5 text-[0.6875rem]
+                               font-medium uppercase tracking-wide text-muted">
+                    {{ roleLabel(member.role) }}
+                  </span>
+                  @if (isMe(member) && member.role !== 'OWNER') {
+                    <button type="button" class="btn-ghost text-xs" [disabled]="saving()"
+                            (click)="leave()">
+                      Leave trip
+                    </button>
+                  }
+                }
+              </div>
+            </li>
+          }
+        </ul>
+      }
+
+      @if (isOwner()) {
+        <p class="mt-3 text-xs text-muted">
+          A trip has one owner. Making somebody else the owner hands the trip
+          over and leaves you an editor.
+        </p>
+      }
+    </div>
+  }
+</section>

@@ -185,8 +185,10 @@ tables under a running instance. Don't lower a gate to land a change.
 2. **Days and places.** ✅ Days from the date range, places with ordering within
    and across days, place search over Nominatim, a Leaflet map, drag ordering,
    and a note on each day.
-3. **Sharing.** Invites, the member list, roles beyond `OWNER`, and WebSocket
-   sync so two people editing one day do not clobber each other.
+3. **Sharing.** The member list, roles beyond `OWNER`, and transferring a trip
+   are done ✅ — add somebody by email, make them an editor or a viewer, hand the
+   trip over. Still to come: invite links for people who have no account yet, and
+   WebSocket sync so two people editing one day do not clobber each other.
 4. **Money and stuff.** Expenses with splits, packing lists, reservations.
 5. **Offline.** IndexedDB reads and a replaying write queue, inside the repos.
 

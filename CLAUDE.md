@@ -74,7 +74,19 @@ Java record → springdoc → `api/build/openapi.json` (written by
   representation of empty and no second endpoint to clear one. Notes ride along
   on `TripItinerary`, so the page is still one request.
 - **Membership is the only grant.** No owner column on `trips` — `trip_members`
-  is the single source of truth for who may see a trip.
+  is the single source of truth for who may see a trip. It needed no migration to
+  become a real feature: the table has carried `role` and `UNIQUE (trip_id,
+  user_id)` since `V1`.
+- **A trip has exactly one OWNER, and the only way it moves is a transfer.**
+  `TripMemberService` never counts owners, because it does not have to: `addMember`
+  refuses to create a second one, `removeMember` refuses to delete the only one,
+  and setting a member's role to `OWNER` demotes the caller to `EDITOR` in the same
+  transaction. There is therefore no "last owner" check to forget. Members are
+  added **by email and must already have an account** — nothing here sends mail.
+  Only the owner manages members; any member may remove *themselves*, which is how
+  you leave a trip. Authorisation is checked **before** the target is looked up, so
+  a member who may not remove anyone cannot use the 404 to learn who is on the
+  trip.
 - **Flyway owns the schema**, Hibernate runs `ddl-auto: validate`. Schema changes
   are a new `V<n>__*.sql`; never edit an applied migration.
 - **Outbound HTTP goes through an interface.** `GeocoderClient` is the seam the
@@ -131,6 +143,12 @@ Java record → springdoc → `api/build/openapi.json` (written by
 - **`@for` needs a collection from the component, not an inline array literal.**
   `@for (x of [1, 2]; ...)` does not survive the block-syntax parser and fails at
   runtime with `newCollection[Symbol.iterator] is not a function`.
+- **Leaving a trip is the one write that must not re-read.** `MemberRepo.leave`
+  exists next to `remove` for exactly that: they are the same endpoint, but the
+  trip is a 404 for you the moment your own membership goes, so reloading the
+  list afterwards would turn a success into an error on screen. A transfer is the
+  mirror image — it changes the *caller's* role, so the trip page re-reads the
+  itinerary on `rolesChanged` or keeps offering edit controls it no longer has.
 - **Components never call HTTP.** They go through a repo in `web/src/app/repo/`,
   which wraps the generated client. Offline support will land inside the repos;
   a component that bypasses them blocks that.
@@ -193,6 +211,8 @@ Milestone 0 (accounts, trips, the contract loop, one container) is done, and so
 is "days and places": derived days, places with ordering owned by the
 server (`PlaceService` renumbers a day on every move or delete, and the client
 re-reads instead of patching ranks), Nominatim search behind a proxy that
-caches and rate-limits, a Leaflet map, drag ordering, and a note per day. Next is
-milestone 3, sharing. See the roadmap in README.md. Deliberately **out** of scope until asked:
+caches and rate-limits, a Leaflet map, drag ordering, and a note per day.
+Milestone 3 is half done: members, roles and ownership transfer are in; what
+remains of sharing is invite links for people with no account yet and WebSocket
+sync. See the roadmap in README.md. Deliberately **out** of scope until asked:
 plugins, i18n, MCP, offline. Keep v1 small.
