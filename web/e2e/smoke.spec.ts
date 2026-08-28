@@ -920,6 +920,10 @@ test('an expense splits unevenly, adds up, and reaches the other browser', async
   await owner.getByRole('button', { name: 'Add an expense' }).click();
   await owner.locator('input[name=description]').fill('Pastries');
   await owner.locator('input[name=amount]').fill('10.01');
+  // Dated onto day one rather than left at today, so the itinerary's day card has
+  // something to total further down. The form defaults to today because most
+  // expenses are entered as they happen.
+  await owner.locator('input[name=spentOn]').fill('2027-09-10');
   await owner.getByRole('button', { name: 'Save expense' }).click();
 
   // The split is spelled out, and the two halves differ by exactly one cent.
@@ -965,6 +969,15 @@ test('an expense splits unevenly, adds up, and reaches the other browser', async
   await owner.getByRole('button', { name: 'Remove Museum' }).click();
   await expect(owner.getByText('€10.01 in total')).toBeVisible();
   await expect(editor.getByText('Museum', { exact: true })).toHaveCount(0);
+
+  // What the day cost, back on the itinerary. Day one has the pastries; days two
+  // and three have nothing and say nothing — a card showing "€0.00" would be
+  // asserting something nobody entered.
+  await owner.getByRole('link', { name: 'Back to the trip' }).click();
+  const days = owner.locator('ol > li.card');
+  await expect(days.nth(0).getByRole('link', { name: '€10.01' })).toBeVisible();
+  await expect(days.nth(1).getByText('€', { exact: false })).toHaveCount(0);
+  await expect(days.nth(2).getByText('€', { exact: false })).toHaveCount(0);
 
   expect(consoleErrors, 'unexpected console errors').toEqual([]);
   await ownerContext.close();

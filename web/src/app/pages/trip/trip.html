@@ -240,6 +240,16 @@
               <span class="ml-1.5 font-normal text-muted">{{ dayLabel(day.date) }}</span>
             </h2>
             <div class="flex shrink-0 items-center gap-2">
+              <!-- Only shown for a day something was actually spent on. The link
+                   goes to the expenses page because this number is a summary of
+                   what lives there, not a second place to edit it. -->
+              @if (dayCost(day); as cost) {
+                <a [routerLink]="['/trips', tripId(), 'expenses']"
+                   class="text-xs font-medium text-muted hover:text-fg"
+                   [title]="'What day ' + day.index + ' cost — see the expenses'">
+                  {{ cost }}
+                </a>
+              }
               @if (day.places.length) {
                 <span class="text-xs text-muted">
                   {{ day.places.length }} {{ day.places.length === 1 ? 'place' : 'places' }}
