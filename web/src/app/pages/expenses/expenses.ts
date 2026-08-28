@@ -13,6 +13,7 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { ExpenseView, SettlementView } from '../../api';
 import { formatMoney, parseMoney, toAmountInput } from '../../core/money';
+import { ageLabel, messageOf } from '../../core/errors';
 import { SessionStore } from '../../core/session.store';
 import { TripChange, TripSyncService } from '../../core/trip-sync';
 import { ExpenseRepo } from '../../repo/expense.repo';
@@ -67,6 +68,8 @@ export class ExpensesPage {
   protected readonly canEdit = this.repo.canEdit;
   protected readonly currency = this.repo.currency;
   protected readonly syncStatus = this.sync.status;
+  /** Set when this page is showing a copy from the device rather than the server. */
+  protected readonly savedAt = this.repo.savedAt;
 
   protected readonly error = signal<string | null>(null);
   /** Open form: 'new', an expense id, or null. */
@@ -461,13 +464,16 @@ export class ExpensesPage {
   }
 
   /** Shows the server's own message: it is the authority on a split that does not add up. */
+  protected savedLabel(savedAt: number): string {
+    return `Saved copy · ${ageLabel(savedAt)}`;
+  }
+
   private async guard(action: () => Promise<void>): Promise<void> {
     this.error.set(null);
     try {
       await action();
     } catch (err: unknown) {
-      const body = (err as { error?: { message?: string } } | null)?.error;
-      this.error.set(body?.message ?? 'That did not work. Try again.');
+      this.error.set(messageOf(err, 'That did not work. Try again.'));
     }
   }
 }

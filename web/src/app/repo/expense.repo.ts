@@ -11,6 +11,10 @@ import {
   recordPayment,
   updateExpense,
 } from '../api';
+import { Connectivity } from '../core/connectivity';
+import { OfflineError } from '../core/errors';
+import { OfflineCache, cacheKeys } from '../core/offline-cache';
+import { SessionStore } from '../core/session.store';
 
 /**
  * One trip's ledger, as signals.
@@ -24,13 +28,19 @@ import {
 @Injectable({ providedIn: 'root' })
 export class ExpenseRepo {
   private readonly api = inject(Api);
+  private readonly cache = inject(OfflineCache);
+  private readonly session = inject(SessionStore);
+  private readonly connectivity = inject(Connectivity);
 
   private readonly _ledger = signal<TripExpenses | null>(null);
   private readonly _loading = signal(false);
+  /** When this came from the device rather than the server. Null when fresh. */
+  private readonly _savedAt = signal<number | null>(null);
   private readonly _saving = signal(false);
 
   readonly ledger = this._ledger.asReadonly();
   readonly loading = this._loading.asReadonly();
+  readonly savedAt = this._savedAt.asReadonly();
   readonly saving = this._saving.asReadonly();
 
   readonly trip = computed(() => this._ledger()?.trip ?? null);
@@ -57,7 +67,10 @@ export class ExpenseRepo {
     }
     this._loading.set(true);
     try {
-      this._ledger.set(await this.api.invoke(listExpenses, { tripId }));
+      const read = await this.cache.readThrough(this.session.user()?.id ?? null,
+        cacheKeys.expenses(tripId), () => this.api.invoke(listExpenses, { tripId }));
+      this._ledger.set(read.body);
+      this._savedAt.set(read.savedAt);
     } finally {
       this._loading.set(false);
     }
@@ -90,7 +103,16 @@ export class ExpenseRepo {
     return this.entries().find((entry) => entry.id === expenseId) ?? null;
   }
 
+
+  /** Nothing is queued offline, so a write that cannot be sent is refused outright. */
+  private requireOnline(): void {
+    if (!this.connectivity.online()) {
+      throw new OfflineError();
+    }
+  }
+
   private async write(tripId: number, call: () => Promise<unknown>): Promise<void> {
+    this.requireOnline();
     this._saving.set(true);
     try {
       await call();

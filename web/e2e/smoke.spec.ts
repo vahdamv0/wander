@@ -1396,3 +1396,103 @@ test('bookings show each time in its own zone, ordered by when they really happe
   expect(consoleErrors, 'unexpected console errors').toEqual([]);
   await context.close();
 });
+
+/**
+ * Offline reads — the point of milestone 5.
+ *
+ * Before this, no signal meant no app at all: the browser could not fetch
+ * index.html and showed its own offline page, cache or no cache. The assertions
+ * below are what "offline" has to mean for a travel planner — the booking
+ * reference and the itinerary readable on a plane, honestly labelled as a saved
+ * copy, and writes refused rather than quietly queued.
+ *
+ * The service worker has to be installed before the network goes, so the test
+ * waits for it: without a worker, none of this can work and the first assertion
+ * would fail for the wrong reason.
+ */
+test('with no connection, a trip you have opened is still readable', async ({ browser }) => {
+  // Workers are blocked for the suite (see playwright.config.ts); here the worker
+  // is the thing under test, so this context opts back in.
+  const context = await browser.newContext({ serviceWorkers: 'allow' });
+  const page = await context.newPage();
+
+  const pageErrors: string[] = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+
+  await page.goto('/login');
+  await page.getByText('Create one').click();
+  await page.locator('input[name=email]').fill(`e2e-offline-${Date.now()}@example.com`);
+  await page.locator('input[name=displayName]').fill('Offline Tester');
+  await page.locator('input[name=password]').fill('correct-horse-battery');
+  await page.locator('button[type=submit]').click();
+
+  await expect(page).toHaveURL(/\/trips$/);
+  await page.getByRole('button', { name: 'Plan your first trip' }).click();
+  await page.locator('input[name=name]').fill('Iceland');
+  await page.locator('input[name=startDate]').fill('2027-09-01');
+  await page.locator('input[name=endDate]').fill('2027-09-04');
+  await page.getByRole('button', { name: 'Create trip' }).click();
+  await page.getByRole('link', { name: /Iceland/ }).click();
+  await expect(page).toHaveURL(/\/trips\/\d+$/);
+  const tripUrl = page.url();
+
+  const day1 = page.locator('ol > li.card').first();
+  await day1.getByRole('button', { name: 'Add place' }).click();
+  await day1.locator('input[name=name]').fill('Blue Lagoon');
+  await day1.getByRole('button', { name: 'Add place' }).click();
+  await expect(day1.getByText('Blue Lagoon', { exact: true })).toBeVisible();
+  await day1.getByRole('button', { name: 'Done' }).click();
+
+  // A booking, because a confirmation number is the thing you most want to read
+  // at a desk with no signal.
+  await page.getByRole('link', { name: 'Bookings' }).click();
+  await expect(page).toHaveURL(/\/reservations$/);
+  await page.getByRole('button', { name: 'Add a booking' }).click();
+  await page.locator('select[name=kind]').selectOption('FLIGHT');
+  await page.locator('input[name=title]').fill('FI451 to Keflavik');
+  await page.locator('input[name=confirmation]').fill('REF7788');
+  await page.locator('input[name=startDate]').fill('2027-09-01');
+  await page.locator('input[name=startTime]').fill('07:30');
+  await page.getByRole('button', { name: 'Save booking' }).click();
+  await expect(page.getByText('FI451 to Keflavik', { exact: true })).toBeVisible();
+
+  // Nothing below works without the worker, so wait for it rather than racing it.
+  await page.waitForFunction(() => navigator.serviceWorker?.controller != null, null,
+    { timeout: 15000 });
+
+  await context.setOffline(true);
+  await page.reload();
+
+  // Still on the bookings page, not bounced to /login — the identity survives an
+  // unreachable server, which is the hinge the whole feature turns on.
+  await expect(page).toHaveURL(/\/reservations$/);
+  await expect(page.getByText(/you're offline/i)).toBeVisible();
+  await expect(page.getByText('FI451 to Keflavik', { exact: true })).toBeVisible();
+  await expect(page.getByText('REF7788')).toBeVisible();
+  // Labelled as a saved copy. Matched case-insensitively: the chip is uppercased
+  // by CSS, so its rendered text is not the text in the template.
+  await expect(page.locator('span[title*="saved on this device"]')).toContainText(/saved copy/i);
+
+  // The itinerary too, on a different route, reached with no network at all.
+  await page.goto(tripUrl);
+  await expect(page.getByText('Blue Lagoon', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /^Day 1/ })).toBeVisible();
+
+  // Writes are refused, not queued: nothing is pretended and nothing is lost.
+  const offlineDay1 = page.locator('ol > li.card').first();
+  await offlineDay1.getByRole('button', { name: 'Add place' }).click();
+  await offlineDay1.locator('input[name=name]').fill('Should not save');
+  await offlineDay1.getByRole('button', { name: 'Add place' }).click();
+  await expect(page.locator('[role=alert]')).toContainText(/offline/i);
+  await expect(offlineDay1.getByText('Should not save', { exact: true })).toHaveCount(0);
+
+  // Back on the network: fresh data, and the labels go away.
+  await context.setOffline(false);
+  await page.reload();
+  await expect(page.getByText('Blue Lagoon', { exact: true })).toBeVisible();
+  await expect(page.getByText(/you're offline/i)).toHaveCount(0);
+  await expect(page.locator('span[title*="saved on this device"]')).toHaveCount(0);
+
+  expect(pageErrors, 'unexpected page errors').toEqual([]);
+  await context.close();
+});

@@ -31,6 +31,8 @@ container, one Postgres.
 - Bookings — flights, trains, hotels, tables — stored as instants with the zone
   they were booked in, so a flight keeps London time for its departure and Tokyo
   time for its arrival, and the list is ordered by when things really happen
+- Offline reading: open a trip once and its days, places, bookings and packing
+  list stay readable with no connection, labelled with how old the copy is
 - Light / dark / follow-the-OS theming, all driven by design tokens
 - The Angular app and the API ship as a single jar
 
@@ -221,7 +223,11 @@ tables under a running instance. Don't lower a gate to land a change.
    to the fewest payments, and recording those payments so balances actually
    clear, a packing list grouped by who is bringing what, and bookings kept on a
    real clock — each time in the zone it happens in.
-5. **Offline.** IndexedDB reads and a replaying write queue, inside the repos.
+5. **Offline.** Reads are done ✅ — a service worker for the app shell and
+   IndexedDB inside the repos, so a trip you have opened is readable with no
+   signal, honestly labelled as a saved copy. Writes are refused rather than
+   queued: a replay queue forces conflict resolution that live sync deliberately
+   never needed, and that stays a decision rather than a gap.
 
 ## Licence
 

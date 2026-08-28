@@ -418,6 +418,39 @@ downloads its own at `web/.gradle/nodejs/`, so
 `PATH=web/.gradle/nodejs/node-*/bin:$PATH npx ng test --watch=false` works when
 `npm test` refuses.
 
+## Offline reads
+
+With no signal the app shows what it last saw. **Reads only** — writes are refused
+rather than queued, because a replay queue forces the conflict resolution that
+live sync deliberately never needed, and its plausible answers overwrite somebody
+else's work.
+
+- **A service worker for the shell, nothing else.** `ngsw-config.json` has asset
+  groups and **no `dataGroups`**: without a worker the browser cannot fetch
+  `index.html` at all and there is no app to show a cache to, but API caching
+  belongs in the repos where a page can say how old a copy is.
+- **`OfflineCache.readThrough` is the whole mechanism.** Fetch, cache, return; on
+  a *network* failure serve the last copy with the time it was saved. A 401, 404
+  or 500 always rethrows — a deleted trip must not resurrect from a cache.
+- **An unreachable server is status 0 *or* 504.** Once the worker controls the
+  page it synthesises a `504 Gateway Timeout` for anything it cannot fetch rather
+  than letting the request reject, so with the worker installed — the exact state
+  offline depends on — an outage does not look like a network error. Getting this
+  wrong signs people out on a train, and it did: see `isNetworkError`.
+- **Only a 401 clears the cache.** Any other failure leaves it alone, because the
+  answer is unknown and unknown is not grounds to delete somebody's trips.
+- **`SessionStore.restore` is the hinge.** It runs in an app initializer and
+  `authGuard` gates every route on it, so an unreachable server must fall back to
+  the cached identity. Treat it as "signed out" and the app bounces to a login
+  form it cannot submit, with a full cache behind it.
+- **Cache entries are keyed by user id and the store is cleared on sign-out.**
+  Both, not either: this is the only place wander keeps trip data on a device, and
+  without both the next person at that browser can read the last one's itineraries
+  and booking references.
+- Every page says "Saved copy · 2 hours ago" when it is showing one, and the shell
+  says so once when offline. Showing stale data without saying so is the thing
+  this project has refused everywhere else.
+
 ## Browser tests
 
 `cd web && npm run e2e` (Playwright) against a running instance — start the app
@@ -427,6 +460,15 @@ wildcard media type made the generated client request Blobs instead of JSON, and
 the CSRF cookie needs one GET before the first POST. Both looked perfect to curl.
 The suite asserts on console errors too — a template that throws every change
 detection still renders, so a status code alone proves nothing.
+
+**Service workers are blocked for the suite** (`playwright.config.ts`), and the
+offline test opts back in for its own context. With a worker controlling the page,
+`page.route` no longer intercepts what passes through it — which silently broke
+the two geocoder-stubbing tests the moment offline support landed.
+
+**Rendered text is not template text.** `innerText` returns what CSS produced, so
+a chip with `uppercase` reads "SAVED COPY" and a case-sensitive check for "Saved
+copy" fails against an element that is right there.
 
 **Match item text with `{ exact: true }`.** Rows carry their subject's name in the
 screen-reader labels of their controls ("Rename Tent", "Remove Tent", "Who is
@@ -453,6 +495,8 @@ caches and rate-limits, a Leaflet map, drag ordering, and a note per day.
 Milestone 3 is done bar one piece: members, roles, ownership transfer and live
 WebSocket sync are in; what remains of sharing is invite links for people who
 have no account yet. Milestone 4 is done: expenses with splits, balances and
-settling up, packing lists, and reservations. See
+settling up, packing lists, and reservations. Milestone 5 is half done — offline
+*reads* are in; the write queue is deliberately not, and a decision rather than an
+omission. See
 the roadmap in README.md. Deliberately **out** of scope until asked:
 plugins, i18n, MCP, offline. Keep v1 small.

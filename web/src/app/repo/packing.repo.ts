@@ -1,5 +1,4 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { SessionStore } from '../core/session.store';
 import {
   Api,
   PackingItemRequest,
@@ -10,6 +9,10 @@ import {
   setPackingItemPacked,
   updatePackingItem,
 } from '../api';
+import { Connectivity } from '../core/connectivity';
+import { OfflineError } from '../core/errors';
+import { OfflineCache, cacheKeys } from '../core/offline-cache';
+import { SessionStore } from '../core/session.store';
 
 /**
  * One trip's packing list, grouped by whose it is.
@@ -21,14 +24,19 @@ import {
 @Injectable({ providedIn: 'root' })
 export class PackingRepo {
   private readonly api = inject(Api);
+  private readonly cache = inject(OfflineCache);
   private readonly session = inject(SessionStore);
+  private readonly connectivity = inject(Connectivity);
 
   private readonly _packing = signal<TripPacking | null>(null);
   private readonly _loading = signal(false);
+  /** When this came from the device rather than the server. Null when fresh. */
+  private readonly _savedAt = signal<number | null>(null);
   private readonly _saving = signal(false);
 
   readonly packing = this._packing.asReadonly();
   readonly loading = this._loading.asReadonly();
+  readonly savedAt = this._savedAt.asReadonly();
   readonly saving = this._saving.asReadonly();
 
   readonly trip = computed(() => this._packing()?.trip ?? null);
@@ -46,7 +54,10 @@ export class PackingRepo {
     }
     this._loading.set(true);
     try {
-      this._packing.set(await this.api.invoke(listPacking, { tripId }));
+      const read = await this.cache.readThrough(this.session.user()?.id ?? null,
+        cacheKeys.packing(tripId), () => this.api.invoke(listPacking, { tripId }));
+      this._packing.set(read.body);
+      this._savedAt.set(read.savedAt);
     } finally {
       this._loading.set(false);
     }
@@ -76,6 +87,8 @@ export class PackingRepo {
    * make the checkbox stutter.
    */
   async setPacked(tripId: number, itemId: number, packed: boolean): Promise<void> {
+    // Before the optimistic tick, so the box does not flick on and off.
+    this.requireOnline();
     const before = this._packing();
     this.applyPacked(itemId, packed);
     this._saving.set(true);
@@ -125,7 +138,16 @@ export class PackingRepo {
     });
   }
 
+
+  /** Nothing is queued offline, so a write that cannot be sent is refused outright. */
+  private requireOnline(): void {
+    if (!this.connectivity.online()) {
+      throw new OfflineError();
+    }
+  }
+
   private async write(tripId: number, call: () => Promise<unknown>): Promise<void> {
+    this.requireOnline();
     this._saving.set(true);
     try {
       await call();

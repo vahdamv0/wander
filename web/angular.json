@@ -30,7 +30,8 @@
             "outputPath": "build/frontend",
             "allowedCommonJsDependencies": [
               "leaflet"
-            ]
+            ],
+            "serviceWorker": "ngsw-config.json"
           },
           "configurations": {
             "production": {
