@@ -77,15 +77,20 @@
       </form>
     </div>
 
-    <p class="mt-4 text-center text-sm text-muted">
-      {{ mode() === 'login' ? "Don't have an account?" : 'Already have an account?' }}
-      <button
-        type="button"
-        class="font-medium text-accent underline-offset-4 hover:underline"
-        (click)="toggleMode()"
-      >
-        {{ mode() === 'login' ? 'Create one' : 'Sign in' }}
-      </button>
-    </p>
+    <!-- Nothing to offer on an instance that does not accept sign-ups, and no
+         way back from the register form either — so this whole line waits until
+         the server has said which it is. -->
+    @if (registrationEnabled() || mode() === 'register') {
+      <p class="mt-4 text-center text-sm text-muted">
+        {{ mode() === 'login' ? "Don't have an account?" : 'Already have an account?' }}
+        <button
+          type="button"
+          class="font-medium text-accent underline-offset-4 hover:underline"
+          (click)="toggleMode()"
+        >
+          {{ mode() === 'login' ? 'Create one' : 'Sign in' }}
+        </button>
+      </p>
+    }
   </main>
 </div>

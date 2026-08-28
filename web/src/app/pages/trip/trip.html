@@ -310,7 +310,11 @@
                                   (ngModelChange)="draftNotes.set($event)"></textarea>
                       </label>
                       <div class="flex items-center gap-2">
-                        <button type="submit" class="btn-primary" [disabled]="saving()">Save</button>
+                        <!-- Same rule as adding: a place cannot be renamed to
+                             nothing. "Save note" above is deliberately not
+                             guarded — an empty note is how a note is removed. -->
+                        <button type="submit" class="btn-primary"
+                                [disabled]="saving() || !draftName().trim()">Save</button>
                         <button type="button" class="btn-ghost" (click)="cancel()">Cancel</button>
                       </div>
                     </form>
@@ -387,7 +391,11 @@
                             (ngModelChange)="draftNotes.set($event)"></textarea>
                 </label>
                 <div class="flex items-center gap-2">
-                  <button type="submit" class="btn-primary" [disabled]="saving()">Add place</button>
+                  <!-- A place needs a name, and the form stays open after a
+                       successful add — so without this, a second click posts a
+                       blank one and takes a 400 for it. -->
+                  <button type="submit" class="btn-primary"
+                          [disabled]="saving() || !draftName().trim()">Add place</button>
                   <button type="button" class="btn-ghost" (click)="cancel()">Done</button>
                 </div>
               </form>

@@ -1,6 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
+import { Api, getSignInConfig } from '../../api';
 import { SessionStore } from '../../core/session.store';
 import { BrandMark } from '../../shell/brand-mark';
 
@@ -12,6 +13,19 @@ import { BrandMark } from '../../shell/brand-mark';
 export class LoginPage {
   private readonly session = inject(SessionStore);
   private readonly router = inject(Router);
+  private readonly api = inject(Api);
+
+  /**
+   * Whether this instance accepts sign-ups. Null until the server says, and the
+   * offer stays hidden until then.
+   *
+   * That is the opposite of the rule the signed-in shell follows — features there
+   * treat "not answered yet" as available so nothing flickers into existence —
+   * and deliberately so. The whole point of this fix is not to offer registration
+   * on an instance that forbids it, and a "Create one" link that vanishes as
+   * somebody reaches for it is worse than one that appears a moment late.
+   */
+  protected readonly registrationEnabled = signal<boolean | null>(null);
 
   protected readonly mode = signal<'login' | 'register'>('login');
   protected readonly email = signal('');
@@ -19,6 +33,24 @@ export class LoginPage {
   protected readonly password = signal('');
   protected readonly error = signal<string | null>(null);
   protected readonly busy = signal(false);
+
+  constructor() {
+    // Also the GET that hands this client its XSRF-TOKEN cookie, which the first
+    // POST of a session needs and cannot get any other way.
+    void this.loadSignInConfig();
+  }
+
+  private async loadSignInConfig(): Promise<void> {
+    try {
+      const config = await this.api.invoke(getSignInConfig);
+      this.registrationEnabled.set(config.registrationEnabled);
+    } catch {
+      // Unreachable config is not a reason to strand somebody who has an
+      // account: the form still works, and the server refuses a sign-up anyway
+      // if it is switched off.
+      this.registrationEnabled.set(false);
+    }
+  }
 
   protected async submit(): Promise<void> {
     this.error.set(null);

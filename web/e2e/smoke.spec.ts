@@ -768,3 +768,61 @@ test('a dropped connection catches up when it comes back', async ({ browser }) =
   await ownerContext.close();
   await viewerContext.close();
 });
+
+/**
+ * The two places a blank name could reach the server.
+ *
+ * The add form stays open after a successful add, so the button is sitting there
+ * inviting a second click — which used to post an empty name and take a 400 for
+ * it. Renaming a place to nothing is the same defect by a different route.
+ */
+test('a place cannot be added or renamed with an empty name', async ({ page }) => {
+  const consoleErrors: string[] = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error' && !message.text().includes('401')) {
+      consoleErrors.push(message.text());
+    }
+  });
+  page.on('pageerror', (error) => consoleErrors.push(error.message));
+
+  await page.goto('/login');
+  await page.getByText('Create one').click();
+  await page.locator('input[name=email]').fill(`e2e-blank-${Date.now()}@example.com`);
+  await page.locator('input[name=displayName]').fill('Blank Tester');
+  await page.locator('input[name=password]').fill('correct-horse-battery');
+  await page.locator('button[type=submit]').click();
+
+  await expect(page).toHaveURL(/\/trips$/);
+  await page.getByRole('button', { name: 'Plan your first trip' }).click();
+  await page.locator('input[name=name]').fill('Bruges');
+  await page.locator('input[name=startDate]').fill('2027-04-02');
+  await page.locator('input[name=endDate]').fill('2027-04-03');
+  await page.getByRole('button', { name: 'Create trip' }).click();
+  await page.getByRole('link', { name: /Bruges/ }).click();
+
+  const day1 = page.locator('ol > li.card').first();
+  await day1.getByRole('button', { name: 'Add place' }).click();
+  // Nothing typed yet, so there is nothing to submit.
+  await expect(day1.getByRole('button', { name: 'Add place' })).toBeDisabled();
+
+  await day1.locator('input[name=name]').fill('Markt');
+  await expect(day1.getByRole('button', { name: 'Add place' })).toBeEnabled();
+  await day1.getByRole('button', { name: 'Add place' }).click();
+  await expect(day1.getByText('Markt')).toBeVisible();
+
+  // The form is still open and the box is empty again: this is the click that
+  // used to post a blank name.
+  await expect(day1.getByRole('button', { name: 'Add place' })).toBeDisabled();
+  await day1.getByRole('button', { name: 'Done' }).click();
+
+  // And a place cannot be renamed to nothing either.
+  await day1.getByRole('button', { name: 'Edit', exact: true }).click();
+  await day1.locator('input[name=name]').fill('');
+  await expect(day1.getByRole('button', { name: 'Save', exact: true })).toBeDisabled();
+  await day1.locator('input[name=name]').fill('Markt square');
+  await day1.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(day1.getByText('Markt square')).toBeVisible();
+
+  await expect(page.locator('[role=alert]')).toHaveCount(0);
+  expect(consoleErrors, 'unexpected console errors').toEqual([]);
+});
