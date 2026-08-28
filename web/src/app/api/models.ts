@@ -16,6 +16,7 @@ export type { InstanceConfig } from './models/instance-config';
 export type { LoginRequest } from './models/login-request';
 export type { MapConfig } from './models/map-config';
 export type { MovePlaceRequest } from './models/move-place-request';
+export type { PaymentRequest } from './models/payment-request';
 export type { PersonBalance } from './models/person-balance';
 export type { PlaceSuggestion } from './models/place-suggestion';
 export type { PlaceView } from './models/place-view';

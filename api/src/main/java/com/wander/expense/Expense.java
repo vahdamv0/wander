@@ -63,6 +63,15 @@ public class Expense {
     private SplitMode splitMode;
 
     /**
+     * An expense, or somebody settling up. A payment is stored here rather than
+     * in a table of its own because it is the same arithmetic — see
+     * {@link ExpenseKind} and `V7`.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 12)
+    private ExpenseKind kind = ExpenseKind.EXPENSE;
+
+    /**
      * The shares are part of the expense, not a separate thing that happens to
      * point at it: an expense with no shares is meaningless, and replacing a
      * split means replacing all of them at once. Hence cascade-all with
@@ -81,13 +90,14 @@ public class Expense {
     }
 
     public Expense(Trip trip, String description, long amountMinor, LocalDate spentOn, User paidBy,
-            SplitMode splitMode) {
+            SplitMode splitMode, ExpenseKind kind) {
         this.trip = trip;
         this.description = description;
         this.amountMinor = amountMinor;
         this.spentOn = spentOn;
         this.paidBy = paidBy;
         this.splitMode = splitMode;
+        this.kind = kind;
         this.createdAt = Instant.now();
     }
 
@@ -163,6 +173,15 @@ public class Expense {
 
     public SplitMode getSplitMode() {
         return splitMode;
+    }
+
+    public ExpenseKind getKind() {
+        return kind;
+    }
+
+    /** True for money that moved between members rather than out of the trip. */
+    public boolean isPayment() {
+        return kind == ExpenseKind.PAYMENT;
     }
 
     public void setSplitMode(SplitMode splitMode) {

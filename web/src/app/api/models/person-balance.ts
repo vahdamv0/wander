@@ -5,6 +5,8 @@ export interface PersonBalance {
   displayName: string;
   netMinor: number;
   paidMinor: number;
+  paymentsMadeMinor: number;
+  paymentsReceivedMinor: number;
   shareMinor: number;
   stillAMember: boolean;
   userId: number;

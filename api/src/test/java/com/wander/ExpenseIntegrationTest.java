@@ -320,6 +320,171 @@ class ExpenseIntegrationTest extends IntegrationTestBase {
     }
 
     @Test
+    void recordingAPaymentClearsTheBalance() {
+        Session alice = register("alice");
+        Session bob = register("bob");
+        Object tripId = tripFor(alice, "EUR");
+        Object bobId = addMember(alice, tripId, bob, "EDITOR");
+        Object aliceId = userIdOf(alice, tripId, alice);
+
+        // Alice fronts 50 for both, so Bob owes her 25.
+        post(alice, "/api/trips/" + tripId + "/expenses", """
+                {"description":"Dinner","amountMinor":5000,"spentOn":"2027-05-01",
+                 "paidByUserId":%s,"splitMode":"EQUAL","shares":[{"userId":%s},{"userId":%s}]}
+                """.formatted(aliceId, aliceId, bobId));
+
+        var recorded = post(bob, "/api/trips/" + tripId + "/expenses/payments", """
+                {"fromUserId":%s,"toUserId":%s,"amountMinor":2500,"paidOn":"2027-05-03",
+                 "note":"cash at the station"}
+                """.formatted(bobId, aliceId));
+        assertThat(recorded.getStatusCode().value()).isEqualTo(201);
+        Map<String, Object> payment = asMap(recorded.getBody());
+        assertThat(payment).containsEntry("kind", "PAYMENT");
+        assertThat(payment).containsEntry("description", "cash at the station");
+        // The payer paid it; the recipient's single share is what balances it.
+        assertThat(asLong(payment.get("paidByUserId"))).isEqualTo(asLong(bobId));
+        assertThat(listOf(payment, "shares")).hasSize(1);
+        assertThat(asLong(listOf(payment, "shares").get(0).get("userId"))).isEqualTo(asLong(aliceId));
+
+        Map<String, Object> body = asMap(get(alice, "/api/trips/" + tripId + "/expenses").getBody());
+        Map<String, Object> summary = mapOf(body, "summary");
+
+        // Everybody is square, and nothing is left to suggest.
+        assertThat(listOf(summary, "balances"))
+                .allSatisfy(row -> assertThat(asLong(row.get("netMinor"))).isZero());
+        assertThat(listOf(summary, "settlements")).isEmpty();
+
+        // The four figures stay apart: Alice's share of the dinner is 25, not 50.
+        // Folding the payment into it would balance and read as a lie.
+        Map<String, Object> aliceRow = listOf(summary, "balances").stream()
+                .filter(row -> asLong(row.get("userId")) == asLong(aliceId))
+                .findFirst().orElseThrow();
+        assertThat(asLong(aliceRow.get("paidMinor"))).isEqualTo(5000L);
+        assertThat(asLong(aliceRow.get("shareMinor"))).isEqualTo(2500L);
+        assertThat(asLong(aliceRow.get("paymentsReceivedMinor"))).isEqualTo(2500L);
+        assertThat(asLong(aliceRow.get("paymentsMadeMinor"))).isZero();
+
+        Map<String, Object> bobRow = listOf(summary, "balances").stream()
+                .filter(row -> asLong(row.get("userId")) == asLong(bobId))
+                .findFirst().orElseThrow();
+        assertThat(asLong(bobRow.get("paidMinor"))).isZero();
+        assertThat(asLong(bobRow.get("shareMinor"))).isEqualTo(2500L);
+        assertThat(asLong(bobRow.get("paymentsMadeMinor"))).isEqualTo(2500L);
+        assertThat(asLong(bobRow.get("paymentsReceivedMinor"))).isZero();
+
+        // The trip still cost 50: money moving between members is not a cost.
+        assertThat(asLong(summary.get("totalMinor"))).isEqualTo(5000L);
+        // Both rows are in the ledger, so the payment is visible and removable.
+        assertThat(listOf(body, "expenses")).hasSize(2);
+    }
+
+    @Test
+    void aPartialPaymentLeavesTheRest() {
+        Session alice = register("alice");
+        Session bob = register("bob");
+        Object tripId = tripFor(alice, "EUR");
+        Object bobId = addMember(alice, tripId, bob, "EDITOR");
+        Object aliceId = userIdOf(alice, tripId, alice);
+
+        post(alice, "/api/trips/" + tripId + "/expenses", """
+                {"description":"Hotel","amountMinor":10000,"spentOn":"2027-05-01",
+                 "paidByUserId":%s,"splitMode":"EQUAL","shares":[{"userId":%s},{"userId":%s}]}
+                """.formatted(aliceId, aliceId, bobId));
+
+        // Bob owes 50 and hands over 20 of it.
+        assertThat(post(bob, "/api/trips/" + tripId + "/expenses/payments", """
+                {"fromUserId":%s,"toUserId":%s,"amountMinor":2000,"paidOn":"2027-05-02"}
+                """.formatted(bobId, aliceId)).getStatusCode().value()).isEqualTo(201);
+
+        Map<String, Object> summary = mapOf(
+                asMap(get(alice, "/api/trips/" + tripId + "/expenses").getBody()), "summary");
+        List<Map<String, Object>> settlements = listOf(summary, "settlements");
+
+        assertThat(settlements).hasSize(1);
+        assertThat(asLong(settlements.get(0).get("amountMinor"))).isEqualTo(3000L);
+        assertThat(asLong(settlements.get(0).get("fromUserId"))).isEqualTo(asLong(bobId));
+        // Nothing was invented: the nets still cancel.
+        assertThat(listOf(summary, "balances").stream()
+                .mapToLong(row -> asLong(row.get("netMinor"))).sum()).isZero();
+    }
+
+    @Test
+    void removingAPaymentPutsTheDebtBack() {
+        Session alice = register("alice");
+        Session bob = register("bob");
+        Object tripId = tripFor(alice, "EUR");
+        Object bobId = addMember(alice, tripId, bob, "EDITOR");
+        Object aliceId = userIdOf(alice, tripId, alice);
+
+        post(alice, "/api/trips/" + tripId + "/expenses", """
+                {"description":"Taxi","amountMinor":3000,"spentOn":"2027-05-01",
+                 "paidByUserId":%s,"splitMode":"EQUAL","shares":[{"userId":%s},{"userId":%s}]}
+                """.formatted(aliceId, aliceId, bobId));
+        Object paymentId = asMap(post(bob, "/api/trips/" + tripId + "/expenses/payments", """
+                {"fromUserId":%s,"toUserId":%s,"amountMinor":1500,"paidOn":"2027-05-02"}
+                """.formatted(bobId, aliceId)).getBody()).get("id");
+
+        // A payment recorded in error is undone the same way an expense is: it is
+        // a row in the same ledger.
+        assertThat(delete(alice, "/api/trips/" + tripId + "/expenses/" + paymentId)
+                .getStatusCode().value()).isEqualTo(204);
+
+        Map<String, Object> summary = mapOf(
+                asMap(get(alice, "/api/trips/" + tripId + "/expenses").getBody()), "summary");
+        assertThat(listOf(summary, "settlements")).hasSize(1);
+        assertThat(asLong(listOf(summary, "settlements").get(0).get("amountMinor"))).isEqualTo(1500L);
+    }
+
+    @Test
+    void aPaymentIsNotEditedAsAnExpense() {
+        Session alice = register("alice");
+        Session bob = register("bob");
+        Object tripId = tripFor(alice, "EUR");
+        Object bobId = addMember(alice, tripId, bob, "EDITOR");
+        Object aliceId = userIdOf(alice, tripId, alice);
+
+        Object paymentId = asMap(post(bob, "/api/trips/" + tripId + "/expenses/payments", """
+                {"fromUserId":%s,"toUserId":%s,"amountMinor":1000,"paidOn":"2027-05-02"}
+                """.formatted(bobId, aliceId)).getBody()).get("id");
+
+        // 409: rewriting it through an expense body could put its single share on
+        // the wrong person and silently reverse a balance.
+        assertThat(put(alice, "/api/trips/" + tripId + "/expenses/" + paymentId, """
+                {"description":"Not a payment","amountMinor":1000,"spentOn":"2027-05-02",
+                 "paidByUserId":%s,"splitMode":"EQUAL","shares":[{"userId":%s}]}
+                """.formatted(aliceId, aliceId)).getStatusCode().value()).isEqualTo(409);
+    }
+
+    @Test
+    void aPaymentNeedsTwoDifferentMembersAndARealAmount() {
+        Session alice = register("alice");
+        Session viewer = register("viewer");
+        Object tripId = tripFor(alice, "EUR");
+        Object viewerId = addMember(alice, tripId, viewer, "VIEWER");
+        Object aliceId = userIdOf(alice, tripId, alice);
+
+        // To yourself is not a payment.
+        assertThat(post(alice, "/api/trips/" + tripId + "/expenses/payments", """
+                {"fromUserId":%s,"toUserId":%s,"amountMinor":1000,"paidOn":"2027-05-02"}
+                """.formatted(aliceId, aliceId)).getStatusCode().value()).isEqualTo(400);
+
+        // Nothing is not a payment either.
+        assertThat(post(alice, "/api/trips/" + tripId + "/expenses/payments", """
+                {"fromUserId":%s,"toUserId":%s,"amountMinor":0,"paidOn":"2027-05-02"}
+                """.formatted(aliceId, viewerId)).getStatusCode().value()).isEqualTo(400);
+
+        // Somebody who is not on the trip.
+        assertThat(post(alice, "/api/trips/" + tripId + "/expenses/payments", """
+                {"fromUserId":%s,"toUserId":999999,"amountMinor":1000,"paidOn":"2027-05-02"}
+                """.formatted(aliceId)).getStatusCode().value()).isEqualTo(400);
+
+        // And a viewer records nothing, not even about themselves.
+        assertThat(post(viewer, "/api/trips/" + tripId + "/expenses/payments", """
+                {"fromUserId":%s,"toUserId":%s,"amountMinor":1000,"paidOn":"2027-05-02"}
+                """.formatted(viewerId, aliceId)).getStatusCode().value()).isEqualTo(403);
+    }
+
+    @Test
     void aTripTakesTheInstanceCurrencyWhenNoneIsGiven() {
         Session alice = register("alice");
 

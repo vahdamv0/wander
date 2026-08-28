@@ -3,10 +3,12 @@ import {
   Api,
   ExpenseRequest,
   ExpenseView,
+  PaymentRequest,
   TripExpenses,
   createExpense,
   deleteExpense,
   listExpenses,
+  recordPayment,
   updateExpense,
 } from '../api';
 
@@ -32,7 +34,12 @@ export class ExpenseRepo {
   readonly saving = this._saving.asReadonly();
 
   readonly trip = computed(() => this._ledger()?.trip ?? null);
-  readonly expenses = computed(() => this._ledger()?.expenses ?? []);
+  /** Expenses and payments together: they are rows in one ledger. */
+  readonly entries = computed(() => this._ledger()?.expenses ?? []);
+  readonly expenses = computed(() =>
+    this.entries().filter((entry) => entry.kind === 'EXPENSE'),
+  );
+  readonly payments = computed(() => this.entries().filter((entry) => entry.kind === 'PAYMENT'));
   readonly summary = computed(() => this._ledger()?.summary ?? null);
   /** The trip's currency, which every amount on the page is formatted in. */
   readonly currency = computed(() => this._ledger()?.trip.currency ?? 'EUR');
@@ -64,13 +71,23 @@ export class ExpenseRepo {
     await this.write(tripId, () => this.api.invoke(updateExpense, { tripId, expenseId, body }));
   }
 
+  /**
+   * Records that somebody settled up. The server derives the shape — payer to
+   * recipient — so nothing here has to know that a payment is stored as an
+   * expense, which is precisely the detail that would reverse a balance if a
+   * caller got it inside out.
+   */
+  async pay(tripId: number, body: PaymentRequest): Promise<void> {
+    await this.write(tripId, () => this.api.invoke(recordPayment, { tripId, body }));
+  }
+
   async remove(tripId: number, expenseId: number): Promise<void> {
     await this.write(tripId, () => this.api.invoke(deleteExpense, { tripId, expenseId }));
   }
 
-  /** The current shape of one expense, for seeding an edit form. */
+  /** The current shape of one entry, for seeding an edit form. */
   find(expenseId: number): ExpenseView | null {
-    return this.expenses().find((expense) => expense.id === expenseId) ?? null;
+    return this.entries().find((entry) => entry.id === expenseId) ?? null;
   }
 
   private async write(tripId: number, call: () => Promise<unknown>): Promise<void> {

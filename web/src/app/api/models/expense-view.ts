@@ -6,6 +6,7 @@ export interface ExpenseView {
   amountMinor: number;
   description: string;
   id: number;
+  kind: 'EXPENSE' | 'PAYMENT';
   paidByName: string;
   paidByUserId: number;
   shares: Array<ExpenseShareView>;

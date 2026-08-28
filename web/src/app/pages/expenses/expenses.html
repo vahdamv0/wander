@@ -72,8 +72,16 @@
                       <span class="font-normal text-muted">· no longer on this trip</span>
                     }
                   </p>
+                  <!-- Expenses and settling-up shown apart: "your share" has to
+                       mean your share of the bills, or nobody can check it. -->
                   <p class="text-xs text-muted">
                     paid {{ money(person.paidMinor) }} · share {{ money(person.shareMinor) }}
+                    @if (person.paymentsMadeMinor) {
+                      · paid back {{ money(person.paymentsMadeMinor) }}
+                    }
+                    @if (person.paymentsReceivedMinor) {
+                      · received {{ money(person.paymentsReceivedMinor) }}
+                    }
                   </p>
                 </div>
                 <span class="shrink-0 text-sm"
@@ -86,6 +94,10 @@
           </ul>
         }
 
+        @if (!summary.settlements.length && summary.totalMinor > 0) {
+          <p class="mt-3 border-t border-border pt-3 text-sm text-muted">Everyone is square.</p>
+        }
+
         @if (summary.settlements.length) {
           <div class="mt-4 border-t border-border pt-3">
             <h3 class="text-xs font-semibold uppercase tracking-wide text-muted">Settle up</h3>
@@ -94,33 +106,105 @@
                 <!-- &ngsp; is a real space, not decoration: Angular strips a
                      whitespace-only text node between two elements, so without it
                      this reads "pays Bob Bobson€52.51". -->
-                <li class="text-sm">
-                  <span class="font-medium">{{ transfer.fromName }}</span>
-                  pays
-                  <span class="font-medium">{{ transfer.toName }}</span>&ngsp;<span
-                    class="font-medium">{{ money(transfer.amountMinor) }}</span>
+                <li class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm">
+                  <span>
+                    <span class="font-medium">{{ transfer.fromName }}</span>
+                    pays
+                    <span class="font-medium">{{ transfer.toName }}</span>&ngsp;<span
+                      class="font-medium">{{ money(transfer.amountMinor) }}</span>
+                  </span>
+                  @if (canEdit()) {
+                    <!-- The suggestion already knows who owes what, so recording
+                         it is one click rather than a form to retype. -->
+                    <button type="button" class="btn-ghost px-2 py-1 text-xs" [disabled]="saving()"
+                            (click)="startPayment(transfer)">
+                      Record this payment
+                    </button>
+                  }
                 </li>
               }
             </ul>
-            <!-- Honest about what this is: nothing records a payment yet, so
-                 these do not shrink until the expenses behind them change. -->
             <p class="mt-2 text-xs text-muted">
-              Suggestions only — recording a payment is not built yet.
+              Recording one settles the balance; it does not count towards what the
+              trip cost.
             </p>
           </div>
         }
       </section>
     }
 
-    @if (canEdit() && editing() !== 'new') {
-      <button type="button" class="btn-ghost mb-4 w-full justify-center py-2.5"
-              (click)="openNew()">
-        <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-             stroke-linecap="round" aria-hidden="true">
-          <path d="M12 5v14M5 12h14" />
-        </svg>
-        Add an expense
-      </button>
+    @if (canEdit() && editing() !== 'new' && !paying()) {
+      <div class="mb-4 flex flex-wrap gap-2">
+        <button type="button" class="btn-ghost flex-1 justify-center py-2.5" (click)="openNew()">
+          <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" aria-hidden="true">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+          Add an expense
+        </button>
+        <button type="button" class="btn-ghost flex-1 justify-center py-2.5" (click)="startPayment()">
+          <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 12h16M14 6l6 6-6 6" />
+          </svg>
+          Record a payment
+        </button>
+      </div>
+    }
+
+    @if (paying()) {
+      <section class="card mb-4 p-5">
+        <h2 class="mb-1 text-sm font-semibold">Record a payment</h2>
+        <p class="mb-3 text-xs text-muted">
+          Money that changed hands between people on this trip. It settles balances
+          without counting towards what the trip cost.
+        </p>
+        <form class="grid gap-3" (ngSubmit)="savePayment()">
+          <div class="grid gap-3 sm:grid-cols-2">
+            <label class="label min-w-0">
+              Who paid
+              <select class="field" name="payFrom"
+                      [ngModel]="payFrom()" (ngModelChange)="payFrom.set($event)">
+                @for (member of candidates(); track member.userId) {
+                  <option [value]="member.userId">{{ member.displayName }}</option>
+                }
+              </select>
+            </label>
+            <label class="label min-w-0">
+              Who received it
+              <select class="field" name="payTo"
+                      [ngModel]="payTo()" (ngModelChange)="payTo.set($event)">
+                <option [ngValue]="null">Choose somebody</option>
+                @for (member of candidates(); track member.userId) {
+                  <option [value]="member.userId">{{ member.displayName }}</option>
+                }
+              </select>
+            </label>
+            <label class="label min-w-0">
+              Amount ({{ currency() }})
+              <input class="field" type="text" name="payAmount" inputmode="decimal" required
+                     placeholder="0.00"
+                     [ngModel]="payAmount()" (ngModelChange)="payAmount.set($event)" />
+            </label>
+            <label class="label min-w-0">
+              Date
+              <input class="field" type="date" name="paidOn" required
+                     [ngModel]="payDate()" (ngModelChange)="payDate.set($event)" />
+            </label>
+            <label class="label min-w-0 sm:col-span-2">
+              Note <span class="font-normal">(optional)</span>
+              <input class="field" type="text" name="payNote" placeholder="cash at the station"
+                     [ngModel]="payNote()" (ngModelChange)="payNote.set($event)" />
+            </label>
+          </div>
+          <div class="flex items-center gap-2">
+            <button type="submit" class="btn-primary" [disabled]="!canRecordPayment()">
+              Record payment
+            </button>
+            <button type="button" class="btn-ghost" (click)="cancelPayment()">Cancel</button>
+          </div>
+        </form>
+      </section>
     }
 
     @if (editing() === 'new') {
@@ -131,25 +215,42 @@
     }
 
     <ul class="grid grid-cols-1 gap-3">
-      @for (expense of expenses(); track expense.id) {
-        <li class="card p-5">
+      @for (expense of entries(); track expense.id) {
+        <li class="card p-5" [class.bg-surface-2]="expense.kind === 'PAYMENT'">
           @if (editing() === expense.id) {
             <h2 class="mb-3 text-sm font-semibold">Edit expense</h2>
             <ng-container [ngTemplateOutlet]="expenseForm" />
           } @else {
             <div class="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
               <div class="min-w-0">
-                <p class="truncate text-sm font-medium">{{ expense.description }}</p>
-                <p class="text-xs text-muted">
-                  {{ dateLabel(expense.spentOn) }} · paid by {{ expense.paidByName }}
-                  @if (expense.splitMode === 'EXACT') {
-                    · exact split
-                  }
-                </p>
+                @if (expense.kind === 'PAYMENT') {
+                  <!-- Described by who paid whom, not by the split underneath: a
+                       payment's single share is a recipient, and showing that
+                       person's name under "shares" would read as a debt. -->
+                  <p class="truncate text-sm font-medium">
+                    {{ expense.paidByName }} paid {{ recipientOf(expense) }}
+                  </p>
+                  <p class="text-xs text-muted">
+                    {{ dateLabel(expense.spentOn) }} · payment
+                    @if (expense.description !== 'Payment') {
+                      · {{ expense.description }}
+                    }
+                  </p>
+                } @else {
+                  <p class="truncate text-sm font-medium">{{ expense.description }}</p>
+                  <p class="text-xs text-muted">
+                    {{ dateLabel(expense.spentOn) }} · paid by {{ expense.paidByName }}
+                    @if (expense.splitMode === 'EXACT') {
+                      · exact split
+                    }
+                  </p>
+                }
               </div>
               <div class="flex shrink-0 items-center gap-2">
                 <span class="text-sm font-medium">{{ money(expense.amountMinor) }}</span>
-                @if (canEdit()) {
+                <!-- Two blocks, not one: only an expense can be edited, but a
+                     payment recorded in error still has to be removable. -->
+                @if (canEdit() && expense.kind === 'EXPENSE') {
                   <button type="button" class="btn-ghost px-1.5" [disabled]="saving()"
                           (click)="openEdit(expense)">
                     <span class="sr-only">Edit {{ expense.description }}</span>
@@ -159,9 +260,17 @@
                       <path d="M4 20h4l10-10-4-4L4 16v4Z" />
                     </svg>
                   </button>
+                }
+                @if (canEdit()) {
                   <button type="button" class="btn-ghost px-1.5" [disabled]="saving()"
                           (click)="remove(expense)">
-                    <span class="sr-only">Remove {{ expense.description }}</span>
+                    <span class="sr-only">
+                      @if (expense.kind === 'PAYMENT') {
+                        Remove payment from {{ expense.paidByName }}
+                      } @else {
+                        Remove {{ expense.description }}
+                      }
+                    </span>
                     <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                          stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
                       <path d="M6 6l12 12M18 6L6 18" />
@@ -174,13 +283,15 @@
             <!-- The split, spelled out. On an uneven division the shares differ
                  by a minor unit and that has to be visible: a total that does not
                  obviously add up is exactly what makes people distrust a ledger. -->
-            <ul class="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
-              @for (share of expense.shares; track share.userId) {
-                <li>
-                  {{ share.displayName }}&ngsp;<span class="text-fg">{{ money(share.amountMinor) }}</span>
-                </li>
-              }
-            </ul>
+            @if (expense.kind === 'EXPENSE') {
+              <ul class="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
+                @for (share of expense.shares; track share.userId) {
+                  <li>
+                    {{ share.displayName }}&ngsp;<span class="text-fg">{{ money(share.amountMinor) }}</span>
+                  </li>
+                }
+              </ul>
+            }
           }
         </li>
       } @empty {

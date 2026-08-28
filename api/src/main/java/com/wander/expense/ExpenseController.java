@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.wander.expense.dto.ExpenseRequest;
 import com.wander.expense.dto.ExpenseView;
+import com.wander.expense.dto.PaymentRequest;
 import com.wander.expense.dto.TripExpenses;
 import com.wander.security.WanderUser;
 
@@ -48,6 +49,19 @@ public class ExpenseController {
             @PathVariable Long tripId,
             @Valid @RequestBody ExpenseRequest request) {
         return expenses.create(principal.id(), tripId, request);
+    }
+
+    /**
+     * Records a payment between two members. Under /expenses because it is a row
+     * in the same ledger — it appears in `listExpenses` and is removed with
+     * `deleteExpense`, and only its creation needs a shape of its own.
+     */
+    @PostMapping("/payments")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ExpenseView recordPayment(@AuthenticationPrincipal WanderUser principal,
+            @PathVariable Long tripId,
+            @Valid @RequestBody PaymentRequest request) {
+        return expenses.recordPayment(principal.id(), tripId, request);
     }
 
     @PutMapping("/{expenseId}")

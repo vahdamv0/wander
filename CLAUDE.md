@@ -272,6 +272,20 @@ rules are narrow on purpose.
   Hibernate order inserts before orphan deletes in one flush, and
   `uq_expense_shares` then rejects the write for anybody who was in both splits —
   which is almost everybody, almost every time. See `Expense.replaceShares`.
+- **A payment is an expense, not a table of its own.** `expenses.kind` is
+  `EXPENSE` or `PAYMENT`; a payment's payer is whoever handed money over and its
+  single share belongs to whoever received it, so `net = paid - owed` clears the
+  balance with no special case. `kind` exists for one reason: a trip's *total* is
+  what it cost, and money moving between its members is not a cost. A payment has
+  no update — `PUT` on one is a 409 — because rewriting it through an expense body
+  could put its share on the wrong person and silently reverse a balance; fixing
+  one is removing it and recording it again.
+- **`PersonBalance` keeps four figures apart**: `paidMinor` and `shareMinor` are
+  *expenses only*, with `paymentsMadeMinor` and `paymentsReceivedMinor` beside
+  them. Folding payments into the first two balances correctly and reads as a lie
+  — somebody who fronted an €84.51 dinner and was handed €42.26 back would see
+  "paid €84.51 · share €84.51" when their share was €42.25. The share is the
+  number people check against their own memory, so it stays its own figure.
 - **Somebody who leaves a trip keeps their shares**, and `PersonBalance.stillAMember`
   is false for them. Money is history; membership is present tense. Dropping the
   rows would silently forgive a debt, and refusing the removal would make it
@@ -351,7 +365,7 @@ re-reads instead of patching ranks), Nominatim search behind a proxy that
 caches and rate-limits, a Leaflet map, drag ordering, and a note per day.
 Milestone 3 is done bar one piece: members, roles, ownership transfer and live
 WebSocket sync are in; what remains of sharing is invite links for people who
-have no account yet. Milestone 4 has started: expenses with splits and balances
-are in, settling up is not, and packing lists and reservations are untouched. See
+have no account yet. Milestone 4 has started: expenses with splits, balances
+and settling up are in; packing lists and reservations are untouched. See
 the roadmap in README.md. Deliberately **out** of scope until asked:
 plugins, i18n, MCP, offline. Keep v1 small.

@@ -944,3 +944,100 @@ test('an expense splits unevenly, adds up, and reaches the other browser', async
   await ownerContext.close();
   await editorContext.close();
 });
+
+/**
+ * Settling up, which is what makes a balance mean anything.
+ *
+ * A payment is stored as an expense whose single share belongs to the recipient,
+ * so the interesting assertions are that the *trip total* ignores it while the
+ * *balances* respond to it, and that undoing one puts the debt back.
+ */
+test('recording a payment settles the balance and can be undone', async ({ browser }) => {
+  const stamp = Date.now();
+  const friendEmail = `e2e-pay-friend-${stamp}@example.com`;
+
+  const ownerContext = await browser.newContext();
+  const friendContext = await browser.newContext();
+  const owner = await ownerContext.newPage();
+  const friend = await friendContext.newPage();
+
+  const consoleErrors: string[] = [];
+  for (const page of [owner, friend]) {
+    page.on('console', (message) => {
+      if (message.type() === 'error' && !message.text().includes('401')) {
+        consoleErrors.push(message.text());
+      }
+    });
+    page.on('pageerror', (error) => consoleErrors.push(error.message));
+  }
+
+  const register = async (page: typeof owner, email: string, name: string) => {
+    await page.goto('/login');
+    await page.getByText('Create one').click();
+    await page.locator('input[name=email]').fill(email);
+    await page.locator('input[name=displayName]').fill(name);
+    await page.locator('input[name=password]').fill('correct-horse-battery');
+    await page.locator('button[type=submit]').click();
+    await expect(page).toHaveURL(/\/trips$/);
+  };
+
+  await register(owner, `e2e-pay-owner-${stamp}@example.com`, 'Pay Owner');
+  await register(friend, friendEmail, 'Pay Friend');
+
+  await owner.getByRole('button', { name: 'Plan your first trip' }).click();
+  await owner.locator('input[name=name]').fill('Bruges');
+  await owner.locator('input[name=startDate]').fill('2027-10-01');
+  await owner.locator('input[name=endDate]').fill('2027-10-03');
+  await owner.getByRole('button', { name: 'Create trip' }).click();
+  await owner.getByRole('link', { name: /Bruges/ }).click();
+
+  await owner.getByRole('button', { name: /People/ }).click();
+  await owner.locator('input[name=memberEmail]').fill(friendEmail);
+  await owner.locator('select[name=memberRole]').selectOption('EDITOR');
+  await owner.getByRole('button', { name: 'Add', exact: true }).click();
+  await expect(owner.getByText('Pay Friend', { exact: true })).toBeVisible();
+
+  await owner.getByRole('link', { name: 'Expenses' }).click();
+  // Wait for the navigation before reading the URL, or the friend lands on the
+  // trip page instead.
+  await expect(owner).toHaveURL(/\/expenses$/);
+  await friend.goto(owner.url());
+  await expect(friend.getByRole('heading', { name: 'Expenses' })).toBeVisible();
+
+  // 40.01 two ways: the friend has the higher user id, so the owner takes the
+  // odd cent and the friend owes exactly 20.00.
+  await owner.getByRole('button', { name: 'Add an expense' }).click();
+  await owner.locator('input[name=description]').fill('Chocolate');
+  await owner.locator('input[name=amount]').fill('40.01');
+  await owner.getByRole('button', { name: 'Save expense' }).click();
+  await expect(owner.getByText('is owed €20.00')).toBeVisible();
+
+  // The friend settles up from their own browser, in one click from the
+  // suggestion — the amount and both parties come prefilled.
+  await expect(friend.getByText('Pay Friend pays Pay Owner €20.00')).toBeVisible();
+  await friend.getByRole('button', { name: 'Record this payment' }).click();
+  await expect(friend.locator('input[name=payAmount]')).toHaveValue('20.00');
+  await friend.getByRole('button', { name: 'Record payment' }).click();
+
+  // Both sides settle, and the four figures stay honest: the owner's *share* of
+  // the chocolate is 20.01, not 40.01 — the payment is shown separately.
+  await expect(friend.getByText('Everyone is square')).toBeVisible();
+  await expect(owner.getByText('Everyone is square')).toBeVisible();
+  await expect(owner.getByText('received €20.00')).toBeVisible();
+  await expect(owner.getByText('share €20.01')).toBeVisible();
+
+  // The payment is a row in the ledger, described by who paid whom.
+  await expect(owner.getByText('Pay Friend paid Pay Owner')).toBeVisible();
+  // And the trip still cost 40.01: money moving between members is not a cost.
+  await expect(owner.getByText('€40.01 in total')).toBeVisible();
+
+  // Undoing it puts the debt back, so a payment entered by mistake is not a
+  // one-way door.
+  await owner.getByRole('button', { name: /^Remove payment from Pay Friend/ }).click();
+  await expect(owner.getByText('is owed €20.00')).toBeVisible();
+  await expect(friend.getByText('Pay Friend pays Pay Owner €20.00')).toBeVisible();
+
+  expect(consoleErrors, 'unexpected console errors').toEqual([]);
+  await ownerContext.close();
+  await friendContext.close();
+});
