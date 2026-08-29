@@ -63,6 +63,16 @@ export type { RecordPayment$Params as RecordPayment$Params } from './fn/expense-
 export { recordPayment as recordPayment } from './fn/expense-controller/record-payment';
 export type { PutDayNote$Params as PutDayNote$Params } from './fn/day-note-controller/put-day-note';
 export { putDayNote as putDayNote } from './fn/day-note-controller/put-day-note';
+export type { ListInvites$Params as ListInvites$Params } from './fn/trip-invite-controller/list-invites';
+export { listInvites as listInvites } from './fn/trip-invite-controller/list-invites';
+export type { CreateInvite$Params as CreateInvite$Params } from './fn/trip-invite-controller/create-invite';
+export { createInvite as createInvite } from './fn/trip-invite-controller/create-invite';
+export type { AcceptInvite$Params as AcceptInvite$Params } from './fn/trip-invite-controller/accept-invite';
+export { acceptInvite as acceptInvite } from './fn/trip-invite-controller/accept-invite';
+export type { PreviewInvite$Params as PreviewInvite$Params } from './fn/trip-invite-controller/preview-invite';
+export { previewInvite as previewInvite } from './fn/trip-invite-controller/preview-invite';
+export type { RevokeInvite$Params as RevokeInvite$Params } from './fn/trip-invite-controller/revoke-invite';
+export { revokeInvite as revokeInvite } from './fn/trip-invite-controller/revoke-invite';
 export type { Register$Params as Register$Params } from './fn/auth-controller/register';
 export { register as register } from './fn/auth-controller/register';
 export type { Logout$Params as Logout$Params } from './fn/auth-controller/logout';

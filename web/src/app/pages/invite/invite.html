@@ -1,0 +1,49 @@
+<div class="mx-auto max-w-md px-4 py-16">
+  <section class="card p-6">
+    @if (loading()) {
+      <p class="text-sm text-muted">Looking up this invitation…</p>
+    } @else if (preview(); as invite) {
+      <p class="text-xs font-medium uppercase tracking-wide text-muted">You have been invited</p>
+      <h1 class="mt-1 text-xl font-semibold tracking-tight">{{ invite.tripName }}</h1>
+      <p class="mt-1 text-sm text-muted">by {{ invite.invitedByName }}</p>
+
+      @if (invite.joinable) {
+        <p class="mt-4 text-sm">{{ roleWords() }}</p>
+
+        @if (error(); as message) {
+          <p class="mt-4 rounded-control bg-danger-soft px-3 py-2 text-sm text-danger" role="alert">
+            {{ message }}
+          </p>
+        }
+
+        <div class="mt-5 flex items-center gap-2">
+          <button type="button" class="btn-primary" [disabled]="joining()" (click)="join()">
+            {{ joining() ? 'Joining…' : 'Join this trip' }}
+          </button>
+          <a routerLink="/trips" class="btn-ghost">Not now</a>
+        </div>
+      } @else {
+        <!-- The server's own words. It knows whether this was revoked, spent or
+             simply ran out of time, and inventing a friendlier version here would
+             mean guessing which. -->
+        <p class="mt-4 rounded-control bg-surface-2 px-3 py-2 text-sm text-muted">
+          {{ invite.reason }}
+        </p>
+        @if (invite.tripId) {
+          <button type="button" class="btn-primary mt-5" (click)="goToTrip()">Open the trip</button>
+        } @else {
+          <p class="mt-4 text-sm text-muted">
+            Ask whoever sent it for a new link.
+          </p>
+          <a routerLink="/trips" class="btn-ghost mt-4 inline-flex">Back to my trips</a>
+        }
+      }
+    } @else {
+      <h1 class="text-xl font-semibold tracking-tight">This link does not work</h1>
+      <p class="mt-3 text-sm text-muted">
+        {{ error() ?? 'This invitation link is not valid.' }}
+      </p>
+      <a routerLink="/trips" class="btn-ghost mt-5 inline-flex">Back to my trips</a>
+    }
+  </section>
+</div>

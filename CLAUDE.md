@@ -444,6 +444,47 @@ rules are narrow on purpose.
   rows would silently forgive a debt, and refusing the removal would make it
   impossible to leave a trip you had spent money on.
 
+## Invitation links
+
+The last piece of sharing, and the way somebody with **no account** joins a trip.
+`TripMemberService.add` cannot reach them: it works by email address and nothing
+here sends mail. A link needs no mail — the owner delivers it themselves. That
+was always the way round the original blocker; delivery was never this
+application's problem.
+
+- **The token is never stored.** `trip_invites.token_hash` is a SHA-256 digest and
+  the token exists in exactly one response, once — `CreatedInviteView`, which the
+  client shows immediately and says is not shown again. The nightly dumps leave
+  the machine, so a token at rest would turn a mislaid backup into working keys to
+  other people's trips. Same bargain as the admin password printed once to the log.
+- **SHA-256, not bcrypt, and it is the opposite reasoning to `users.password_hash`.**
+  Bcrypt is slow because a password is short and guessable. This token is 256 bits
+  from a CSPRNG: there is nothing to slow down, and a per-row salt would make the
+  lookup a scan of every invitation on the instance instead of one indexed read.
+- **Accepting takes a row lock** (`findByTokenHashForUpdate`). Without it two
+  people opening the same forwarded link both read an unused invitation, both join,
+  and both mark it used — a single-use link admitting two strangers, with every
+  individual request looking perfectly correct.
+  `twoPeopleRacingForOneLinkGetOneMembership` is what holds this.
+- **A bad token is always 404**, whatever is wrong with it, so a guesser never
+  learns which attempt found something real. A token that *exists* but is spent,
+  revoked or expired answers 200 with `joinable: false` and the server's own
+  reason — the holder is not an attacker and "ask for another" is actionable.
+- **No new public endpoint.** The preview is authenticated like everything else,
+  so the journey is link → register → back to the link, carried by `returnUrl` on
+  `authGuard`. An anonymous preview would have been the *second* exception to
+  default-deny, and `/api/config/sign-in` is documented as the only one.
+  `returnUrl` is sanitised to a same-origin path in `LoginPage`: a login page that
+  redirects anywhere is a phishing primitive.
+- **`InviteRepo` is the one repo with no offline cache**, deliberately. A minted
+  token would be written to IndexedDB — the one place this application keeps trip
+  data — and a cached list would show a revoked link as still outstanding, which is
+  backwards for a control whose purpose is taking access away. It also clears
+  itself when the signed-in user changes, or a link minted before signing out is
+  still in memory for the next person at that browser.
+- Status is **derived from timestamps**, never stored: nothing in this application
+  runs on a clock to write "expired" at the right moment.
+
 ## Packing lists
 
 The first thing in this project that belongs to a *person* on a trip rather than
@@ -711,9 +752,8 @@ is "days and places": derived days, places with ordering owned by the
 server (`PlaceService` renumbers a day on every move or delete, and the client
 re-reads instead of patching ranks), Nominatim search behind a proxy that
 caches and rate-limits, a Leaflet map, drag ordering, and a note per day.
-Milestone 3 is done bar one piece: members, roles, ownership transfer and live
-WebSocket sync are in; what remains of sharing is invite links for people who
-have no account yet. Milestone 4 is done: expenses with splits, balances and
+Milestone 3 is done: members, roles, ownership transfer, live WebSocket sync,
+and invitation links for people who have no account yet. Milestone 4 is done: expenses with splits, balances and
 settling up, packing lists, and reservations. Milestone 5 is half done — offline
 *reads* are in; the write queue is deliberately not, and a decision rather than an
 omission. The day card is finished: a note, what the day cost, and the forecast

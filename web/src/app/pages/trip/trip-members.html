@@ -66,6 +66,80 @@
           They need an account on this instance already. Editors change the
           itinerary; viewers only read it.
         </p>
+
+        <!-- The other half, for somebody who has no account yet. Adding by email
+             cannot reach them, because nothing here sends mail — but a link needs
+             no mail, only somewhere to paste it. -->
+        <div class="mb-4 rounded-control border border-border p-3">
+          <p class="text-sm font-medium">Or send a link</p>
+          <p class="mt-0.5 text-xs text-muted">
+            For somebody with no account here. It works once, expires in a week,
+            and you can revoke it at any time.
+          </p>
+
+          <div class="mt-2 flex flex-wrap items-end gap-2">
+            <label class="label">
+              Role
+              <select class="field" name="inviteRole"
+                      [ngModel]="inviteRole()"
+                      (ngModelChange)="inviteRole.set($event)">
+                @for (role of assignable; track role) {
+                  <option [value]="role">{{ roleLabel(role) }}</option>
+                }
+              </select>
+            </label>
+            <button type="button" class="btn-primary" [disabled]="saving()"
+                    (click)="createInvite()">
+              Create link
+            </button>
+          </div>
+
+          @if (createdInvite(); as created) {
+            <!-- Shown once and never again: the server keeps only a hash of the
+                 token, so there is nothing to re-read. Said plainly, because a
+                 refresh here means revoking and starting over. -->
+            <div class="mt-3 rounded-control bg-surface-2 p-3">
+              <p class="text-xs font-medium">Copy this now — it is not shown again.</p>
+              <p class="mt-1 break-all rounded-control bg-surface px-2 py-1.5 font-mono text-xs">
+                {{ inviteUrl(created.path) }}
+              </p>
+              <div class="mt-2 flex items-center gap-2">
+                <button type="button" class="btn-primary text-sm"
+                        (click)="copyInvite(created.path)">
+                  {{ copied() ? 'Copied' : 'Copy link' }}
+                </button>
+                <button type="button" class="btn-ghost text-sm" (click)="dismissCreated()">
+                  Done
+                </button>
+              </div>
+            </div>
+          }
+
+          @if (inviteList().length) {
+            <ul class="mt-3 grid gap-1.5">
+              @for (invite of inviteList(); track invite.id) {
+                <li class="flex flex-wrap items-center gap-2 text-xs">
+                  <span class="rounded-full border border-border px-2 py-0.5 font-medium
+                               uppercase tracking-wide text-muted">
+                    {{ inviteStatusLabel(invite.status) }}
+                  </span>
+                  <span class="text-muted">{{ roleLabel(invite.role) }}</span>
+                  @if (invite.acceptedByName) {
+                    <span class="text-muted">· used by {{ invite.acceptedByName }}</span>
+                  }
+                  @if (invite.status === 'PENDING') {
+                    <button type="button" class="btn-ghost ml-auto px-2 py-0.5 text-xs text-danger"
+                            [attr.aria-label]="'Revoke this ' + roleLabel(invite.role) + ' link'"
+                            [disabled]="saving()"
+                            (click)="revokeInvite(invite.id)">
+                      Revoke
+                    </button>
+                  }
+                </li>
+              }
+            </ul>
+          }
+        </div>
       }
 
       @if (loading() && !members().length) {

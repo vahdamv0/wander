@@ -16,6 +16,7 @@ import { formatMoney } from '../../core/money';
 import { SessionStore } from '../../core/session.store';
 import { TripChange, TripSyncService } from '../../core/trip-sync';
 import { GeoRepo } from '../../repo/geo.repo';
+import { InviteRepo } from '../../repo/invite.repo';
 import { MemberRepo } from '../../repo/member.repo';
 import { TripRepo } from '../../repo/trip.repo';
 import { WeatherRepo } from '../../repo/weather.repo';
@@ -70,6 +71,7 @@ export class TripPage {
   private readonly config = inject(InstanceConfigStore);
   private readonly router = inject(Router);
   private readonly members = inject(MemberRepo);
+  private readonly invites = inject(InviteRepo);
   private readonly session = inject(SessionStore);
   private readonly sync = inject(TripSyncService);
   private readonly trips = inject(TripRepo);
@@ -329,6 +331,11 @@ export class TripPage {
           try {
             if (this.wantMembers) {
               await this.members.refreshIfLoaded(this.id());
+              // An accepted invitation is a MEMBERS change too, and it turns a
+              // link in the owner's list from "waiting" into "used". Only re-read
+              // if the owner actually has that list open — refreshIfLoaded is
+              // what makes this free for everybody else.
+              await this.invites.refreshIfLoaded(this.id());
               this.wantMembers = false;
             }
             await this.repo.load(this.id());

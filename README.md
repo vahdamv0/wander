@@ -4,10 +4,10 @@ A self-hostable, collaborative travel planner. Spring Boot 4 + Angular 22, one
 container, one Postgres.
 
 > **Status: usable.** The roadmap below is done — accounts, trips, the itinerary,
-> sharing with roles, live sync, expenses, packing, bookings, and offline reading.
-> Two things are left out on purpose rather than unfinished: invite links for
-> people with no account (nothing here sends mail) and an offline *write* queue
-> (it forces the conflict resolution live sync was designed not to need).
+> sharing with roles and invitation links, live sync, expenses, packing, bookings,
+> offline reading, and verified backups. One thing is left out on purpose rather
+> than unfinished: an offline *write* queue, which would force the conflict
+> resolution live sync was deliberately designed not to need.
 
 ## What works today
 
@@ -27,6 +27,8 @@ container, one Postgres.
   labelled on hover and opening the place's panel when clicked
 - Share a trip: members by email, owner / editor / viewer roles, and handing the
   trip over to somebody else
+- Invitation links for people with no account here: single-use, expiring,
+  revocable, and delivered by whatever you already use to talk to them
 - Live sync over a WebSocket, so two people on one trip see each other's edits
   without reloading
 - Expenses in one currency per trip: equal or exact splits, balances, who-owes-whom
@@ -288,6 +290,13 @@ migrations. Retention only runs after a dump succeeds, so a bad week cannot rota
 the good copies away. This is the one part of the system whose failure is
 unrecoverable, and it is the one part where "it looked fine" is worth the least.
 
+**An invitation link is a credential, and is treated like one.** Only a SHA-256
+digest is stored, so the token is readable exactly once and a leaked backup is
+inert; accepting takes a row lock, so a forwarded link cannot admit two people at
+once; an unknown token is a 404 whatever is wrong with it, so guessing tells you
+nothing. It needs no mail server, which is why it was never really blocked — the
+owner sends the link themselves.
+
 **Gates stay on.** `EndpointAuthRatchetTest` fires an anonymous request at every
 endpoint this project declares and fails if one answers; opening an endpoint
 requires an explicit `@PublicEndpoint` that shows up in review. Hibernate runs
@@ -312,9 +321,9 @@ tables under a running instance. Don't lower a gate to land a change.
    and across days, place search over Nominatim, a Leaflet map, drag ordering,
    and a note on each day.
 3. **Sharing.** ✅ The member list, roles beyond `OWNER`, transferring a trip,
-   and live sync — add somebody by email, make them an editor or a viewer, hand
-   the trip over, and watch each other's edits appear without reloading. Still to
-   come: invite links for people who have no account yet.
+   live sync, and invitation links — add somebody by email, or send a link to
+   somebody with no account at all, make them an editor or a viewer, hand the trip
+   over, and watch each other's edits appear without reloading.
 4. **Money and stuff.** Expenses are done ✅ — one currency per trip, amounts in
    integer minor units, equal or exact splits, a "who owes whom" summary reduced
    to the fewest payments, and recording those payments so balances actually

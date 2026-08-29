@@ -55,9 +55,25 @@ test('register, create a trip, and see it listed', async ({ page }) => {
   expect(consoleErrors, 'unexpected console errors').toEqual([]);
 });
 
-test('a signed-out visitor is sent to the login page', async ({ page }) => {
+test('a signed-out visitor is sent to the login page, and back afterwards', async ({ page }) => {
   await page.goto('/trips');
-  await expect(page).toHaveURL(/\/login$/);
+  await expect(page).toHaveURL(/\/login\?returnUrl=%2Ftrips$/);
+
+  // Where they were going travels with them. It is what makes an invitation link
+  // work for somebody with no account — the whole journey is link, register, back
+  // to the link — and it is only ever a path from this application's own router,
+  // because a login page that will redirect to an arbitrary URL is a phishing
+  // primitive.
+  // A *successful* sign-in is the only thing that redirects, so this has to
+  // register rather than fail a login — a failed one never leaves the page and
+  // would pass this assertion without testing anything.
+  await page.goto('/login?returnUrl=https://example.com/phish');
+  await page.getByText('Create one').click();
+  await page.locator('input[name=email]').fill(`e2e-return-${Date.now()}@example.com`);
+  await page.locator('input[name=displayName]').fill('Return Tester');
+  await page.locator('input[name=password]').fill('correct-horse-battery');
+  await page.locator('button[type=submit]').click();
+  await expect(page).toHaveURL(/\/trips$/);
 });
 
 /**
@@ -1768,6 +1784,96 @@ test('a day shows its forecast, and a day past the horizon shows nothing', async
   await expect(days.nth(0).getByText('Somewhere with no coordinates')).toBeVisible();
   // A place with no coordinates cannot move a forecast, so nothing is re-asked.
   expect(weatherCalls, 'a place with no location is not a reason to refetch').toBe(before);
+
+  expect(consoleErrors, 'unexpected console errors').toEqual([]);
+});
+
+/**
+ * An invitation link, and the journey it exists for.
+ *
+ * The point of a link — as opposed to adding somebody by email — is that the
+ * recipient has **no account yet**, so the guest here registers *from the link*
+ * rather than beforehand. That path only works because `authGuard` carries a
+ * `returnUrl`; without it the new account lands on the trip list and the
+ * invitation is silently lost, which looks like nothing at all going wrong.
+ *
+ * The second half is the part worth having: a spent link stops working. It is
+ * asserted from a third account, because "already used" and "you are already on
+ * this trip" are different answers and only a stranger sees the first.
+ */
+test('an invitation link admits one new account and is then spent', async ({ browser }) => {
+  const stamp = Date.now();
+
+  const ownerContext = await browser.newContext();
+  const guestContext = await browser.newContext();
+  const strangerContext = await browser.newContext();
+  const owner = await ownerContext.newPage();
+  const guest = await guestContext.newPage();
+  const stranger = await strangerContext.newPage();
+
+  const consoleErrors: string[] = [];
+  for (const page of [owner, guest, stranger]) {
+    page.on('console', (message) => {
+      if (message.type() === 'error' && !message.text().includes('401')) {
+        consoleErrors.push(message.text());
+      }
+    });
+    page.on('pageerror', (error) => consoleErrors.push(error.message));
+  }
+
+  const register = async (page: typeof owner, email: string, name: string) => {
+    await page.getByText('Create one').click();
+    await page.locator('input[name=email]').fill(email);
+    await page.locator('input[name=displayName]').fill(name);
+    await page.locator('input[name=password]').fill('correct-horse-battery');
+    await page.locator('button[type=submit]').click();
+  };
+
+  await owner.goto('/login');
+  await register(owner, `e2e-inviter-${stamp}@example.com`, 'Link Owner');
+  await expect(owner).toHaveURL(/\/trips$/);
+
+  await owner.getByRole('button', { name: 'Plan your first trip' }).click();
+  await owner.locator('input[name=name]').fill('Lisbon');
+  await owner.locator('input[name=startDate]').fill('2027-04-01');
+  await owner.locator('input[name=endDate]').fill('2027-04-04');
+  await owner.getByRole('button', { name: 'Create trip' }).click();
+  await owner.getByRole('link', { name: /Lisbon/ }).click();
+
+  await owner.getByRole('button', { name: /People/ }).click();
+  await owner.getByRole('button', { name: 'Create link', exact: true }).click();
+
+  // Shown once, and said so — the server keeps only a hash.
+  await expect(owner.getByText('Copy this now — it is not shown again.')).toBeVisible();
+  const link = await owner.locator('.font-mono').first().innerText();
+  expect(link).toContain('/invite/');
+  await expect(owner.getByText('Waiting', { exact: true })).toBeVisible();
+
+  // The guest has no account at all. Opening the link bounces them to the login
+  // page and must bring them back afterwards.
+  await guest.goto(link);
+  await expect(guest).toHaveURL(/\/login\?returnUrl=/);
+  await register(guest, `e2e-invited-${stamp}@example.com`, 'Invited Guest');
+
+  await expect(guest.getByRole('heading', { name: 'Lisbon' })).toBeVisible();
+  await expect(guest.getByText('by Link Owner')).toBeVisible();
+  await guest.getByRole('button', { name: 'Join this trip' }).click();
+
+  // Straight onto the trip, as an editor.
+  await expect(guest).toHaveURL(/\/trips\/\d+$/);
+  await expect(guest.getByRole('heading', { name: 'Lisbon' })).toBeVisible();
+  await expect(guest.getByRole('button', { name: 'Add place' }).first()).toBeVisible();
+
+  // The owner's list says what became of the link, without reloading.
+  await expect(owner.getByText('Used', { exact: true })).toBeVisible();
+  await expect(owner.getByText('used by Invited Guest')).toBeVisible();
+
+  // Spent: a third person holding the same link is turned away.
+  await stranger.goto(link);
+  await expect(stranger).toHaveURL(/\/login\?returnUrl=/);
+  await register(stranger, `e2e-stranger-${stamp}@example.com`, 'Late Stranger');
+  await expect(stranger.getByText('This invitation has already been used.')).toBeVisible();
+  await expect(stranger.getByRole('button', { name: 'Join this trip' })).toHaveCount(0);
 
   expect(consoleErrors, 'unexpected console errors').toEqual([]);
 });
