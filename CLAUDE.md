@@ -663,6 +663,47 @@ race. Note that Chromium's offline emulation leaves an already-open WebSocket
 alone and only breaks HTTP — useful for testing that a failed re-read retries,
 useless for testing reconnection.
 
+## Backups
+
+A `postgres:17-alpine` sidecar (`backup/backup.sh`), started by `compose.yaml`
+alongside everything else.
+
+- **Same image as the database, on purpose.** `pg_dump` refuses to dump a server
+  newer than itself, so a sidecar pinned to another version is a backup that stops
+  working the day Postgres is upgraded.
+- **Every dump is read back before it is published.** `pg_restore --list` walks the
+  archive's table of contents, so a truncated file is caught the day it happens
+  rather than the day it is needed. It is written under `.partial-*` and renamed,
+  because a rename is atomic and a copy job must never pick up a half-written file.
+- **Retention runs only after a success**, so a run of failures cannot rotate away
+  the last good copies — the failure mode where backups quietly become nothing.
+- **Thirty dumps, not seven.** The number is a *detection window*, not an appetite
+  for history: every dump older than a mistake is a faithful copy of the mistake,
+  so retention decides how long something can go unnoticed and still be
+  recoverable. A week fits software somebody opens daily; wander gets used hard
+  for a fortnight and then not at all until the next trip, which is exactly when a
+  quietly damaged trip would go unseen. At a few hundred KB a dump, a month costs
+  ~10MB, so the usual reason to keep it short does not apply.
+- **The directory is a host path, not a named volume.** `docker compose down -v`
+  removes named volumes, and this is the one thing that most needs to survive
+  somebody typing that. It is in `.gitignore`: a dump is the whole database,
+  password hashes and booking references included.
+- **The restore is documented in README and has been run**, not written from
+  memory: restored into a scratch database, compared against the original by
+  `md5(string_agg(...))` over whole rows, and then booted — the app started
+  against it and Flyway validated all 14 migrations. `ddl-auto: validate` is what
+  makes that last step meaningful, so "the app starts" really does mean "the
+  schema is intact".
+- **Backups on the same host do not survive losing the host**, and that is stated
+  in README and `.env.example` rather than left implied. The dumps are independent
+  of the *database* — a bad migration leaves them intact — but not of the
+  *machine*: one disk, one provider account. The offsite copy is a plain `rsync`
+  documented in README, with two details that are the whole point of it. It has
+  **no `--delete`**, because mirroring would replicate an emptied `backups/`
+  directory onto the last surviving copy in exactly the disaster it exists for;
+  and it **pulls** rather than having the server push, because a compromised
+  machine cannot reach a destination it holds no credentials for.
+
 ## Scope discipline
 
 Milestone 0 (accounts, trips, the contract loop, one container) is done, and so
