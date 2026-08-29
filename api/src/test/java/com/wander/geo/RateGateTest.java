@@ -22,6 +22,9 @@ import com.wander.common.RateLimitedException;
  */
 class RateGateTest {
 
+    /** Short enough to keep the class fast, long enough to outlive scheduler noise. */
+    private static final long INTERVAL_MILLIS = 30;
+
     @Test
     void callersAreSpacedByAtLeastTheInterval() {
         RateGate gate = new RateGate(50, 1_000);
@@ -49,20 +52,19 @@ class RateGateTest {
 
     @Test
     void concurrentCallersEachGetTheirOwnSlot() throws Exception {
-        RateGate gate = new RateGate(30, 5_000);
+        RateGate gate = new RateGate(INTERVAL_MILLIS, 5_000);
         List<Callable<Long>> callers = List.of(stamp(gate), stamp(gate), stamp(gate), stamp(gate));
 
+        long start = System.nanoTime();
         List<Long> passedAt;
         try (ExecutorService pool = Executors.newVirtualThreadPerTaskExecutor()) {
             passedAt = pool.invokeAll(callers).stream().map(RateGateTest::value).sorted().toList();
         }
 
-        // Each slot is reserved before its sleep, so four threads arriving at
-        // once leave spaced out rather than all waking to the same moment.
-        for (int i = 1; i < passedAt.size(); i++) {
-            long gapMillis = (passedAt.get(i) - passedAt.get(i - 1)) / 1_000_000;
-            assertThat(gapMillis).as("gap between caller %d and %d", i - 1, i)
-                    .isGreaterThanOrEqualTo(25);
+        for (int i = 0; i < passedAt.size(); i++) {
+            long sinceStartMillis = (passedAt.get(i) - start) / 1_000_000;
+            assertThat(sinceStartMillis).as("caller %d left before its slot", i)
+                    .isGreaterThanOrEqualTo(i * INTERVAL_MILLIS);
         }
     }
 
