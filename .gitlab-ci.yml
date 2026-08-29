@@ -61,7 +61,10 @@ api-client-drift:
         exit 1
       fi
 
-image:
+# NOT named `image`: that is a reserved top-level keyword, so a job called it is
+# read as the global image definition — a map with no `name:` — and the whole
+# pipeline is rejected with "image name should be a string" before any job runs.
+container-image:
   stage: package
   image: docker:27
   services:
