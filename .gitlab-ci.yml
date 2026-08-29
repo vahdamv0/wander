@@ -52,13 +52,39 @@ api-client-drift:
     - ./gradlew :api:test
     # :web:apiGen, not a bare npx: this image is a JDK with no node on PATH, and
     # the Gradle task runs the generator through the plugin's downloaded Node.
-    - ./gradlew :web:apiGen
+    #
+    # Checksums rather than `git diff`: this image has no git either — GitLab
+    # clones with the runner's helper container, so the job image never needs it.
+    # It also fixes a way this check could lie. `if ! git diff --quiet` treats
+    # "the command could not run" exactly like "the files differ", so a missing
+    # binary exited 127, inverted to true, and printed "the client is out of
+    # date" about a diff it had never managed to look at.
+    - find web/src/app/api -type f -print0 | sort -z | xargs -0 sha256sum > /tmp/api-client.before
+    # --rerun, or this check cannot fail. apiGen declares the spec as its input
+    # and the client as its output, so Gradle calls it UP-TO-DATE and skips it —
+    # and the comparison then holds the committed files up against themselves and
+    # passes no matter how stale they are.
+    - ./gradlew :web:apiGen --rerun
+    - find web/src/app/api -type f -print0 | sort -z | xargs -0 sha256sum > /tmp/api-client.after
     - |
-      if ! git diff --quiet -- web/src/app/api; then
-        echo "The committed API client is out of date. Run 'npm run api:gen' in web/ and commit the result:"
-        git --no-pager diff --stat -- web/src/app/api
-        exit 1
-      fi
+      # Explicit exit codes, not `if ! diff`: diff answers 0 for same, 1 for
+      # different and 2 for "I could not do this", and the third must not be
+      # reported as drift.
+      diff -u /tmp/api-client.before /tmp/api-client.after > /tmp/api-client.diff
+      case $? in
+        0) echo "The committed API client matches the spec." ;;
+        1)
+          echo "The committed API client is out of date."
+          echo "Run './gradlew :api:test :web:apiGen' and commit web/src/app/api."
+          echo
+          cat /tmp/api-client.diff
+          exit 1
+          ;;
+        *)
+          echo "The drift check could not run. This is a CI fault, not drift."
+          exit 2
+          ;;
+      esac
 
 # NOT named `image`: that is a reserved top-level keyword, so a job called it is
 # read as the global image definition — a map with no `name:` — and the whole
