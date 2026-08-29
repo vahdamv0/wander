@@ -36,6 +36,14 @@ export const routes: Routes = [
         loadComponent: () => import('./pages/packing/packing').then((m) => m.PackingPage),
       },
       {
+        // Inside the shell and behind the guard like everything else. A holder
+        // with no account is bounced to /login with a returnUrl and comes back
+        // here after registering, which is the entire journey an invite exists
+        // for — and it costs no anonymous endpoint to support.
+        path: 'invite/:token',
+        loadComponent: () => import('./pages/invite/invite').then((m) => m.InvitePage),
+      },
+      {
         path: 'trips/:tripId/reservations',
         loadComponent: () =>
           import('./pages/reservations/reservations').then((m) => m.ReservationsPage),

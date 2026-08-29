@@ -1,6 +1,6 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { Api, getSignInConfig } from '../../api';
 import { messageOf } from '../../core/errors';
 import { SessionStore } from '../../core/session.store';
@@ -14,7 +14,21 @@ import { BrandMark } from '../../shell/brand-mark';
 export class LoginPage {
   private readonly session = inject(SessionStore);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   private readonly api = inject(Api);
+
+  /**
+   * Where to go once signed in — whatever the guard was protecting, or the trip
+   * list. Only ever a path from this application's own router: taking an absolute
+   * URL here would turn the login page into an open redirect, which is a
+   * phishing primitive on any site that has one.
+   */
+  private returnUrl(): string {
+    const requested = this.route.snapshot.queryParamMap.get('returnUrl');
+    return requested && requested.startsWith('/') && !requested.startsWith('//')
+      ? requested
+      : '/trips';
+  }
 
   /**
    * Whether this instance accepts sign-ups. Null until the server says, and the
@@ -62,7 +76,7 @@ export class LoginPage {
       } else {
         await this.session.register(this.email(), this.displayName(), this.password());
       }
-      await this.router.navigate(['/trips']);
+      await this.router.navigateByUrl(this.returnUrl());
     } catch (err: unknown) {
       this.error.set(messageOf(err, 'Something went wrong. Please try again.'));
     } finally {

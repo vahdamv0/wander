@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { TripMemberView } from '../../api';
 import { messageOf } from '../../core/errors';
 import { SessionStore } from '../../core/session.store';
+import { InviteRepo } from '../../repo/invite.repo';
 import { MemberRepo, TripRole } from '../../repo/member.repo';
 
 /**
@@ -25,6 +26,7 @@ import { MemberRepo, TripRole } from '../../repo/member.repo';
 })
 export class TripMembers {
   private readonly repo = inject(MemberRepo);
+  private readonly invites = inject(InviteRepo);
   private readonly session = inject(SessionStore);
 
   readonly tripId = input.required<number>();
@@ -53,6 +55,12 @@ export class TripMembers {
   protected readonly draftEmail = signal('');
   protected readonly draftRole = signal<TripRole>('EDITOR');
 
+  protected readonly inviteList = this.invites.invites;
+  protected readonly createdInvite = this.invites.created;
+  protected readonly inviteRole = signal<TripRole>('EDITOR');
+  /** Set once the link has been copied, so the button can say so. */
+  protected readonly copied = signal(false);
+
   /** The roles an owner may hand out directly. OWNER is a transfer, not an add. */
   protected readonly assignable: TripRole[] = ['EDITOR', 'VIEWER'];
 
@@ -68,7 +76,66 @@ export class TripMembers {
     const opening = !this.open();
     this.open.set(opening);
     if (opening) {
-      void this.guard(() => this.repo.load(this.tripId()));
+      void this.guard(async () => {
+        await this.repo.load(this.tripId());
+        // Only the owner may list invitations at all, so asking as anybody else
+        // would be a guaranteed 403 painted over the panel.
+        if (this.isOwner()) {
+          await this.invites.load(this.tripId());
+        }
+      });
+    }
+  }
+
+  /**
+   * The full URL to send somebody.
+   *
+   * Built here rather than on the server, which knows only the path: behind the
+   * reverse proxy it sees an internal hostname, so a link it composed would point
+   * at something unreachable. The browser is the only party that knows the address
+   * this instance was actually reached on.
+   */
+  protected inviteUrl(path: string): string {
+    return new URL(path, window.location.origin).toString();
+  }
+
+  protected async createInvite(): Promise<void> {
+    this.copied.set(false);
+    await this.guard(async () => {
+      await this.invites.create(this.tripId(), this.inviteRole());
+    });
+  }
+
+  protected async copyInvite(path: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(this.inviteUrl(path));
+      this.copied.set(true);
+    } catch {
+      // Clipboard access can be refused, and the link is on screen to be
+      // selected by hand — so this is not worth an error banner.
+      this.copied.set(false);
+    }
+  }
+
+  protected dismissCreated(): void {
+    this.invites.clearCreated();
+    this.copied.set(false);
+  }
+
+  protected async revokeInvite(inviteId: number): Promise<void> {
+    await this.guard(() => this.invites.revoke(this.tripId(), inviteId));
+  }
+
+  protected inviteStatusLabel(status: string): string {
+    switch (status) {
+      case 'PENDING':
+        return 'Waiting';
+      case 'ACCEPTED':
+        return 'Used';
+      case 'REVOKED':
+        return 'Revoked';
+      default:
+        return 'Expired';
     }
   }
 
