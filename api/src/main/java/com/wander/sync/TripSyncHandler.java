@@ -18,9 +18,7 @@ import tools.jackson.databind.ObjectMapper;
 
 /**
  * The open sockets, grouped by trip, and the one place that writes to them.
- *
  * Three things here are not obvious:
- *
  *  - **Every session is wrapped in a {@link ConcurrentWebSocketSessionDecorator}.**
  *    A {@code WebSocketSession} is not safe for concurrent sends, and broadcasts
  *    arrive on whatever thread committed the transaction — two people saving at
@@ -110,8 +108,19 @@ public class TripSyncHandler extends TextWebSocketHandler {
         }
     }
 
-    /** Open sockets on one trip. Test seam, and the reason the map is not private state. */
-    int watcherCount(Long tripId) {
+    /**
+     * Open sockets on one trip. Test seam, and the reason the map is not private
+     * state.
+     *
+     * Public because the test lives in another package, and it is what makes the
+     * suite honest about a real race: a client's handshake future completes when
+     * it sees the 101, which is *before* this class has run
+     * {@link #afterConnectionEstablished} and put the session in the map. A test
+     * that acts on that gap finds {@link #broadcast} taking its
+     * "nobody is watching" early return, so nothing is sent and nothing is
+     * closed. Waiting on this count is how a test says "the server has it now".
+     */
+    public int watcherCount(Long tripId) {
         Set<WebSocketSession> watchers = byTrip.get(tripId);
         return watchers == null ? 0 : watchers.size();
     }
