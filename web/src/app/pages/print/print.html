@@ -1,0 +1,124 @@
+<!-- `print-document` is what the print stylesheet keys off; see styles.css. The
+     max-width is a paper column rather than the app's usual wide layout, so what
+     is on screen is close to what comes out of the printer. -->
+<div class="print-document mx-auto max-w-3xl px-4 py-8">
+  <!-- Screen only: a toolbar has no business on paper. -->
+  <div class="print-hide mb-6 flex flex-wrap items-center gap-2">
+    <a [routerLink]="['/trips', tripId()]" class="btn-ghost text-sm">Back to the trip</a>
+    <button type="button" class="btn-primary text-sm" (click)="print()">Print or save as PDF</button>
+    @if (savedAt()) {
+      <span class="text-xs text-muted">Showing a saved copy — it may be out of date.</span>
+    }
+  </div>
+
+  @if (loading()) {
+    <p class="text-sm text-muted">Putting the itinerary together…</p>
+  } @else if (error(); as message) {
+    <p class="rounded-control bg-danger-soft px-3 py-2 text-sm text-danger" role="alert">
+      {{ message }}
+    </p>
+  } @else if (trip(); as trip) {
+    <header class="border-b border-border pb-4">
+      <h1 class="text-2xl font-semibold tracking-tight">{{ trip.name }}</h1>
+      <p class="mt-1 text-sm text-muted">
+        @if (trip.destination) {
+          {{ trip.destination }} ·
+        }
+        {{ dayHeading(trip.startDate) }} – {{ dayHeading(trip.endDate) }}
+      </p>
+    </header>
+
+    @if (bookingsOutsideTheTrip().length) {
+      <!-- Before or after the trip's own days. Printed first because the earliest
+           of them is usually the flight out, and dropping it would be the worst
+           thing this page could do. -->
+      <section class="print-block mt-6">
+        <h2 class="text-sm font-semibold uppercase tracking-wide text-muted">
+          Around the trip
+        </h2>
+        <ul class="mt-2 grid gap-2">
+          @for (booking of bookingsOutsideTheTrip(); track booking.id) {
+            <li class="print-block border-l-2 border-border pl-3">
+              <p class="text-sm font-medium">
+                {{ booking.title }}
+                <span class="font-normal text-muted">· {{ kindLabel(booking.kind) }}</span>
+              </p>
+              <p class="text-sm">{{ bookingDay(booking) }}, {{ bookingTime(booking) }}</p>
+              @if (bookingEnd(booking); as end) {
+                <p class="text-sm text-muted">until {{ end }}</p>
+              }
+              @if (booking.confirmation) {
+                <p class="text-sm">Ref <span class="font-mono">{{ booking.confirmation }}</span></p>
+              }
+              @if (booking.notes) {
+                <p class="whitespace-pre-line text-sm text-muted">{{ booking.notes }}</p>
+              }
+            </li>
+          }
+        </ul>
+      </section>
+    }
+
+    @for (day of days(); track day.date) {
+      <!-- print-block keeps a day off a page boundary where it fits on one. -->
+      <section class="print-block mt-6">
+        <h2 class="border-b border-border pb-1 text-base font-semibold">
+          Day {{ day.index }}
+          <span class="font-normal text-muted">· {{ dayHeading(day.date) }}</span>
+        </h2>
+
+        @if (day.note) {
+          <p class="mt-2 whitespace-pre-line text-sm">{{ day.note }}</p>
+        }
+
+        @for (booking of bookingsFor(day.date); track booking.id) {
+          <div class="print-block mt-2 border-l-2 border-border pl-3">
+            <p class="text-sm font-medium">
+              {{ bookingTime(booking) }} · {{ booking.title }}
+              <span class="font-normal text-muted">· {{ kindLabel(booking.kind) }}</span>
+            </p>
+            @if (bookingEnd(booking); as end) {
+              <p class="text-sm text-muted">until {{ end }}</p>
+            }
+            @if (booking.confirmation) {
+              <p class="text-sm">Ref <span class="font-mono">{{ booking.confirmation }}</span></p>
+            }
+            @if (booking.notes) {
+              <p class="whitespace-pre-line text-sm text-muted">{{ booking.notes }}</p>
+            }
+          </div>
+        }
+
+        @if (day.places.length) {
+          <ol class="mt-2 grid gap-2">
+            @for (place of day.places; track place.id) {
+              <li class="print-block">
+                <p class="text-sm font-medium">
+                  @if (place.startsAt) {
+                    <span class="text-muted">{{ placeTime(place.startsAt) }}</span>
+                  }
+                  {{ place.name }}
+                </p>
+                @if (place.address) {
+                  <p class="text-sm text-muted">{{ place.address }}</p>
+                }
+                @for (note of place.notes; track $index) {
+                  <p class="whitespace-pre-line text-sm">{{ note }}</p>
+                }
+              </li>
+            }
+          </ol>
+        } @else if (!bookingsFor(day.date).length && !day.note) {
+          <p class="mt-2 text-sm text-muted">Nothing planned.</p>
+        }
+      </section>
+    }
+
+    <footer class="mt-8 border-t border-border pt-3 text-xs text-muted">
+      <!-- The date matters on paper in a way it does not on screen: this document
+           stops being true the moment somebody edits the trip, and the only clue
+           its reader has is when it was printed. -->
+      Printed {{ printedOn }} · wander
+    </footer>
+  }
+</div>

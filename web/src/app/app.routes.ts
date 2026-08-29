@@ -36,6 +36,15 @@ export const routes: Routes = [
         loadComponent: () => import('./pages/packing/packing').then((m) => m.PackingPage),
       },
       {
+        // The itinerary as a document. Its own route rather than print styles on
+        // the trip page: that page carries a map, a People panel and a day's
+        // worth of controls, so printing it would be a long list of things to
+        // hide — and it would still be missing the bookings, which live on
+        // another page entirely and belong on the same sheet of paper.
+        path: 'trips/:tripId/print',
+        loadComponent: () => import('./pages/print/print').then((m) => m.PrintPage),
+      },
+      {
         // Inside the shell and behind the guard like everything else. A holder
         // with no account is bounced to /login with a returnUrl and comes back
         // here after registering, which is the entire journey an invite exists
