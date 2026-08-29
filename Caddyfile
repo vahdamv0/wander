@@ -1,0 +1,35 @@
+# The reverse proxy in front of wander, and the one place TLS is decided.
+#
+# WANDER_SITE_ADDRESS is the whole switch:
+#
+#   :80                  plain HTTP, no certificates requested  (LAN, a tunnel,
+#                        or anything already terminating TLS in front of this)
+#   wander.example.com   automatic HTTPS via Let's Encrypt, HTTP redirected
+#
+# Caddy decides by looking at the address: a hostname gets a certificate, a bare
+# port does not. There is no flag to set and nothing to comment out.
+#
+# Whichever you choose, WANDER_COOKIE_SECURE in .env has to agree — see the note
+# there. It is the one thing this file cannot decide for you, because it is the
+# application that sets the cookie.
+
+{$WANDER_SITE_ADDRESS::80} {
+	# WebSockets need no configuration here: Caddy passes an Upgrade request
+	# through reverse_proxy untouched, which is what live sync rides on. It is
+	# the reason this is Caddy and not nginx, where forgetting the Upgrade and
+	# Connection headers leaves an app that looks fine and silently stops syncing.
+	#
+	# X-Forwarded-Proto is set automatically, and the app already trusts it
+	# (`server.forward-headers-strategy: framework`), so it knows the request
+	# arrived over HTTPS even though it is served plain HTTP inside the network.
+	reverse_proxy wander:8080
+
+	# The jar serves pre-compressed assets, but the JSON API is not compressed
+	# and an itinerary is mostly text.
+	encode zstd gzip
+
+	log {
+		output stderr
+		format console
+	}
+}
