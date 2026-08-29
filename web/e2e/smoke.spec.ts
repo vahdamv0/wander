@@ -1877,3 +1877,94 @@ test('an invitation link admits one new account and is then spent', async ({ bro
 
   expect(consoleErrors, 'unexpected console errors').toEqual([]);
 });
+
+/**
+ * The itinerary as a printable document.
+ *
+ * Worth testing through `emulateMedia({ media: 'print' })` rather than just
+ * asserting the page renders: the whole feature *is* the print stylesheet, and
+ * the two things that would ruin a printout — the app shell coming along, and
+ * the toolbar printing itself — are invisible on screen by definition. A test
+ * that only checked the content would pass on a page that prints a navigation
+ * header across the top of every copy.
+ *
+ * The other half is that bookings are folded into the day they happen on, which
+ * is the difference between this and the two pages it is assembled from.
+ */
+test('the itinerary prints as a document, with its bookings on the right days', async ({ page }) => {
+  const consoleErrors: string[] = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error' && !message.text().includes('401')) {
+      consoleErrors.push(message.text());
+    }
+  });
+  page.on('pageerror', (error) => consoleErrors.push(error.message));
+
+  await page.goto('/login');
+  await page.getByText('Create one').click();
+  await page.locator('input[name=email]').fill(`e2e-print-${Date.now()}@example.com`);
+  await page.locator('input[name=displayName]').fill('Print Tester');
+  await page.locator('input[name=password]').fill('correct-horse-battery');
+  await page.locator('button[type=submit]').click();
+
+  await page.getByRole('button', { name: 'Plan your first trip' }).click();
+  await page.locator('input[name=name]').fill('Tokyo');
+  await page.locator('input[name=startDate]').fill('2027-05-10');
+  await page.locator('input[name=endDate]').fill('2027-05-12');
+  await page.getByRole('button', { name: 'Create trip' }).click();
+  await page.getByRole('link', { name: /Tokyo/ }).click();
+
+  const day1 = page.locator('ol > li.card').first();
+  await day1.getByRole('button', { name: 'Add place' }).click();
+  await day1.locator('input[name=name]').fill('Senso-ji');
+  await day1.locator('textarea[name=notes]').fill('Go early, before the crowds.');
+  await day1.getByRole('button', { name: 'Add place', exact: true }).last().click();
+  await day1.getByRole('button', { name: 'Done' }).click();
+
+  // A booking on the trip's second day, with a reference somebody has to read
+  // off the paper at a desk.
+  const tripUrl = page.url();
+  await page.getByRole('link', { name: 'Bookings' }).click();
+  await page.getByRole('button', { name: 'Add a booking' }).click();
+  await page.locator('select[name=kind]').selectOption('HOTEL');
+  await page.locator('input[name=title]').fill('Hotel Okura');
+  await page.locator('input[name=startDate]').fill('2027-05-11');
+  await page.locator('input[name=startTime]').fill('15:00');
+  await page.locator('select[name=startZone]').selectOption('Asia/Tokyo');
+  await page.locator('input[name=confirmation]').fill('XK29PQ');
+  await page.getByRole('button', { name: 'Save booking' }).click();
+  await expect(page.getByText('Hotel Okura', { exact: true })).toBeVisible();
+
+  await page.goto(`${tripUrl}/print`);
+  await expect(page.getByRole('heading', { name: 'Tokyo' })).toBeVisible();
+
+  // The place, its note, and the booking folded onto its own day rather than
+  // sitting in a separate list.
+  await expect(page.getByText('Senso-ji')).toBeVisible();
+  await expect(page.getByText('Go early, before the crowds.')).toBeVisible();
+  const daySections = page.locator('section.print-block');
+  await expect(daySections.filter({ hasText: 'Hotel Okura' })).toContainText('Day 2');
+  // The reference is the reason to carry paper at all.
+  await expect(page.getByText('XK29PQ')).toBeVisible();
+  // Every time on paper carries its zone, unlike on screen where it is shown
+  // only when it differs from the reader's. Asserted as "a zone label is there"
+  // rather than as an exact string: the clock is rendered by Intl in the
+  // browser's own locale, so it is "15:00" in some and "3:00 PM" in others, and
+  // pinning the format would make this a test of the test runner's locale.
+  await expect(daySections.filter({ hasText: 'Hotel Okura' })).toContainText(/GMT\+9|JST/);
+
+  // Now as the printer sees it. The document survives; the furniture does not.
+  await page.emulateMedia({ media: 'print' });
+  await expect(page.getByText('Senso-ji')).toBeVisible();
+  await expect(page.getByText('XK29PQ')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Print or save as PDF' })).toBeHidden();
+  await expect(page.getByRole('link', { name: 'Back to the trip' })).toBeHidden();
+  // The app shell's header would otherwise land across the top of every copy.
+  // Matched by the marker class rather than `app-shell header`: the document has
+  // a header of its own for the trip title, and that one is supposed to print.
+  await expect(page.locator('header.print-hide')).toBeHidden();
+  await expect(page.getByRole('heading', { name: 'Tokyo' })).toBeVisible();
+  await page.emulateMedia({ media: 'screen' });
+
+  expect(consoleErrors, 'unexpected console errors').toEqual([]);
+});

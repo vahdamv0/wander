@@ -624,13 +624,58 @@ sends nothing but keepalive, and the payload is one small event.
 - The dev server needs `"ws": true` on `/api` in `web/proxy.conf.json`, or the
   handshake 404s under `npm start` and works only in the packaged jar.
 
+## The printed itinerary
+
+`/trips/:id/print` — the one page in this project designed for paper.
+
+- **No PDF library.** `window.print()` is already a PDF exporter in every browser,
+  it honours the reader's paper size, it works offline from the cache, and it adds
+  no endpoint and no dependency. A server-side renderer would have meant bundled
+  fonts and a second layout engine to disagree with the one that drew everything
+  else.
+- **Its own route, not print styles on the trip page.** That page carries a map, a
+  People panel and a day's worth of controls, so printing it would be a long list
+  of things to hide — and it would still be missing the bookings, which live on
+  another page and belong on the same sheet.
+- **Bookings are folded into the day they happen on**, unlike on screen where they
+  are their own list. On paper you follow an itinerary rather than maintain it.
+  A booking outside the trip's range — the flight out the night before — gets its
+  own "Around the trip" heading rather than being dropped, which is what grouping
+  alone would do.
+- **Every time carries its zone**, which is the *opposite* of the screen rule
+  (`zoneLabel` shows one only when it differs from the reader's). A printout is
+  read somewhere other than where it was made, so the zone it was printed in tells
+  the reader nothing, and an unlabelled 09:15 is a bad thing to hand somebody
+  heading for an airport.
+- **`isoDayInZone`, never `dayInZone`, for keying.** `dayInZone` formats for a
+  human ("12 Jul 2027"); using it as a key silently matches no day at all, so every
+  booking vanishes into "Around the trip" with nothing logged and no request
+  failing. That is exactly what the first version did, and it is why `zones.spec.ts`
+  exists.
+- **Screen furniture carries `print-hide`** — the shell header, the offline banner,
+  the page's own toolbar — rather than being matched by position, because the
+  header sits two elements deep in `app-shell` and a descendant chain would break
+  the first time somebody wrapped it. The whole print block is scoped to
+  `body:has(.print-document)`, so a stray Ctrl-P anywhere else is untouched.
+- `.print-block` on a day, a booking and a place sets `break-inside: avoid`, so
+  they are not split across a page boundary when they would fit whole on the next.
+- The footer says when it was printed. On paper that matters in a way it does not
+  on screen: the document stops being true the moment somebody edits the trip, and
+  the date is the only clue its reader has.
+- Note the print test uses `page.emulateMedia({ media: 'print' })`. The two things
+  that would ruin a printout — the shell coming along, the toolbar printing itself
+  — are invisible on screen by definition, so a test that only checked content
+  would pass on a page that prints a navigation bar across every copy.
+
 ## Unit tests in the client
 
-`cd web && npm run test` (vitest, via `@angular/build:unit-test`). There is
-exactly one spec — `core/money.spec.ts` — and that is the shape to keep: the
-client is tested through the browser suite, except where a pure function deserves
-better than that. Money parsing does, because "12.345" quietly becoming 12.34 is
-invisible from the outside.
+`cd web && npm run test` (vitest, via `@angular/build:unit-test`). There are
+two specs — `core/money.spec.ts` and `core/zones.spec.ts` — and that is the shape
+to keep: the client is tested through the browser suite, except where a pure
+function deserves better than that. Both qualify for the same reason. Money
+parsing does because "12.345" quietly becoming 12.34 is invisible from the
+outside; `isoDayInZone` does because a wrong answer throws nothing, logs nothing
+and fails no request — a booking keyed by it simply never appears under any day.
 
 The Angular CLI needs Node ≥ 22.22.3 and the machine's Node may be older; Gradle
 downloads its own at `web/.gradle/nodejs/`, so
@@ -757,6 +802,6 @@ and invitation links for people who have no account yet. Milestone 4 is done: ex
 settling up, packing lists, and reservations. Milestone 5 is half done — offline
 *reads* are in; the write queue is deliberately not, and a decision rather than an
 omission. The day card is finished: a note, what the day cost, and the forecast
-when there is one. See
-the roadmap in README.md. Deliberately **out** of scope until asked:
-plugins, i18n, MCP, offline. Keep v1 small.
+when there is one. Beyond the roadmap: verified nightly backups with a rehearsed
+restore, and the itinerary as a printable document. See the roadmap in README.md.
+Deliberately **out** of scope until asked: plugins, i18n, MCP. Keep v1 small.

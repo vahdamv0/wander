@@ -55,6 +55,36 @@ export function dayInZone(instant: string, zone: string): string {
   return format(instant, zone, { dateStyle: 'medium' });
 }
 
+/**
+ * The calendar date in that zone as `yyyy-mm-dd` — the form the itinerary uses
+ * for a day.
+ *
+ * Distinct from `dayInZone`, which formats for a human ("12 Jul 2027") and is a
+ * display string. Using that one as a key is a quiet disaster: it never equals a
+ * `dayDate`, so anything grouped by it matches no day at all and simply goes
+ * missing, with no error anywhere. That is exactly what happened when the print
+ * page was first written.
+ *
+ * Built from `formatToParts` rather than the widespread `en-CA` locale trick,
+ * which happens to produce ISO-ish output but is not specified to.
+ */
+export function isoDayInZone(instant: string, zone: string): string {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: zone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(new Date(instant));
+    const part = (type: string) => parts.find((candidate) => candidate.type === type)?.value ?? '';
+    return `${part('year')}-${part('month')}-${part('day')}`;
+  } catch {
+    // An unknown zone cannot reach here from the server, which validates them —
+    // but the instant's own UTC date is a better answer than throwing.
+    return instant.slice(0, 10);
+  }
+}
+
 /** The short name a person would say — "JST", "BST" — for labelling a foreign time. */
 export function zoneAbbreviation(instant: string, zone: string): string {
   try {

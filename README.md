@@ -44,6 +44,8 @@ container, one Postgres.
   directions in Google Maps or OpenStreetMap
 - Offline reading: open a trip once and its days, places, bookings and packing
   list stay readable with no connection, labelled with how old the copy is
+- Print or save the itinerary as a PDF — a day-by-day document with bookings and
+  confirmation references folded onto the days they happen on
 - Nightly database backups that are verified before they are kept, with a restore
   procedure that has actually been run
 - Light / dark / follow-the-OS theming, all driven by design tokens
@@ -296,6 +298,14 @@ inert; accepting takes a row lock, so a forwarded link cannot admit two people a
 once; an unknown token is a 404 whatever is wrong with it, so guessing tells you
 nothing. It needs no mail server, which is why it was never really blocked — the
 owner sends the link themselves.
+
+**Printing needs no PDF library.** `window.print()` is already a PDF exporter in
+every browser: it honours the reader's paper size, works offline from the cache,
+and needs no endpoint — the printable page is assembled from the two repos the app
+already has. What it did need was a stylesheet, and the two things that would ruin
+a printout (the app shell coming along, the toolbar printing itself) are invisible
+on screen, so the browser test asserts them under `emulateMedia({ media: 'print' })`
+rather than trusting them.
 
 **Gates stay on.** `EndpointAuthRatchetTest` fires an anonymous request at every
 endpoint this project declares and fails if one answers; opening an endpoint

@@ -2,13 +2,15 @@
   @if (!online()) {
     <!-- Stale data is shown, so it has to be labelled. This project has refused
          to hide staleness everywhere else; a cache is not the place to start. -->
-    <p class="bg-surface-2 px-4 py-1.5 text-center text-xs text-muted" role="status">
+    <p class="print-hide bg-surface-2 px-4 py-1.5 text-center text-xs text-muted" role="status">
       You're offline — showing what was saved on this device. Changes can't be
       saved until you reconnect.
     </p>
   }
+  <!-- print-hide: the shell is screen furniture, and the itinerary printout is
+       the one page here designed for paper. -->
   <header
-    class="sticky top-0 z-10 border-b border-border bg-surface/85 backdrop-blur
+    class="print-hide sticky top-0 z-10 border-b border-border bg-surface/85 backdrop-blur
            supports-[backdrop-filter]:bg-surface/70"
   >
     <div class="mx-auto flex h-14 max-w-5xl items-center gap-3 px-4">

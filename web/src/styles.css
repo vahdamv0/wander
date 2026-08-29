@@ -308,3 +308,76 @@
 [data-theme="dark"] .leaflet-tile {
   filter: brightness(0.72) saturate(0.8) contrast(1.08);
 }
+
+/* ---------------------------------------------------------------------------
+   Print.
+
+   The itinerary print page is the only thing here designed for paper, and this
+   is the whole of the export feature: `window.print()` plus these rules gives a
+   PDF in every browser, with the reader's own paper size and margins, and no
+   layout engine beyond the one that drew everything else.
+
+   Everything is scoped to `.print-document` being on the page, so printing any
+   other page still does whatever the browser would have done anyway.
+   --------------------------------------------------------------------------- */
+@media print {
+  /* Paper is white and ink is expensive. The app's dark theme would otherwise
+     print a black page, which some browsers honour and every reader regrets. */
+  :root,
+  :root[data-theme="dark"],
+  :root[data-theme="light"] {
+    --w-bg: #ffffff;
+    --w-surface: #ffffff;
+    --w-surface-2: #ffffff;
+    --w-ink: #000000;
+    /* --w-ink-muted, not --w-muted: the theme block maps --color-muted from
+       --w-ink-muted, so the shorter name is a variable nothing reads. */
+    --w-ink-muted: #333333;
+    --w-border: #999999;
+  }
+
+  html,
+  body {
+    background: #ffffff;
+  }
+
+  /* The application shell — header, nav, the offline banner — is furniture for a
+     screen, and so is this page's own toolbar. They all carry `print-hide`
+     rather than being matched by position: the header sits two elements deep
+     inside app-shell, and a descendant chain would break the first time somebody
+     wrapped it in another div.
+
+     `:has()` scopes the whole thing to the printout, so a stray Ctrl-P on any
+     other page still does exactly what the browser would have done. */
+  body:has(.print-document) .print-hide {
+    display: none !important;
+  }
+
+  .print-document {
+    max-width: none;
+    padding: 0;
+    /* Slightly tighter than the screen: paper has less room and more of it is
+       read at a glance. */
+    font-size: 11pt;
+    line-height: 1.4;
+  }
+
+  /* A day, a booking or a place should not be split across a page boundary when
+     it would fit whole on the next one. `break-inside` is the modern property;
+     `page-break-inside` is still what older WebKit honours, so both are set. */
+  .print-block {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  /* A heading stranded at the foot of a page is the classic printing defect. */
+  h1,
+  h2 {
+    page-break-after: avoid;
+    break-after: avoid;
+  }
+
+  @page {
+    margin: 18mm 16mm;
+  }
+}
