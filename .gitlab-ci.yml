@@ -97,6 +97,14 @@ container-image:
   variables:
     DOCKER_TLS_CERTDIR: ""
   script:
-    - docker build -t "wander:$CI_COMMIT_SHORT_SHA" .
+    # $CI_REGISTRY_* are injected by GitLab; the password is a job-scoped token
+    # that expires with the job, so there is no secret to store here.
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+    # Two tags on one build: the sha is what a deployment pins to, `latest` is
+    # what `docker compose pull` follows. Tagging is free — the image is built
+    # once and both names point at it.
+    - docker build -t "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA" -t "$CI_REGISTRY_IMAGE:latest" .
+    - docker push "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA"
+    - docker push "$CI_REGISTRY_IMAGE:latest"
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
