@@ -12,6 +12,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
@@ -20,9 +21,10 @@ import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.client.standard.StandardWebSocketClient;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
+import com.wander.sync.TripSyncHandler;
+
 /**
  * The live-sync socket.
- *
  * This test carries more weight than most, because **`EndpointAuthRatchetTest`
  * cannot see this endpoint.** The ratchet walks `RequestMappingHandlerMapping`,
  * and a handler registered through `WebSocketConfigurer` is not a
@@ -36,7 +38,9 @@ class TripSyncIntegrationTest extends IntegrationTestBase {
 
     private static final long TIMEOUT_SECONDS = 10;
 
-    /** Collects what arrives, and notices when the server hangs up. */
+    @Autowired
+    private TripSyncHandler watchers;
+
     private static final class Recorder extends TextWebSocketHandler {
         private final BlockingQueue<String> messages = new LinkedBlockingQueue<>();
         private final CountDownLatch closed = new CountDownLatch(1);
@@ -51,7 +55,6 @@ class TripSyncIntegrationTest extends IntegrationTestBase {
             closed.countDown();
         }
 
-        /** The next event, or a failure if the server stayed quiet. */
         String next() throws InterruptedException {
             String payload = messages.poll(TIMEOUT_SECONDS, TimeUnit.SECONDS);
             assertThat(payload).as("an event within %ds", TIMEOUT_SECONDS).isNotNull();
@@ -73,9 +76,37 @@ class TripSyncIntegrationTest extends IntegrationTestBase {
         // The session cookie is the credential here exactly as it is for REST;
         // the handshake is a GET, so no CSRF token is involved.
         headers.add(HttpHeaders.COOKIE, session.cookie());
-        return new StandardWebSocketClient()
+        int before = watchers.watcherCount(asLong(tripId));
+        WebSocketSession socket = new StandardWebSocketClient()
                 .execute(recorder, headers, uriFor(tripId))
                 .get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        awaitWatchers(tripId, before + 1);
+        return socket;
+    }
+
+    /**
+     * Waits until the server has actually registered the socket.
+     * The client's future completes on the 101, which happens *before*
+     * `TripSyncHandler.afterConnectionEstablished` adds the session to its map.
+     * A test that acts inside that gap finds `broadcast` taking its "nobody is
+     * watching" early return: no event is sent, and for a deleted trip the
+     * close never happens either, so the failure is a ten-second timeout rather
+     * than anything that points at the cause. Rare on an idle laptop and not
+     * rare on a loaded CI runner, which is where it turned up.
+     * Every test in this class connects and then immediately does something, so
+     * this belongs in connect() rather than in the one test that caught it.
+     */
+    private void awaitWatchers(Object tripId, int expected) throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(TIMEOUT_SECONDS);
+        while (watchers.watcherCount(asLong(tripId)) < expected) {
+            if (System.nanoTime() > deadline) {
+                assertThat(watchers.watcherCount(asLong(tripId)))
+                        .as("the server registered the socket within %ds", TIMEOUT_SECONDS)
+                        .isGreaterThanOrEqualTo(expected);
+                return;
+            }
+            Thread.sleep(5);
+        }
     }
 
     private URI uriFor(Object tripId) {
