@@ -32,6 +32,21 @@ val ngBuild = tasks.register<NpmTask>("ngBuild") {
     outputs.dir(layout.buildDirectory.dir("frontend"))
 }
 
+// Regenerates web/src/app/api from api/build/openapi.json, which :api:test writes.
+//
+// Through the node plugin rather than a bare `npx`, so it uses the pinned Node
+// downloaded above instead of whatever is on PATH. Both places that matter have
+// no usable one: the CI image is a JDK with no node or npx at all, and a
+// developer machine may well be below Angular's 22.22.3 floor. `npm run api:gen`
+// still works wherever the local toolchain is new enough.
+tasks.register<NpmTask>("apiGen") {
+    description = "Regenerates web/src/app/api from api/build/openapi.json (run :api:test first)."
+    dependsOn(tasks.named("npmInstall"))
+    npmCommand = listOf("run", "api:gen")
+    inputs.file(rootProject.file("api/build/openapi.json"))
+    outputs.dir("src/app/api")
+}
+
 // Angular writes to build/frontend/browser (see angular.json outputPath), which
 // keeps generated output inside Gradle's build dir so `clean` reaches it.
 tasks.named<Jar>("jar") {

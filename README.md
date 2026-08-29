@@ -87,6 +87,7 @@ cd web && npm run e2e                    # Playwright, against a running instanc
 ./gradlew build -Pfrontend.skip=true     # backend only, no npm work
 ./gradlew :api:test                      # tests + exports api/build/openapi.json
 cd web && npm run api:gen                # regenerate the typed client from that spec
+./gradlew :web:apiGen                    # the same, using Gradle's pinned Node
 ```
 
 ## How it fits together
