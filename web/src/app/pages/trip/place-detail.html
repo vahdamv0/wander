@@ -186,10 +186,48 @@
     }
 
     <div class="mt-5 flex flex-wrap gap-2 border-t border-border pt-4">
-      @if (directionsUrl(); as directions) {
-        <a [href]="directions" target="_blank" rel="noopener noreferrer" class="btn-ghost text-sm">
-          Directions
-        </a>
+      <!-- Two routing services rather than one, and a menu because neither is
+           chosen for the user. Opens upward: this row is the last thing in a
+           scrollable panel, so a menu dropping down would open into nothing. -->
+      @if (directionsLinks(); as directions) {
+        <div class="relative">
+          <button type="button" class="btn-ghost text-sm"
+                  aria-haspopup="menu"
+                  [attr.aria-expanded]="directionsOpen()"
+                  (click)="toggleDirections()">
+            Directions
+            <svg class="size-3.5 transition-transform" [class.rotate-180]="directionsOpen()"
+                 viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </button>
+
+          @if (directionsOpen()) {
+            <!-- Clicking anywhere else dismisses it. A plain div, because it is
+                 not a control: the menu's own items and Escape are the paths a
+                 keyboard takes, and this would only be a stop on the way. -->
+            <div class="fixed inset-0 z-30" (click)="closeDirections()"></div>
+
+            <div class="absolute bottom-full left-0 z-40 mb-1 min-w-44 overflow-hidden rounded-control
+                        border border-border bg-surface py-1 shadow-lg"
+                 role="menu" aria-label="Open directions in">
+              @for (target of directions; track target.label) {
+                <a [href]="target.url" target="_blank" rel="noopener noreferrer"
+                   role="menuitem"
+                   class="flex items-center gap-2.5 px-3 py-2 text-sm text-ink hover:bg-surface-2"
+                   (click)="closeDirections()">
+                  <svg class="size-4 shrink-0 text-muted" viewBox="0 0 24 24" fill="none"
+                       stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                       stroke-linejoin="round" aria-hidden="true">
+                    <path d="M22 2 11 13M22 2l-7 20-4-9-9-4Z" />
+                  </svg>
+                  {{ target.label }}
+                </a>
+              }
+            </div>
+          }
+        </div>
       }
       @if (facts()?.website; as website) {
         <a [href]="website" target="_blank" rel="noopener noreferrer" class="btn-ghost text-sm">
@@ -201,9 +239,31 @@
       }
       @if (canEdit()) {
         <button type="button" class="btn-ghost text-sm" (click)="openEdit()">Edit</button>
-        <button type="button" class="btn-ghost text-sm text-danger" [disabled]="saving()"
-                (click)="remove()">Remove</button>
+        @if (!confirmingRemoval()) {
+          <button type="button" class="btn-ghost text-sm text-danger" [disabled]="saving()"
+                  (click)="askRemove()">Remove</button>
+        }
       }
     </div>
+
+    <!-- The one irreversible thing here, so it asks first. It names what goes
+         with the place: the notes are the part people do not expect to lose. -->
+    @if (canEdit() && confirmingRemoval()) {
+      <div class="mt-3 rounded-control bg-danger-soft p-3" role="alert">
+        <p class="text-sm text-danger">
+          Remove <span class="font-medium">{{ place().name }}</span> from this trip?
+          @if (place().notes.length) {
+            Its {{ place().notes.length === 1 ? 'note goes' : 'notes go' }} with it.
+          }
+          This cannot be undone.
+        </p>
+        <div class="mt-2.5 flex gap-2">
+          <button type="button" class="btn-ghost text-sm text-danger" [disabled]="saving()"
+                  (click)="remove()">Remove</button>
+          <button type="button" class="btn-ghost text-sm" [disabled]="saving()"
+                  (click)="cancelRemove()">Keep it</button>
+        </div>
+      </div>
+    }
   }
 </aside>

@@ -513,9 +513,14 @@
                             <path d="M4 20h4l10-10-4-4L4 16v4Z" />
                           </svg>
                         </button>
-                        <button type="button" class="btn-ghost px-1.5 text-danger" title="Remove"
-                                [disabled]="saving()" (click)="removePlace(place)">
-                          <span class="sr-only">Remove</span>
+                        <!-- aria-label rather than an sr-only span: it names the
+                             control for a screen reader without putting the place
+                             name into the row's text a second time, which is what
+                             makes a loose getByText match two elements. -->
+                        <button type="button" class="btn-ghost px-1.5 text-danger"
+                                [title]="'Remove ' + place.name"
+                                [attr.aria-label]="'Remove ' + place.name"
+                                [disabled]="saving()" (click)="askRemovePlace(place)">
                           <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                stroke-width="2" stroke-linecap="round" aria-hidden="true">
                             <path d="M6 6l12 12M18 6L6 18" />
@@ -524,6 +529,28 @@
                       </div>
                     }
                   </div>
+
+                  <!-- Asked below the row rather than in the strip: six icon
+                       buttons is no place for a decision, and the answer wants
+                       words on it. -->
+                  @if (canEdit() && confirmingRemoval() === place.id) {
+                    <div class="mt-2 flex flex-wrap items-center gap-2 rounded-control
+                                bg-danger-soft px-3 py-2" role="alert">
+                      <p class="text-sm text-danger">
+                        Remove this place@if (place.notes.length) {<span>
+                          and {{ place.notes.length === 1 ? 'its note' : 'its notes' }}</span>}?
+                        This cannot be undone.
+                      </p>
+                      <span class="ml-auto flex gap-1">
+                        <button type="button" class="btn-ghost text-sm text-danger"
+                                [attr.aria-label]="'Yes, remove ' + place.name"
+                                [disabled]="saving()" (click)="removePlace(place)">Remove</button>
+                        <button type="button" class="btn-ghost text-sm"
+                                [attr.aria-label]="'Keep ' + place.name"
+                                [disabled]="saving()" (click)="cancelRemovePlace()">Keep it</button>
+                      </span>
+                    </div>
+                  }
 
                 </li>
               }

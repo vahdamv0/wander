@@ -253,29 +253,30 @@
     font: inherit;
   }
 
-  .leaflet-popup-content-wrapper,
-  .leaflet-popup-tip {
+  /* The pin label. A tooltip, not a popup: the detail panel covers the map, so a
+     popup opened by the same click was drawn underneath it every time. Leaflet
+     draws these outside any template, hence the tokens here rather than a class
+     on an element. */
+  .leaflet-tooltip {
+    @apply px-3 py-2 text-sm;
     background: var(--color-surface);
     color: var(--color-ink);
+    border: 1px solid var(--color-border);
     box-shadow: 0 2px 12px rgb(0 0 0 / 0.28);
   }
 
-  .leaflet-popup-content {
-    @apply m-3 text-sm;
+  /* The arrow is a bordered triangle, so it takes the surface and not the ink. */
+  .leaflet-tooltip-top::before {
+    border-top-color: var(--color-surface);
   }
 
-  .map-popup-day {
+  .map-label-day {
     @apply text-[0.6875rem] font-semibold uppercase tracking-wide;
     color: var(--color-accent);
   }
 
-  .map-popup-name {
+  .map-label-name {
     @apply font-medium;
-  }
-
-  .map-popup-detail {
-    @apply mt-0.5 text-xs;
-    color: var(--color-muted);
   }
 
   .leaflet-bar a,

@@ -26,6 +26,9 @@ import { PlaceRepo } from '../../repo/place.repo';
   selector: 'app-place-detail',
   imports: [FormsModule],
   templateUrl: './place-detail.html',
+  // Escape closes the directions menu wherever the focus is. The panel itself
+  // has no Escape handler, so this cannot swallow one.
+  host: { '(document:keydown.escape)': 'closeDirections()' },
 })
 export class PlaceDetail {
   private readonly places = inject(PlaceRepo);
@@ -50,19 +53,61 @@ export class PlaceDetail {
 
   protected readonly facts = computed(() => this.enrichment.forPlace()[this.place().id]);
 
+  /** Whether the directions menu is showing. */
+  protected readonly directionsOpen = signal(false);
+
   /**
-   * Directions on OpenStreetMap rather than a commercial map.
+   * Whether Remove has been pressed once and is waiting to be meant.
    *
-   * The coordinates came from OSM, the tiles are OSM's by default, and sending
-   * somebody to a service the rest of the application deliberately avoids would
-   * be an odd place to stop being consistent.
+   * Deleting a place is the only irreversible thing on this panel — it takes the
+   * notes written on it, there is no undo, and live sync will carry it to
+   * everybody else's screen within the second. So it asks. Inline rather than a
+   * dialog: the panel is already a surface, and a confirmation that appears where
+   * the button was cannot be dismissed by clicking the wrong bit of a backdrop.
    */
-  protected readonly directionsUrl = computed(() => {
+  protected readonly confirmingRemoval = signal(false);
+
+  /**
+   * Where to send somebody for directions, and a choice of two.
+   *
+   * This used to be one link to OpenStreetMap, on the argument that the
+   * coordinates and the tiles are OSM's and a commercial map would be an odd
+   * place to stop being consistent. That holds for what wander *draws* and no
+   * longer decides this: getting somewhere is the one moment a person wants the
+   * routing they actually use, and on a phone that is usually Google Maps. So
+   * both are offered and neither is chosen for them — Google first because it is
+   * the one most people are going to want, OSM second because it is the source
+   * of everything else here.
+   *
+   * Only ever a link out. Nothing is sent to either service beyond the
+   * coordinates already in the URL the user chose to open.
+   */
+  protected readonly directionsLinks = computed(() => {
     const place = this.place();
-    return place.latitude == null || place.longitude == null
-      ? null
-      : `https://www.openstreetmap.org/directions?to=${place.latitude}%2C${place.longitude}`;
+    if (place.latitude == null || place.longitude == null) {
+      return null;
+    }
+    const point = `${place.latitude},${place.longitude}`;
+    return [
+      {
+        label: 'Google Maps',
+        // The documented, parameter-stable form; the /maps/@... shapes are not.
+        url: `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(point)}`,
+      },
+      {
+        label: 'OpenStreetMap',
+        url: `https://www.openstreetmap.org/directions?to=${encodeURIComponent(point)}`,
+      },
+    ];
   });
+
+  protected toggleDirections(): void {
+    this.directionsOpen.update((open) => !open);
+  }
+
+  protected closeDirections(): void {
+    this.directionsOpen.set(false);
+  }
 
   constructor() {
     // Asked for when the panel opens, not when the itinerary loads: most places
@@ -81,6 +126,9 @@ export class PlaceDetail {
       untracked(() => {
         this.editing.set(false);
         this.error.set(null);
+        this.directionsOpen.set(false);
+        // A pending "are you sure" belonged to the place that is no longer shown.
+        this.confirmingRemoval.set(false);
       });
     });
   }
@@ -144,6 +192,15 @@ export class PlaceDetail {
       this.editing.set(false);
       this.changed.emit();
     });
+  }
+
+  protected askRemove(): void {
+    this.error.set(null);
+    this.confirmingRemoval.set(true);
+  }
+
+  protected cancelRemove(): void {
+    this.confirmingRemoval.set(false);
   }
 
   protected async remove(): Promise<void> {

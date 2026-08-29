@@ -126,6 +126,18 @@ test('add places to a day and reorder them', async ({ page }) => {
   await expect(placeNames).toHaveText(['Sagrada Familia']);
   await expect(day2.getByText('Park Guell')).toBeVisible();
 
+  // The row's × asks before it destroys anything. It is the sixth small icon in
+  // the strip, directly after the arrow just used above, and `.row-actions` stay
+  // on permanently where there is no hover — so on a phone it is a live target
+  // beside a move button. Backing out leaves the place alone.
+  await day2.getByRole('button', { name: 'Remove Park Guell', exact: true }).click();
+  await day2.getByRole('button', { name: 'Keep Park Guell', exact: true }).click();
+  await expect(day2.getByText('Park Guell')).toBeVisible();
+
+  await day2.getByRole('button', { name: 'Remove Park Guell', exact: true }).click();
+  await day2.getByRole('button', { name: 'Yes, remove Park Guell', exact: true }).click();
+  await expect(day2.getByText('Park Guell')).toHaveCount(0);
+
   await expect(page.locator('[role=alert]')).toHaveCount(0);
   expect(consoleErrors, 'unexpected console errors').toEqual([]);
 });
@@ -221,7 +233,7 @@ test('search for a place, pick a suggestion, and keep its address', async ({ pag
  * Blocking them is deliberate: tile requests go to a third-party service, and a
  * test suite has no business hammering one or failing when it is unreachable.
  * Leaflet still builds its DOM, so everything worth asserting — a pin per placed
- * place, the attribution the tile terms require, a popup on click — is testable
+ * place, the attribution the tile terms require, the label on hover — is testable
  * offline.
  */
 test('places with a location get a pin on the map', async ({ page }) => {
@@ -302,11 +314,17 @@ test('places with a location get a pin on the map', async ({ page }) => {
   await expect(day1.getByText('That cafe we liked')).toBeVisible();
   await expect(page.locator('.map-pin')).toHaveCount(1);
 
+  // Hovering a marker labels it with its day and name. A tooltip and not a
+  // popup, deliberately: a click opens the detail panel over the map, and a
+  // popup there is drawn underneath it with nowhere to pan to.
+  await pin.hover();
+  await expect(page.locator('.leaflet-tooltip')).toContainText('Park Güell');
+
   // Clicking a marker highlights its row; clicking a row's pin button moves the
-  // map to it.
+  // map to it and labels the pin it landed on.
   await pin.click();
-  await expect(page.locator('.leaflet-popup-content')).toContainText('Park Güell');
   await day1.getByRole('button', { name: /Show Park Güell on the map/ }).click();
+  await expect(page.locator('.leaflet-tooltip')).toContainText('Park Güell');
 
   await expect(page.locator('[role=alert]')).toHaveCount(0);
   expect(consoleErrors, 'unexpected console errors').toEqual([]);
@@ -1537,8 +1555,9 @@ test('with no connection, a trip you have opened is still readable', async ({ br
  * confident "open now", and that **your prose and the fetched text are separate
  * blocks** — a single merged field could not say which half the credit belongs to.
  *
- * This replaced a test about the map popup. The popup is a label again; the
- * geometry assertions it needed went with the machinery.
+ * This replaced a test about the map popup. There is no popup any more — the
+ * label is a hover tooltip, and the geometry assertions the rich popup needed
+ * went with the machinery.
  */
 test('a place panel shows your notes and what is known, each credited', async ({ page }) => {
   const consoleErrors: string[] = [];
@@ -1606,8 +1625,10 @@ test('a place panel shows your notes and what is known, each credited', async ({
   await page.locator('.leaflet-marker-icon').first().click();
   const panel = page.locator('aside[role=dialog]');
   await expect(panel).toBeVisible();
-  // The popup itself is a label again — no description in it.
-  await expect(page.locator('.leaflet-popup-content')).not.toContainText('Shinto shrine');
+  // And nothing is drawn under the panel. A popup used to open on this same
+  // click, landing squarely behind the drawer where it could never be read —
+  // invisible to a passing suite, because occlusion is not a visibility failure.
+  await expect(page.locator('.leaflet-popup')).toHaveCount(0);
 
   // Your prose and the fetched text are both there, and separately.
   await expect(panel).toContainText('Come before eight.');
@@ -1625,15 +1646,48 @@ test('a place panel shows your notes and what is known, each credited', async ({
   await expect(panel).toContainText('OpenStreetMap');
   await expect(panel).toContainText('may be out of date');
 
-  // Directions go to OpenStreetMap, like everything else here.
-  await expect(panel.getByRole('link', { name: 'Directions' }))
-    .toHaveAttribute('href', /openstreetmap\.org\/directions/);
+  // Directions offer a choice of routing service rather than picking one, and
+  // the order is the point: Google Maps is what most people will want, OSM is
+  // where everything else on this page came from. Both carry the coordinates.
+  const directions = panel.getByRole('menu', { name: 'Open directions in' });
+  await expect(directions).toHaveCount(0);
+  await panel.getByRole('button', { name: 'Directions' }).click();
+  await expect(directions.getByRole('menuitem')).toHaveText(['Google Maps', 'OpenStreetMap']);
+  await expect(directions.getByRole('menuitem', { name: 'Google Maps' }))
+    .toHaveAttribute('href', /google\.com\/maps\/dir\/.*destination=34\.9671/);
+  await expect(directions.getByRole('menuitem', { name: 'OpenStreetMap' }))
+    .toHaveAttribute('href', /openstreetmap\.org\/directions\?to=34\.9671/);
+
+  // Escape closes it without closing the panel behind it.
+  await page.keyboard.press('Escape');
+  await expect(directions).toHaveCount(0);
+  await expect(panel).toBeVisible();
 
   await panel.getByRole('button', { name: 'Close' }).click();
   await expect(panel).toHaveCount(0);
   // And in from the row's name.
   await day1.getByRole('button', { name: 'Fushimi Inari-taisha', exact: true }).click();
-  await expect(page.locator('aside[role=dialog]')).toBeVisible();
+  const reopened = page.locator('aside[role=dialog]');
+  await expect(reopened).toBeVisible();
+
+  // Removing is the only irreversible thing on the panel, so it asks — and says
+  // what goes with the place, because the notes are the part nobody expects to
+  // lose. Backing out leaves everything alone.
+  await reopened.getByRole('button', { name: 'Remove', exact: true }).click();
+  await expect(reopened.getByRole('alert')).toContainText('Fushimi Inari-taisha');
+  await expect(reopened.getByRole('alert')).toContainText('note goes with it');
+  await reopened.getByRole('button', { name: 'Keep it', exact: true }).click();
+  await expect(reopened.getByRole('alert')).toHaveCount(0);
+  await expect(day1.getByRole('button', { name: 'Fushimi Inari-taisha', exact: true }))
+    .toBeVisible();
+
+  // Meaning it removes the place and closes the panel, which is now about
+  // something that no longer exists.
+  await reopened.getByRole('button', { name: 'Remove', exact: true }).click();
+  await reopened.getByRole('button', { name: 'Remove', exact: true }).click();
+  await expect(page.locator('aside[role=dialog]')).toHaveCount(0);
+  await expect(day1.getByRole('button', { name: 'Fushimi Inari-taisha', exact: true }))
+    .toHaveCount(0);
 
   expect(consoleErrors, 'unexpected console errors').toEqual([]);
 });
