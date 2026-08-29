@@ -36,6 +36,7 @@ is private; if it is ever made public, that link is the piece to add.
 ./gradlew :api:bootRun                   # API on :8080 (needs `docker compose up -d db`)
 cd web && npm start                      # Angular dev server on :4200, proxies /api
 cd web && npm run api:gen                # regenerate the typed client from the spec
+./gradlew :web:apiGen                    # the same, on Gradle's pinned Node
 cd web && npm test                       # vitest unit tests (money formatting)
 ```
 
@@ -48,7 +49,9 @@ Java record → springdoc → `api/build/openapi.json` (written by
 `OpenApiSpecExportTest`) → `ng-openapi-gen` → `web/src/app/api`.
 
 - **Never hand-write a DTO twice.** Change the Java record, rerun
-  `:api:test`, then `npm run api:gen`.
+  `:api:test`, then `npm run api:gen` — or `./gradlew :web:apiGen`, which runs the
+  generator on the plugin's downloaded Node and is what CI uses, because the CI
+  image is a JDK with no `node` or `npx` on PATH at all.
 - **`web/src/app/api/` is generated but committed** so the Docker build and a
   fresh clone need no database. CI regenerates it and fails on drift. Never edit
   it by hand.

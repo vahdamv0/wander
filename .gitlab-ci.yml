@@ -50,10 +50,9 @@ api-client-drift:
   script:
     # The spec is written by OpenApiSpecExportTest.
     - ./gradlew :api:test
-    - ./gradlew :web:npmInstall
-    - cd web && ../gradlew --quiet -p .. :web:nodeSetup
-    - npx ng-openapi-gen
-    - cd ..
+    # :web:apiGen, not a bare npx: this image is a JDK with no node on PATH, and
+    # the Gradle task runs the generator through the plugin's downloaded Node.
+    - ./gradlew :web:apiGen
     - |
       if ! git diff --quiet -- web/src/app/api; then
         echo "The committed API client is out of date. Run 'npm run api:gen' in web/ and commit the result:"
