@@ -30,3 +30,7 @@ web/blob-report/
 
 # OS
 .DS_Store
+
+# Database dumps written by the backup sidecar. Never commit these: they are
+# the whole database, including password hashes and booking references.
+/backups/

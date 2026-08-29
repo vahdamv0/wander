@@ -42,6 +42,8 @@ container, one Postgres.
   directions in Google Maps or OpenStreetMap
 - Offline reading: open a trip once and its days, places, bookings and packing
   list stay readable with no connection, labelled with how old the copy is
+- Nightly database backups that are verified before they are kept, with a restore
+  procedure that has actually been run
 - Light / dark / follow-the-OS theming, all driven by design tokens
 - The Angular app and the API ship as a single jar
 
@@ -89,6 +91,53 @@ cd web && npm run e2e                    # Playwright, against a running instanc
 cd web && npm run api:gen                # regenerate the typed client from that spec
 ./gradlew :web:apiGen                    # the same, using Gradle's pinned Node
 ```
+
+## Backups, and restoring one
+
+`docker compose up -d` starts a backup sidecar alongside the database. It writes
+a compressed `pg_dump` into `./backups` once a day, keeps the newest thirty, and
+**reads each dump back with `pg_restore --list` before publishing it** — a dump
+nobody has ever read is a file, not a backup. It writes under a temporary name
+and renames, so a copy job never picks up a half-written file, and retention only
+runs after a successful dump, so a run of failures cannot rotate away the good
+copies that came before.
+
+Restoring, which is the half worth rehearsing before you need it:
+
+```bash
+# Into a scratch database first — always. Restoring over a live one is how a
+# bad backup becomes a lost database.
+docker compose exec db psql -U wander -d postgres -c "CREATE DATABASE restore_check OWNER wander;"
+docker compose exec backup pg_restore --no-owner --dbname=restore_check /backups/wander-<stamp>.dump
+
+# Then check it is really a wander database, not just rows in tables:
+docker compose run --rm --no-deps \
+  -e WANDER_DB_URL=jdbc:postgresql://db:5432/restore_check wander
+```
+
+If that starts and Flyway reports "Successfully validated N migrations", the dump
+is sound: Hibernate runs `ddl-auto: validate`, so a schema that does not match the
+code fails at boot rather than quietly later. To promote it, stop the app, rename
+the databases, and start again.
+
+**These dumps do not protect you from losing the machine.** They sit on the same
+host as the database they came from, so anything that takes the host — a failed
+disk, a provider reclaiming the instance, a compromise — takes the database and
+every backup of it in one go. Thirty dumps on one box is one copy in disguise.
+
+The other half is one line, run **from the other machine**:
+
+```bash
+rsync -az user@your-host:/path/to/wander/backups/ ~/wander-backups/
+```
+
+Two deliberate details. **No `--delete`**: that would make your copy mirror the
+server, so a `backups/` emptied by a disk fault or an attacker would replicate as
+an empty local directory and destroy the safeguard exactly when it was needed.
+Copies accumulate here instead, and pruning is a decision you make while looking
+at them. And it **pulls rather than the server pushing**: a machine that has been
+taken over cannot reach into a destination it holds no credentials for, whereas a
+server that pushes can be made to delete what it previously sent.
 
 ## How it fits together
 
@@ -229,6 +278,15 @@ delete renumbers the affected day from scratch inside one transaction. Moving a
 place is one operation — "put it at rank N of day D" — which is what the up/down
 buttons and a drag both send. The client re-reads after a write rather than
 guessing at the new ranks.
+
+**A backup nobody has restored is not a backup.** The sidecar reads every dump
+back with `pg_restore --list` before publishing it, and the documented restore was
+carried out rather than written down from memory: dumped, restored into a scratch
+database, compared row-for-row by checksum against the original, and then booted —
+the application started against the restored copy and Flyway validated all 14
+migrations. Retention only runs after a dump succeeds, so a bad week cannot rotate
+the good copies away. This is the one part of the system whose failure is
+unrecoverable, and it is the one part where "it looked fine" is worth the least.
 
 **Gates stay on.** `EndpointAuthRatchetTest` fires an anonymous request at every
 endpoint this project declares and fails if one answers; opening an endpoint

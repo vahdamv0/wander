@@ -64,6 +64,30 @@ services:
       retries: 5
       start_period: 40s
 
+  # The only thing standing between a dead disk and losing every trip, expense
+  # and booking reference. Same image as the database on purpose: pg_dump will
+  # not dump a server newer than itself.
+  backup:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGUSER: wander
+      PGDATABASE: wander
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      WANDER_BACKUP_INTERVAL_SECONDS: ${WANDER_BACKUP_INTERVAL_SECONDS:-86400}
+      WANDER_BACKUP_KEEP: ${WANDER_BACKUP_KEEP:-30}
+    volumes:
+      - ./backup/backup.sh:/usr/local/bin/backup.sh:ro
+      # A host directory, not a named volume, and that is the point: `docker
+      # compose down -v` wipes named volumes, and the backups are exactly what
+      # you want to survive somebody typing that.
+      - ${WANDER_BACKUP_DIR:-./backups}:/backups
+    entrypoint: ["/bin/sh", "/usr/local/bin/backup.sh"]
+
   # TLS terminates here. See Caddyfile: WANDER_SITE_ADDRESS decides HTTP or
   # HTTPS on its own, and nothing else in the stack changes between the two.
   proxy:
