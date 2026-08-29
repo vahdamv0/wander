@@ -3,10 +3,11 @@
 A self-hostable, collaborative travel planner. Spring Boot 4 + Angular 22, one
 container, one Postgres.
 
-> **Status: usable.** Milestones 0 to 3 are done — accounts, trips, the
-> itinerary, sharing with roles, and live sync between browsers — and milestone
-> 4's money half is in. What remains before v1 is packing lists, reservations and
-> offline; see the roadmap below.
+> **Status: usable.** The roadmap below is done — accounts, trips, the itinerary,
+> sharing with roles, live sync, expenses, packing, bookings, and offline reading.
+> Two things are left out on purpose rather than unfinished: invite links for
+> people with no account (nothing here sends mail) and an offline *write* queue
+> (it forces the conflict resolution live sync was designed not to need).
 
 ## What works today
 
@@ -16,12 +17,14 @@ container, one Postgres.
 - A trip's days are derived from its date range, never stored — and moving the
   dates carries the itinerary with it rather than stranding it
 - Places on a day: add, rename, annotate, delete, and drag into order — within a
-  day or into another one, with buttons as the keyboard equivalent
+  day or into another one, with buttons as the keyboard equivalent. Deleting asks
+  first, because it takes the notes on the place with it and there is no undo
 - What each day cost, on the day itself, and the weather forecast for it when one
   exists — Open-Meteo, no API key, and honestly blank beyond the forecast horizon
 - A note on each day, and place search over Nominatim, proxied and cached, so a
   place keeps its coordinates
-- A Leaflet map beside the itinerary: a pin per located place, numbered by day
+- A Leaflet map beside the itinerary: a pin per located place, numbered by day,
+  labelled on hover and opening the place's panel when clicked
 - Share a trip: members by email, owner / editor / viewer roles, and handing the
   trip over to somebody else
 - Live sync over a WebSocket, so two people on one trip see each other's edits
@@ -33,9 +36,10 @@ container, one Postgres.
 - Bookings — flights, trains, hotels, tables — stored as instants with the zone
   they were booked in, so a flight keeps London time for its departure and Tokyo
   time for its arrival, and the list is ordered by when things really happen
-- Place enrichment: a searched place's pin carries what OpenStreetMap, Wikidata,
-  Wikipedia and Commons know about it — a description, opening hours, a website
-  and photographs you can keep — each with its source and licence shown
+- Place enrichment: opening a place shows what OpenStreetMap, Wikidata, Wikipedia
+  and Commons know about it — a description, opening hours, a website and
+  photographs you can keep — each with its source and licence shown, plus
+  directions in Google Maps or OpenStreetMap
 - Offline reading: open a trip once and its days, places, bookings and packing
   list stay readable with no connection, labelled with how old the copy is
 - Light / dark / follow-the-OS theming, all driven by design tokens
@@ -102,9 +106,10 @@ The generated client **is committed**, so a fresh clone and the Docker build nee
 no database to produce a spec first. CI regenerates it and fails the pipeline on
 any drift, so it cannot quietly diverge.
 
-Components never call HTTP directly; they go through a repo. Today those are thin
-pass-throughs, and that is the point: when offline support arrives, IndexedDB
-reads and a write queue land inside the repos and no component changes.
+Components never call HTTP directly; they go through a repo. That seam is what
+let offline reading land without touching a single component — `OfflineCache`
+sits inside the repos, and a page only has to ask how old the copy it is showing
+is. A write queue could land the same way; it deliberately has not.
 
 ## Decisions worth knowing
 
@@ -184,17 +189,45 @@ screen-reader equivalent, so the arrow controls stayed as the accessible path;
 they fade in on hover or focus rather than sitting on every row, and on a device
 with no hover they simply stay visible. Both paths make the same one call.
 
-**One write is optimistic: the move.** Every other write re-reads and lets the
-server's answer win, but a drag has already moved the row under the user's
-finger — waiting for the round trip would snap it back and then move it again. So
-`PlaceRepo.move` reorders its local copy first (renumbering exactly as the server
-does), sends the call, and restores the previous order if it fails.
+**The one irreversible action asks first.** Deleting a place takes the notes
+written on it, has no undo, and live sync puts it on everybody else's screen
+within the second. It can be reached two ways — the row's `×` and the detail
+panel — and both now confirm inline, naming what goes with it. The `×` in
+particular is a small icon directly after "move to next day", permanently visible
+on a device with no hover, which is a mis-tap away from destroying something.
+It is the only confirmation in wander so far. Most of what else can be deleted
+can simply be entered again; leaving a trip is the one that cannot, since getting
+back in needs the owner, and it is the obvious next candidate.
+
+**The map is a view, not a surface for content.** Everything known about a place
+lives in a panel; the pin carries a label and nothing more. That is a lesson
+rather than a preference — the enrichment was built into a Leaflet popup first,
+and a popup computes its size and its auto-pan once, on open, so anything that
+arrives afterwards does not fit. The label is a tooltip for the same family of
+reason: Leaflet positions a popup to fit the *map container* and cannot see the
+panel drawn over it, so a popup opened by the click that opens the panel was
+drawn underneath it every time.
+
+**Directions offer both, and choose neither.** The coordinates are OSM's and the
+tiles are OSM's by default, but getting somewhere is the moment a person wants
+the routing app they actually use. So the panel offers Google Maps and
+OpenStreetMap as plain links out, in that order, and sends nothing to either
+beyond the coordinates in the URL the user chose to open.
+
+**Two writes are optimistic, and for the same reason.** Every other write
+re-reads and lets the server's answer win. But a drag has already moved the row
+under the user's finger and a tick has already moved the checkbox, so waiting for
+the round trip would snap either back and then repeat it. `PlaceRepo.move`
+reorders its local copy first (renumbering exactly as the server does) and
+restores the previous order if it fails; `PackingRepo.setPacked` carries the
+ticker's name along with the boolean, or a shared item says "packed" without
+saying by whom.
 
 **The server owns ordering.** Ranks are dense and zero-based, and any move or
 delete renumbers the affected day from scratch inside one transaction. Moving a
-place is one operation — "put it at rank N of day D" — which is both what the
-up/down buttons send today and what drag-and-drop will send later. The client
-re-reads after a write rather than guessing at the new ranks.
+place is one operation — "put it at rank N of day D" — which is what the up/down
+buttons and a drag both send. The client re-reads after a write rather than
+guessing at the new ranks.
 
 **Gates stay on.** `EndpointAuthRatchetTest` fires an anonymous request at every
 endpoint this project declares and fails if one answers; opening an endpoint
@@ -240,6 +273,32 @@ tables under a running instance. Don't lower a gate to land a change.
 
 ## Licence
 
-Not chosen yet — decide before the first public push. It matters here: a
-permissive licence (MIT/Apache-2.0) lets anyone fork and close it, while AGPL-3.0
-requires anyone who runs a modified copy as a service to publish their changes.
+**GNU Affero General Public License v3.0 or later.** The full text is in
+[LICENSE](LICENSE); `SPDX-License-Identifier: AGPL-3.0-or-later`.
+
+Copyright © 2026 Vivek Madhav and wander contributors.
+
+The AGPL was chosen over a permissive licence for the reason the AGPL exists:
+wander is software people *run as a service* for other people, and under
+MIT/Apache-2.0 a host could take it, improve it, and offer it back to its users
+with the improvements closed. Section 13 is what closes that gap — modify wander
+and run it for others over a network, and those users are entitled to the source
+of what they are actually using. Self-hosting is the whole point of this project,
+so the licence that protects the people doing the hosting is the right one.
+
+It also keeps a clear line around **TREK**, the AGPL-licensed project read as a
+reference for patterns while building this. No code was copied and wander is not
+a port of it, but sharing its licence removes any question of the distinction
+mattering.
+
+Two consequences worth being clear about, since they are the parts people get
+wrong:
+
+- **Using wander is unrestricted.** Run it, host it for your household, plan
+  trips on it. The obligations attach to *distributing* a modified version or
+  *offering a modified version to others over a network* — not to use.
+- **Section 13 wants a source offer in the running app.** If you modify wander
+  and let other people use your instance, they must be able to get your
+  Corresponding Source — in practice a "Source" link in the interface. Stock
+  wander does not ship one yet, because the repository it would point at is not
+  public.
