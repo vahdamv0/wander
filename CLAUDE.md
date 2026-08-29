@@ -314,9 +314,40 @@ Wikidata, Wikipedia and Commons.
   the content exists. All of that is deleted; the popup is a label again. The
   lesson worth keeping: **Leaflet computes a popup's size and pan once, on open**,
   so a popup is the wrong home for anything that arrives afterwards.
+- **The pin label is a tooltip, and there is no popup at all.** The click that
+  opens the panel used to open a popup too, and the popup lost: the panel is a
+  drawer over the right of the viewport, Leaflet auto-pans a popup to fit the
+  **map container** and knows nothing about what covers it, and on this layout the
+  panel covers the map outright — there was nowhere to pan to, so the label was
+  drawn underneath it every single time. `bindTooltip` needs no pan, opens on
+  hover *and* focus, and the panel's header already carries the same two lines, so
+  a tap that gets no hover still has its answer. The general form is worth more
+  than the fix: **an overlay outside the map is invisible to Leaflet's geometry**,
+  so anything Leaflet positions for itself has to stay clear of one. Note also
+  that this was green the whole time — Playwright visibility is CSS, not
+  occlusion, and `smoke.spec.ts` happily asserted on text no one could read. It
+  now asserts `.leaflet-popup` has **count 0** while the panel is open.
 - **The panel is the only editor for a place.** The row used to carry an inline
   form too; two editors for one thing is two places to keep in step and two
   answers to "where do I change the name".
+- **Removing a place asks first, on both paths.** It is the only irreversible
+  thing in the itinerary — it takes the notes written on the place with it, there
+  is no undo, and live sync puts it on everybody else's screen within the second.
+  Two paths remain deliberately (the row's `×` and the panel's Remove) because
+  they answer different situations — a pin click opens the panel with no row in
+  view — but the row's `×` is the sixth small icon in a strip, immediately after
+  "move to next day", and `.row-actions` stay on permanently where there is no
+  hover, so on a phone it is a live target beside an arrow. The confirmation is
+  **inline where the button was**, not a dialog: there is no backdrop to dismiss
+  by accident, and it names what goes ("Its note goes with it"), because the notes
+  are the part nobody expects to lose. This is the project's first confirmation of
+  anything; leaving a trip and deleting an expense still do not ask.
+- **Name a row control with `aria-label`, not an `sr-only` span.** Both give the
+  same accessible name, but an `sr-only` span puts the subject's name into the
+  row's *text* a second time, and every loose `getByText('Park Guell')` in the
+  browser suite then matches two elements. Adding one to the remove button broke
+  six tests at once; `aria-label` broke none. The drag handle already did it this
+  way.
 - **The place row's name is a handle the browser tests identify a place by**, and
   it has broken them twice — once when a category chip went inside it, once when it
   became a button to open the panel. Changing it is fine; changing it without

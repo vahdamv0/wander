@@ -559,7 +559,27 @@ export class TripPage {
   }
 
 
+  /**
+   * Which place's × has been pressed once and is waiting to be meant.
+   *
+   * The × is the sixth small icon in a row, immediately after "move to next day",
+   * and `.row-actions` stay on permanently where there is no hover — so on a
+   * phone it is a live target next to an arrow. Removing takes the place's notes
+   * with it and there is no undo, so it asks. One id rather than a set: asking
+   * about two places at once is not a state worth having.
+   */
+  protected readonly confirmingRemoval = signal<number | null>(null);
+
+  protected askRemovePlace(place: PlaceView): void {
+    this.confirmingRemoval.set(place.id);
+  }
+
+  protected cancelRemovePlace(): void {
+    this.confirmingRemoval.set(null);
+  }
+
   protected async removePlace(place: PlaceView): Promise<void> {
+    this.confirmingRemoval.set(null);
     await this.guard(() => this.repo.remove(this.id(), place.id));
   }
 

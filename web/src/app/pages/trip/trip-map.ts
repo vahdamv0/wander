@@ -177,13 +177,21 @@ export class TripMap {
         keyboard: true,
         alt: `Day ${pin.dayIndex}: ${pin.place.name}`,
       })
-        // A label, nothing more. Everything about a place now lives in the
-        // detail panel, which a marker click opens through `placePicked` — and
-        // the machinery a rich popup needed went with it: a component rendered
-        // into Leaflet's DOM, a ResizeObserver to notice it had grown, and a
-        // hand-written pan because Leaflet's own runs before the content exists.
-        // Four attempts at that was the evidence a popup was the wrong home.
-        .bindPopup(popupLabel(pin), { autoPanPadding: [16, 16] })
+        // A label, nothing more — and a tooltip rather than a popup, because a
+        // popup on click could never be seen: the same click opens the detail
+        // panel, which is a drawer over the whole map, and Leaflet auto-pans a
+        // popup to fit the *map container*, knowing nothing about what covers
+        // it. There was nowhere to pan to. The panel's own header carries these
+        // same two lines, so the click has an answer and the label is for
+        // pointing at a pin without committing to it.
+        //
+        // Leaflet opens a tooltip on focus as well as hover, so the keyboard
+        // path keeps it; a touch tap has no hover and goes straight to the panel.
+        .bindTooltip(mapLabel(pin), {
+          direction: 'top',
+          offset: [0, -14],
+          opacity: 1,
+        })
         .on('click', () => this.placePicked.emit(pin.place));
 
       marker.addTo(layer);
@@ -228,7 +236,10 @@ export class TripMap {
       this.framing = false;
     }
     this.autoFrame = false;
-    marker.openPopup();
+    // Which of the pins is the one just asked for. It closes on the next hover
+    // elsewhere, and nothing covers the map on this path — the pin button does
+    // not open the panel.
+    marker.openTooltip();
   }
 }
 
@@ -254,12 +265,12 @@ function toPins(days: TripDay[]): Pin[] {
 /** Escaped: a place name is user input, and this string becomes HTML. */
 
 /**
- * The popup's whole content: which day, and the name. A marker click opens the
- * detail panel, so there is nothing else for a popup to say.
+ * The label's whole content: which day, and the name. A marker click opens the
+ * detail panel, so there is nothing else for a label to say.
  */
-function popupLabel(pin: Pin): string {
-  return `<p class="map-popup-day">Day ${pin.dayIndex}</p>`
-    + `<p class="map-popup-name">${escapeHtml(pin.place.name)}</p>`;
+function mapLabel(pin: Pin): string {
+  return `<p class="map-label-day">Day ${pin.dayIndex}</p>`
+    + `<p class="map-label-name">${escapeHtml(pin.place.name)}</p>`;
 }
 
 /** Leaflet takes a string, so this is the one place in the client that escapes by hand. */
