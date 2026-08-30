@@ -226,6 +226,36 @@ Java record → springdoc → `api/build/openapi.json` (written by
   flag around our own moves; without it the first frame silently disables
   itself. Map furniture is styled from the same tokens as everything else, in
   `@layer components`, because Leaflet builds those nodes outside any template.
+- **The basemap is vector, drawn by MapLibre inside Leaflet.** Leaflet still owns
+  the map, the markers, the tooltips and the framing; only the tile layer is
+  different, and `@maplibre/maplibre-gl-leaflet` makes it an ordinary Leaflet
+  layer so nothing after that line changed. The reason is language: a raster tile
+  is a picture with the local name painted into it — 東京都 whatever the browser
+  asks for — while vector tiles carry `name`, `name:latin` and `name:xx` as data.
+  `applyLabelLanguage` rewrites `text-field` to draw both, the reader's language
+  over the local name, and only on layers whose label already mentions a name
+  (a house-number layer's `text-field` is `{housenumber}`, and rewriting that
+  blanks every number at street zoom). It hangs off `style.load`, not
+  `styledata`, which our own `setLayoutProperty` calls would re-enter. A raster
+  `tileUrl` is still supported and is what a blank `styleUrl` selects.
+- **MapLibre's tile worker is copied by `angular.json`, and that is not
+  optional.** It is loaded by URL at runtime, so no bundler sees it as an import
+  and none emit it — and the shared chunk it imports beside itself has to travel
+  with it. Get it wrong and the request falls through to the SPA fallback, which
+  answers `index.html`: the worker dies on its first line with **nothing** logged
+  — no console error, no MapLibre `error` event, no failed request — and the only
+  symptom is a basemap that never draws while the style document, the sprites and
+  the markers all load perfectly. `setWorkerUrl` resolves it against
+  `document.baseURI` rather than trusting the library's default, which is derived
+  from the chunk's own `import.meta.url`. The browser suite stubs the basemap
+  with an *empty but valid* style so a run stays off a donation-funded tile
+  service — which means it asks for no vector tiles and needs no worker, so it
+  could never catch this. The test that does asks the server for the two files
+  and checks the content type.
+- **Dark is a different style, not a filter**, which is why `ThemeService` grew
+  `isDark`: CSS has `prefers-color-scheme`, but a style URL is chosen in
+  TypeScript, and asking the DOM for `[data-theme]` answers nothing for the
+  common case of following the OS.
 - **WebSocket is imported in exactly one file**, for the same reason as Leaflet:
   `core/trip-sync.ts` owns the socket, the backoff, the keepalive and the
   release on destroy. It *reports* and decides nothing — the trip page chooses
@@ -265,11 +295,15 @@ Java record → springdoc → `api/build/openapi.json` (written by
 
 ## Instance configuration reaches the client
 
-`GET /api/config` (authenticated) carries the tile URL, its attribution, and
-whether place search is enabled. Nothing operator-configurable should be
-compiled into the Angular app: self-hosting means the tile server and the
-geocoder are somebody else's decision, and "search off, map off" is a supported
-configuration. `InstanceConfigStore` loads it once when the signed-in shell
+`GET /api/config` (authenticated) carries the map source — a vector `styleUrl`
+and its dark counterpart, with a raster `tileUrl` behind them — its attribution,
+and whether place search is enabled. Both kinds are sent every time rather than
+one being resolved server-side: which applies depends on the reader's theme,
+which is a browser preference the server has no business knowing.
+
+Nothing operator-configurable should be compiled into the Angular app:
+self-hosting means the basemap and the geocoder are somebody else's decision, and
+"search off, map off" is a supported configuration. `InstanceConfigStore` loads it once when the signed-in shell
 mounts, and features that depend on it treat "not answered yet" as available so
 nothing flickers into existence.
 

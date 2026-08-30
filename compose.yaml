@@ -46,8 +46,12 @@ services:
       WANDER_GEOCODING_CONTACT: ${WANDER_GEOCODING_CONTACT:-}
       WANDER_GEOCODING_LANGUAGE: ${WANDER_GEOCODING_LANGUAGE:-en}
       WANDER_MAP_ENABLED: ${WANDER_MAP_ENABLED:-true}
+      # A MapLibre vector style, which is what lets the map be labelled in the
+      # reader's language. Blank falls back to the raster tile URL below.
+      WANDER_MAP_STYLE_URL: ${WANDER_MAP_STYLE_URL:-https://tiles.openfreemap.org/styles/liberty}
+      WANDER_MAP_DARK_STYLE_URL: ${WANDER_MAP_DARK_STYLE_URL:-https://tiles.openfreemap.org/styles/dark}
       WANDER_MAP_TILE_URL: ${WANDER_MAP_TILE_URL:-https://tile.openstreetmap.org/{z}/{x}/{y}.png}
-      WANDER_MAP_ATTRIBUTION: ${WANDER_MAP_ATTRIBUTION:-© OpenStreetMap contributors}
+      WANDER_MAP_ATTRIBUTION: ${WANDER_MAP_ATTRIBUTION:-OpenFreeMap · OpenMapTiles · © OpenStreetMap contributors}
       WANDER_COOKIE_SECURE: ${WANDER_COOKIE_SECURE:-false}
       WANDER_LOG_LEVEL: ${WANDER_LOG_LEVEL:-INFO}
     ports:

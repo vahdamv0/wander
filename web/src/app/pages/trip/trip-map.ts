@@ -11,8 +11,17 @@ import {
   output,
   viewChild,
 } from '@angular/core';
+// Side-effect import: the bridge registers L.maplibreGL and pulls in maplibre-gl
+// itself, so the map is still constructed through Leaflet and not from here.
+import '@maplibre/maplibre-gl-leaflet';
 import * as L from 'leaflet';
+import {
+  type ExpressionSpecification,
+  type Map as MaplibreMap,
+  setWorkerUrl,
+} from 'maplibre-gl';
 import { MapConfig, PlaceView, TripDay } from '../../api';
+import { ThemeService } from '../../core/theme.service';
 
 /** A place that has somewhere to be drawn, with the day it belongs to. */
 interface Pin {
@@ -21,6 +30,24 @@ interface Pin {
   latitude: number;
   longitude: number;
 }
+
+/**
+ * MapLibre parses vector tiles in a web worker, which it loads **by URL at
+ * runtime** — so no bundler ever sees it as an import and none of them emit it.
+ * `angular.json` copies it — and the shared chunk it imports by a relative path,
+ * so the two have to stay side by side — out of the package, and this points at
+ * the copy.
+ *
+ * Worth knowing how this fails, because nothing at all points at it: the default
+ * URL is derived from the chunk's own `import.meta.url`, so the request went to
+ * `/maplibre-gl-worker.mjs`, which the SPA fallback answered with `index.html`.
+ * The worker then died on the first line with **nothing** logged — no console
+ * error, no MapLibre `error` event — and the only symptom was a basemap that
+ * stayed blank while the style document, the sprites and the markers all loaded
+ * perfectly. Deriving it from `document.baseURI` instead makes it independent of
+ * where the chunk lands.
+ */
+setWorkerUrl(new URL('maplibre-gl-worker.mjs', document.baseURI).href);
 
 /** Zoom used when there is only one pin, so the map is not showing a continent. */
 const SINGLE_PIN_ZOOM = 15;
@@ -37,6 +64,18 @@ const SINGLE_PIN_ZOOM = 15;
  * Tiles come from wherever the instance says — the URL and its attribution are
  * the operator's, not this component's, and the map is simply not drawn until
  * they have arrived.
+ *
+ * **The basemap is vector, drawn by MapLibre inside Leaflet.** Leaflet still owns
+ * the map, the markers, the tooltips and the framing; only the tile layer is
+ * different. That is the whole reason for the bridge — a raster tile is a picture
+ * with the local name painted into it, so a trip to Japan was labelled 東京都
+ * however the browser asked, while vector tiles carry `name`, `name:latin` and
+ * `name:xx` as data and let the client choose. wander asks for both: the
+ * reader's language over the local name, so a place matches both the plan and
+ * the signs in front of you.
+ *
+ * A raster `tileUrl` is still supported for an instance that has its own tile
+ * server; it simply cannot do the language part.
  */
 @Component({
   selector: 'app-trip-map',
@@ -75,8 +114,12 @@ export class TripMap {
 
   private readonly canvas = viewChild.required<ElementRef<HTMLDivElement>>('canvas');
 
+  private readonly theme = inject(ThemeService);
+
   private map: L.Map | null = null;
   private layer: L.LayerGroup | null = null;
+  /** The vector basemap, when there is one. Null on the raster path. */
+  private basemap: L.MaplibreGL | null = null;
   private readonly markers = new Map<number, L.Marker>();
   /**
    * Re-frame on every change until the viewer moves the map themselves. Framing
@@ -92,6 +135,8 @@ export class TripMap {
    * to a viewer who had not touched anything.
    */
   private framing = false;
+  /** Which style is loaded, so a theme change does not reload the same one. */
+  private currentStyleUrl = '';
 
   protected readonly pins = computed(() => toPins(this.days()));
 
@@ -117,6 +162,28 @@ export class TripMap {
       }
     });
 
+    // The basemap style follows the theme — a genuine improvement on the raster
+    // path, which can only put a CSS brightness filter over tiles drawn for a
+    // light background.
+    //
+    // Declared here rather than beside the layer it drives: `addBasemap` runs
+    // from `afterNextRender`, which is not an injection context, and calling
+    // `effect()` there throws NG0203 — taking the rest of map creation with it,
+    // so the symptom was a map with no markers at all.
+    effect(() => {
+      const dark = this.theme.isDark();
+      const config = this.config();
+      const gl = this.basemap?.getMaplibreMap();
+      if (!gl || !config.styleUrl) {
+        return;
+      }
+      const wanted = dark && config.darkStyleUrl ? config.darkStyleUrl : config.styleUrl;
+      if (wanted !== this.currentStyleUrl) {
+        this.currentStyleUrl = wanted;
+        gl.setStyle(wanted);
+      }
+    });
+
     destroyRef.onDestroy(() => {
       // Leaflet keeps document-level listeners, so a map that is not removed
       // survives navigation and leaks.
@@ -135,12 +202,7 @@ export class TripMap {
       attributionControl: true,
     }).setView([20, 0], 2);
 
-    L.tileLayer(config.tileUrl, {
-      maxZoom: config.maxZoom,
-      // Required by the tile service's terms, and Leaflet renders it into the
-      // corner control for us.
-      attribution: config.attribution,
-    }).addTo(this.map);
+    this.addBasemap(config);
 
     this.layer = L.layerGroup().addTo(this.map);
 
@@ -153,6 +215,99 @@ export class TripMap {
     });
   }
 
+  /**
+   * The basemap: a MapLibre vector style if the instance has one, otherwise the
+   * raster tile layer.
+   *
+   * Both are ordinary Leaflet layers, which is the point — everything after this
+   * line (markers, tooltips, framing, teardown) is unchanged either way.
+   */
+  private addBasemap(config: MapConfig): void {
+    const map = this.map;
+    if (!map) {
+      return;
+    }
+
+    if (!config.styleUrl) {
+      L.tileLayer(config.tileUrl, {
+        maxZoom: config.maxZoom,
+        // Required by the tile service's terms, and Leaflet renders it into the
+        // corner control for us.
+        attribution: config.attribution,
+      }).addTo(map);
+      return;
+    }
+
+    this.basemap = L.maplibreGL({
+      style: this.styleUrlFor(config),
+      // Leaflet's corner control is the one on screen; MapLibre's own would sit
+      // inside the canvas and say the same thing twice.
+      attributionControl: false,
+      // CJK, Korean and Japanese rendered from the reader's own installed fonts
+      // instead of downloading glyph ranges for tens of thousands of characters.
+      // Without it a map of Japan pulls megabytes of font data before a single
+      // label appears.
+      localIdeographFontFamily: "'Noto Sans CJK JP', 'Hiragino Sans', 'Yu Gothic', sans-serif",
+    }).addTo(map);
+    // Required by every tile service's terms. Added to Leaflet's control rather
+    // than passed as a layer option, which the bridge's typings do not carry.
+    map.attributionControl.addAttribution(config.attribution);
+
+    const gl = this.basemap.getMaplibreMap();
+    // 'style.load' rather than 'styledata': the latter also fires for our own
+    // setLayoutProperty calls below, so applying the language from it would
+    // re-enter itself on every label layer.
+    gl.on('style.load', () => this.applyLabelLanguage(gl));
+  }
+
+  private styleUrlFor(config: MapConfig): string {
+    const url = this.theme.isDark() && config.darkStyleUrl ? config.darkStyleUrl : config.styleUrl;
+    this.currentStyleUrl = url;
+    return url;
+  }
+
+  /**
+   * Labels in the reader's language, over the local name.
+   *
+   * OpenMapTiles carries `name` (local), `name:latin`, `name:nonlatin` and a
+   * `name:xx` per language, so this is a layout-property rewrite rather than a
+   * different tile source. Both lines are kept deliberately: on a trip the
+   * useful map is the one you can read *and* match against the signs in front of
+   * you.
+   *
+   * Only layers whose label already mentions a name are touched. A house number
+   * layer's `text-field` is `{housenumber}`, and rewriting that to a name
+   * expression would blank every number at street zoom — which nothing else here
+   * would have noticed.
+   */
+  private applyLabelLanguage(gl: MaplibreMap): void {
+    const language = navigator.language?.split('-')[0];
+    if (!language) {
+      return;
+    }
+    // The reader's language, falling back to the Latin transliteration and then
+    // to whatever the place calls itself — so there is always something to draw.
+    const preferred: ExpressionSpecification = [
+      'coalesce',
+      ['get', `name:${language}`],
+      ['get', 'name:latin'],
+      ['get', 'name'],
+    ];
+
+    for (const layer of gl.getStyle().layers) {
+      const field = (layer as { layout?: Record<string, unknown> }).layout?.['text-field'];
+      if (field === undefined || !JSON.stringify(field).includes('name')) {
+        continue;
+      }
+      const bilingual: ExpressionSpecification = [
+        'case',
+        ['all', ['has', 'name:nonlatin'], ['!=', ['get', 'name:nonlatin'], '']],
+        ['concat', preferred, '\n', ['get', 'name:nonlatin']],
+        preferred,
+      ];
+      gl.setLayoutProperty(layer.id, 'text-field', bilingual);
+    }
+  }
 
   /** Rebuilds every marker. A trip has tens of places, not thousands. */
   private draw(): void {

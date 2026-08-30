@@ -3,7 +3,9 @@
 
 export interface MapConfig {
   attribution: string;
+  darkStyleUrl: string;
   enabled: boolean;
   maxZoom: number;
+  styleUrl: string;
   tileUrl: string;
 }

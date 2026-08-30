@@ -46,6 +46,7 @@ public class InstanceConfigController {
         WanderProperties.MapTiles map = properties.map();
         return new InstanceConfig(properties.geocoding().enabled(), properties.currency(),
                 properties.weather().enabled(),
-                new MapConfig(map.enabled(), map.tileUrl(), map.attribution(), map.maxZoom()));
+                new MapConfig(map.enabled(), map.styleUrl(), map.darkStyleUrl(), map.tileUrl(),
+                        map.attribution(), map.maxZoom()));
     }
 }

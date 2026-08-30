@@ -23,8 +23,9 @@ container, one Postgres.
   exists — Open-Meteo, no API key, and honestly blank beyond the forecast horizon
 - A note on each day, and place search over Nominatim, proxied and cached, so a
   place keeps its coordinates
-- A Leaflet map beside the itinerary: a pin per located place, numbered by day,
-  labelled on hover and opening the place's panel when clicked
+- A map beside the itinerary: a pin per located place, numbered by day, labelled
+  on hover and opening the place's panel when clicked — drawn from vector tiles,
+  so a place abroad is labelled in your language *and* as it appears on the signs
 - Share a trip: members by email, owner / editor / viewer roles, and handing the
   trip over to somebody else
 - Invitation links for people with no account here: single-use, expiring,
@@ -222,11 +223,23 @@ its own tile server, or one with no outbound network at all, is a supported
 configuration rather than a broken one.
 
 **Tiles are the one request wander does not proxy**, since the browser has to
-fetch a few hundred images and routing those through the jar would make it a
-tile cache. That is the reason the tile URL is configurable: an operator who does
-not want their users' browsers talking to openstreetmap.org points it elsewhere.
-The attribution travels with the URL, because the terms attach to the service, not
-to the code.
+fetch a tile per screenful and routing those through the jar would make it a tile
+cache. That is the reason the map source is configurable: an operator who does
+not want their users' browsers talking to a third party points it elsewhere. The
+attribution travels with the URL, because the terms attach to the service, not to
+the code.
+
+**The basemap is vector, and that is what makes it readable abroad.** A raster
+tile is a picture with the local name already painted into it — 東京都, never
+Tokyo, whatever the browser asks for. Vector tiles carry `name`, `name:latin` and
+`name:xx` as data, so the client chooses, and wander draws both lines: the
+reader's language over the local name, because on a trip the useful map is the
+one you can read *and* match against the sign in front of you. It also means the
+map follows the theme with a dark style rather than a filter over a light one.
+The default is [OpenFreeMap](https://openfreemap.org), which needs no API key and
+no account; `WANDER_MAP_STYLE_URL` points somewhere else, and setting it blank
+falls back to raster tiles from `WANDER_MAP_TILE_URL`, which an instance with its
+own tile server loses nothing by — except the language.
 
 **Results come back in the browser's language.** The caller's `Accept-Language`
 is forwarded to the geocoder and keyed into the cache with the query, because a
