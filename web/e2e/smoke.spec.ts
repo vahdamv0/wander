@@ -372,6 +372,95 @@ test('places with a location get a pin on the map', async ({ page }) => {
 });
 
 /**
+ * The map has to be *visible* to be worth moving.
+ *
+ * Two mechanisms, one symptom. On a wide screen the map is stuck to the top of
+ * its column, which only works because its grid column stretches to the row's
+ * height — a sticky element whose containing block is exactly its own size has
+ * nowhere to travel, and `items-start` on that grid sized the column to the map
+ * and quietly disabled it. On a narrow screen the map is above the days instead,
+ * so a pin clicked on day four has to bring it back.
+ *
+ * Both were invisible to every other test here: the suite asserts on a pin's
+ * tooltip and on marker counts, and Playwright's visibility is CSS rather than
+ * "in the window", so a map scrolled a thousand pixels off the top is still
+ * `toBeVisible`. `toBeInViewport` is the assertion that notices.
+ */
+test('the map stays in view on a long trip, whichever way the page is laid out', async ({
+  page,
+}) => {
+  const consoleErrors: string[] = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error' && !message.text().includes('401')) {
+      consoleErrors.push(message.text());
+    }
+  });
+  page.on('pageerror', (error) => consoleErrors.push(error.message));
+
+  await stubBasemap(page);
+  await page.route('**/api/geo/search**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([
+        {
+          ref: 'node/1',
+          name: 'Fushimi Inari',
+          address: 'Fushimi, Kyoto, Japan',
+          latitude: 34.9671,
+          longitude: 135.7727,
+          category: 'shrine',
+        },
+      ]),
+    }),
+  );
+
+  await page.goto('/login');
+  await page.getByText('Create one').click();
+  await page.locator('input[name=email]').fill(`e2e-stick-${Date.now()}@example.com`);
+  await page.locator('input[name=displayName]').fill('Sticky Tester');
+  await page.locator('input[name=password]').fill('correct-horse-battery');
+  await page.locator('button[type=submit]').click();
+
+  await page.getByRole('button', { name: 'Plan your first trip' }).click();
+  await page.locator('input[name=name]').fill('Kyoto in Spring');
+  await page.locator('input[name=startDate]').fill('2027-04-02');
+  // Nine days, so the list is comfortably longer than the window.
+  await page.locator('input[name=endDate]').fill('2027-04-10');
+  await page.getByRole('button', { name: 'Create trip' }).click();
+  await page.getByRole('link', { name: /Kyoto/ }).click();
+
+  const day4 = page.locator('ol > li.card').nth(3);
+  await day4.getByRole('button', { name: 'Add place' }).click();
+  await day4.locator('input[name=name]').fill('fushimi');
+  await day4.getByRole('button', { name: /Fushimi Inari/ }).click();
+  await day4.getByRole('button', { name: 'Add place' }).click();
+  await day4.getByRole('button', { name: 'Done' }).click();
+
+  const map = page.locator('.leaflet-container');
+
+  // Wide: scrolling to the bottom of a nine-day list must not take the map with
+  // it. Asserted at a ratio rather than the default "any pixel of it": without
+  // the sticky working, a short scroll still leaves the map's lower edge on
+  // screen, and a test that accepts one visible pixel would pass on a map that
+  // has all but gone.
+  await page.locator('ol > li.card').last().scrollIntoViewIfNeeded();
+  await expect(map).toBeInViewport({ ratio: 0.9 });
+
+  // Narrow: the map is stacked above the days instead of beside them, so there is
+  // nothing to stick to and the pin has to bring it back. The row's pin is
+  // matched by its screen-reader name, which carries the place's own.
+  await page.setViewportSize({ width: 700, height: 800 });
+  const day4Row = page.locator('ol > li.card').nth(3);
+  await day4Row.scrollIntoViewIfNeeded();
+  await expect(map).not.toBeInViewport();
+  await day4Row.getByRole('button', { name: /Show .* on the map/ }).click();
+  await expect(map).toBeInViewport({ ratio: 0.9 });
+
+  expect(consoleErrors, 'unexpected console errors').toEqual([]);
+});
+
+/**
  * The one file the bundler never sees.
  *
  * MapLibre parses vector tiles in a web worker that it loads by URL at runtime,

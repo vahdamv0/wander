@@ -6,7 +6,18 @@ import {
   CdkDropList,
   CdkDropListGroup,
 } from '@angular/cdk/drag-drop';
-import { Component, DestroyRef, computed, effect, inject, input, signal, untracked } from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  ElementRef,
+  computed,
+  effect,
+  inject,
+  input,
+  signal,
+  untracked,
+  viewChild,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { PlaceSuggestion, PlaceView, TripDay } from '../../api';
@@ -102,6 +113,9 @@ export class TripPage {
   );
   /** The place the map should pan to. Set by clicking a row's pin button. */
   protected readonly focused = signal<PlaceView | null>(null);
+
+  /** The map's own box, so a pin on a day far down the page can scroll it into view. */
+  private readonly mapSection = viewChild<ElementRef<HTMLElement>>('mapSection');
   /** Highlighted row, set by clicking a marker. */
   protected readonly highlighted = signal<number | null>(null);
 
@@ -631,6 +645,28 @@ export class TripPage {
     this.highlighted.set(place.id);
     // A fresh object each time, so panning to the same place twice still fires.
     this.focused.set({ ...place });
+    this.bringTheMapIntoView();
+  }
+
+  /**
+   * Panning a map nobody can see is not "showing" anything.
+   *
+   * On a narrow screen the map is *above* the days, so a pin clicked on day four
+   * moved it well off the top of the window and the button appeared to do
+   * nothing at all. `block: 'nearest'` is what makes this safe to call every
+   * time: it scrolls only when the map is not already fully in view, so on a
+   * wide screen — where the map is stuck to the top of its column — it does
+   * nothing, and the page does not lurch under somebody who can see it fine.
+   */
+  private bringTheMapIntoView(): void {
+    const section = this.mapSection()?.nativeElement;
+    if (!section) {
+      return;
+    }
+    // Somebody who has asked for less motion gets the jump rather than the
+    // journey; the browser's own media query is the only thing that knows.
+    const gently = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+    section.scrollIntoView({ block: 'nearest', behavior: gently ? 'smooth' : 'auto' });
   }
 
   /** A marker was clicked: highlight its row without moving the map again. */
