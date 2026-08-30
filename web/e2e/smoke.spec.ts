@@ -80,6 +80,50 @@ test('register, create a trip, and see it listed', async ({ page }) => {
   expect(consoleErrors, 'unexpected console errors').toEqual([]);
 });
 
+test('rename yourself, and the header follows', async ({ page }) => {
+  const consoleErrors: string[] = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error' && !message.text().includes('401')) {
+      consoleErrors.push(message.text());
+    }
+  });
+  page.on('pageerror', (error) => consoleErrors.push(error.message));
+
+  const email = `e2e-rename-${Date.now()}@example.com`;
+  await page.goto('/login');
+  await page.getByText('Create one').click();
+  await page.locator('input[name=email]').fill(email);
+  await page.locator('input[name=displayName]').fill('Original Name');
+  await page.locator('input[name=password]').fill('correct-horse-battery');
+  await page.locator('button[type=submit]').click();
+  await expect(page).toHaveURL(/\/trips$/);
+
+  // The avatar carries the initials, so it is the visible proof the rename
+  // reached the shell and not only the page that did it.
+  const avatar = page.getByRole('button', { name: /Account menu/ });
+  await expect(avatar).toHaveText('ON');
+
+  await avatar.click();
+  await page.getByRole('menuitem', { name: 'Your account' }).click();
+  await expect(page).toHaveURL(/\/account$/);
+
+  await page.locator('input[name=displayName]').fill('  Renamed Person  ');
+  await page.getByRole('button', { name: 'Save name' }).click();
+  await expect(page.getByText('Name saved.')).toBeVisible();
+
+  // Trimmed by the server, and the field shows what was actually stored.
+  await expect(page.locator('input[name=displayName]')).toHaveValue('Renamed Person');
+  await expect(avatar).toHaveText('RP');
+
+  // The principal lives in the session, so a reload is what would catch a rename
+  // that only touched the database row.
+  await page.reload();
+  await expect(page.getByRole('button', { name: /Account menu/ })).toHaveText('RP');
+  await expect(page.getByText('Renamed Person')).toBeVisible();
+
+  expect(consoleErrors, 'unexpected console errors').toEqual([]);
+});
+
 test('change your own password, and the old one stops working', async ({ page }) => {
   const consoleErrors: string[] = [];
   page.on('console', (message) => {
@@ -108,9 +152,13 @@ test('change your own password, and the old one stops working', async ({ page })
   await page.locator('button[type=submit]').click();
   await expect(page).toHaveURL(/\/trips$/);
 
-  // The avatar in the header is the way in; it is a link, not decoration.
-  await page.getByRole('link', { name: /Account settings/ }).click();
+  // The avatar opens a menu; the menu is the only way to either of these.
+  await page.getByRole('button', { name: /Account menu/ }).click();
+  await expect(page.getByRole('menu')).toBeVisible();
+  await page.getByRole('menuitem', { name: 'Your account' }).click();
   await expect(page).toHaveURL(/\/account$/);
+  // The menu closes behind you rather than hanging over the page it navigated to.
+  await expect(page.getByRole('menu')).toHaveCount(0);
 
   // A wrong current password is refused, and — the part worth asserting — the
   // page stays put. A 401 here would have signed the user out over a typo.
@@ -127,7 +175,8 @@ test('change your own password, and the old one stops working', async ({ page })
   await page.getByRole('button', { name: 'Change password' }).click();
   await expect(page.getByText(/Password changed/)).toBeVisible();
 
-  await page.getByRole('button', { name: 'Sign out' }).click();
+  await page.getByRole('button', { name: /Account menu/ }).click();
+  await page.getByRole('menuitem', { name: 'Sign out' }).click();
   await expect(page).toHaveURL(/\/login/);
 
   await page.locator('input[name=email]').fill(email);

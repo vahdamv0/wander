@@ -96,6 +96,20 @@ public class UserAccountService {
         return user;
     }
 
+    /**
+     * Rename yourself. Only the display name — see {@code UpdateProfileRequest}
+     * for why the email is not editable here.
+     *
+     * Trimmed, because a name is drawn beside other people's and a trailing
+     * space is invisible until it is not.
+     */
+    @Transactional
+    public User updateProfile(Long userId, String displayName) {
+        User user = users.findById(userId).orElseThrow(() -> new IllegalArgumentException("No such account"));
+        user.rename(displayName.trim());
+        return user;
+    }
+
     public boolean hasAnyUser() {
         return users.count() > 0;
     }

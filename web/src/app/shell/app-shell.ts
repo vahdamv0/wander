@@ -1,10 +1,10 @@
 import { Component, inject } from '@angular/core';
-import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { Connectivity } from '../core/connectivity';
 import { InstanceConfigStore } from '../core/instance-config.store';
-import { SessionStore } from '../core/session.store';
 import { BrandMark } from './brand-mark';
 import { ThemeToggle } from './theme-toggle';
+import { UserMenu } from './user-menu';
 
 /**
  * The signed-in frame: brand, primary nav, theme toggle, account menu, and the
@@ -13,16 +13,13 @@ import { ThemeToggle } from './theme-toggle';
  */
 @Component({
   selector: 'app-shell',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, BrandMark, ThemeToggle],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, BrandMark, ThemeToggle, UserMenu],
   templateUrl: './app-shell.html',
 })
 export class AppShell {
-  private readonly session = inject(SessionStore);
-  private readonly router = inject(Router);
   private readonly config = inject(InstanceConfigStore);
   private readonly connectivity = inject(Connectivity);
 
-  protected readonly user = this.session.user;
   /**
    * Said once, in the frame, so every page inherits it. The pages themselves say
    * how old *their* copy is, which is the part that differs between them.
@@ -36,23 +33,5 @@ export class AppShell {
     if (!this.config.loaded()) {
       void this.config.load();
     }
-  }
-
-  protected async signOut(): Promise<void> {
-    await this.session.logout();
-    await this.router.navigate(['/login']);
-  }
-
-  /** Initials for the account chip: "Vivek Madhav" → "VM". */
-  protected initials(name: string | undefined): string {
-    if (!name) {
-      return '?';
-    }
-    return name
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((part) => part[0]!.toUpperCase())
-      .join('');
   }
 }

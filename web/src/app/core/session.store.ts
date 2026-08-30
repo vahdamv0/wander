@@ -1,5 +1,14 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { Api, SessionUser, changePassword, login, logout, me, register } from '../api';
+import {
+  Api,
+  SessionUser,
+  changePassword,
+  login,
+  logout,
+  me,
+  register,
+  updateProfile,
+} from '../api';
 import { Connectivity } from './connectivity';
 import { isNetworkError, isUnauthorized } from './errors';
 import { OfflineCache, cacheKeys } from './offline-cache';
@@ -116,6 +125,17 @@ export class SessionStore {
         body: { email, displayName, password, inviteToken: inviteToken ?? undefined },
       }),
     );
+  }
+
+  /**
+   * Rename the signed-in user.
+   *
+   * Goes through `remember`, so the header's initials and the account page
+   * follow immediately and the offline copy of the identity is updated too —
+   * otherwise a reload with no connection would show the old name back again.
+   */
+  async updateDisplayName(displayName: string): Promise<void> {
+    await this.remember(await this.api.invoke(updateProfile, { body: { displayName } }));
   }
 
   /**

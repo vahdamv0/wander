@@ -49,4 +49,5 @@ export type { TripReservations } from './models/trip-reservations';
 export type { TripSummary } from './models/trip-summary';
 export type { TripWeather } from './models/trip-weather';
 export type { UpdatePlaceRequest } from './models/update-place-request';
+export type { UpdateProfileRequest } from './models/update-profile-request';
 export type { UpdateTripRequest } from './models/update-trip-request';
