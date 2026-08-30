@@ -13,7 +13,6 @@ dependencies {
     // plugin — that plugin predates Gradle's own platform support and drags
     // deprecated APIs along with it.
     implementation(platform("org.springframework.boot:spring-boot-dependencies:$springBootVersion"))
-    testImplementation(platform("org.springframework.boot:spring-boot-dependencies:$springBootVersion"))
 
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
@@ -27,18 +26,17 @@ dependencies {
     // Sessions in Postgres rather than in Tomcat's heap, so a restart does not
     // sign everybody out. Flyway owns the two tables; see V5.
     implementation("org.springframework.boot:spring-boot-starter-session-jdbc")
-
-    runtimeOnly("org.postgresql:postgresql")
     // Boot 4 split every integration into its own module: flyway-core alone
     // gets you the library with no autoconfiguration, so migrations never run
     // and Hibernate then fails validation against an empty schema.
     implementation("org.springframework.boot:spring-boot-flyway")
-    // Flyway 10+ ships each database's support separately.
-    runtimeOnly("org.flywaydb:flyway-database-postgresql")
-
     // The built Angular app, packaged as META-INF/resources so Boot serves it
     // straight out of the jar. One artifact to deploy, no external web server.
     implementation(project(":web"))
+
+    runtimeOnly("org.postgresql:postgresql")
+    // Flyway 10+ ships each database's support separately.
+    runtimeOnly("org.flywaydb:flyway-database-postgresql")
 
     testImplementation(platform("org.testcontainers:testcontainers-bom:$testcontainersVersion"))
     testImplementation("org.springframework.boot:spring-boot-starter-test")
