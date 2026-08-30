@@ -12,7 +12,9 @@ container, one Postgres.
 ## What works today
 
 - Register / sign in / sign out, session-cookie auth with CSRF, sessions stored in
-  Postgres so a restart does not sign everybody out
+  Postgres so a restart does not sign everybody out. Self-signup is off by
+  default and an invitation link admits its holder anyway, so a closed instance
+  is still one people can be let into; guessing a password is throttled
 - Create, rename and reschedule trips, scoped to the people who are members of them
 - A trip's days are derived from its date range, never stored — and moving the
   dates carries the itinerary with it rather than stranding it
@@ -62,6 +64,67 @@ docker compose logs wander    # the generated admin password is printed once
 ```
 
 Open <http://localhost:8080>.
+
+**Sign-ups are off by default.** The first admin comes from that log line; anybody
+else joins by opening an invitation link, which admits its holder even with
+self-signup switched off. Set `WANDER_REGISTRATION_ENABLED=true` in `.env` for a
+private box you would rather have an open sign-up form on — and note the browser
+suite creates its accounts by registering, so an instance you run `npm run e2e`
+against needs it on.
+
+## Before you put it on the internet
+
+Four things, and none of them is a code change:
+
+1. `POSTGRES_PASSWORD` is not `change-me`.
+2. `WANDER_SITE_ADDRESS` is your hostname and `WANDER_COOKIE_SECURE=true`. They
+   move together; see the note in `.env.example` for what happens if only one of
+   them does.
+3. **There is no password reset, and nothing here sends mail.** Somebody who
+   forgets their password cannot recover it themselves — the only way back is you,
+   editing `users.password_hash` in the database. That is tolerable for a
+   household or a few invited friends, and it is a real blocker for anything
+   wider. Sign-ups being off by default keeps the two facts in step: the people
+   with accounts are people you can reach.
+4. The backups are on the same disk as the database. They survive a bad
+   migration, a wrong `DELETE` and a corrupted table; they do not survive losing
+   the machine. Copy them off it — see below.
+
+`/api/auth/login` throttles guesses on its own: failed sign-ins are counted per
+account and per client address and refused with a 429 past ten and forty of them
+in a quarter of an hour, and any success clears both counts. It is not a lockout,
+deliberately — see point 3 for why one would be unrecoverable.
+
+## Deploy it from the registry
+
+A server needs no source checkout and no JDK. CI publishes the image for
+**linux/amd64 and linux/arm64** — so an Ampere or Graviton free-tier box pulls
+the same tag as an x86 one — and **the image carries its own deployment bundle**:
+
+```bash
+docker login registry.gitlab.com -u <deploy-token-username>   # scope: read_registry
+mkdir -p /opt/wander && cd /opt/wander
+docker run --rm registry.gitlab.com/vm83043/wander:latest bundle | tar x
+
+cp .env.example .env && $EDITOR .env    # WANDER_IMAGE, POSTGRES_PASSWORD, the site address
+docker compose pull
+docker compose up -d --no-build
+```
+
+The bundle is `compose.yaml`, the `Caddyfile`, the backup script, `.env.example`
+and a `DEPLOY.md` — the same files this repository tests, copied into the image
+at build time rather than kept as a second copy in a deployment repository. That
+is the point: a compose file maintained separately from the image drifts, and the
+symptom of drift is a stack that starts and is quietly wrong.
+
+Updating later is `./update.sh` from that directory: pull, restart, prune. Pin a
+version by pointing `WANDER_IMAGE` at the commit tag CI pushes alongside
+`latest`, and note that a rollback of the image does not roll back a migration
+Flyway has already applied.
+
+Use a **deploy token** with `read_registry`, not a personal access token — this
+credential lives on an internet-facing machine, and a deploy token can be revoked
+without disturbing your own access.
 
 ## Develop
 
@@ -190,6 +253,28 @@ sticky sessions.
 **Multi-tenant from the first migration.** `trip_members` was there before it
 carried anything but an `OWNER` row. Access to a trip is decided by membership and
 nothing else — there is no owner column to fall out of step with it.
+
+**A closed instance, but not a sealed one.** Self-signup is off by default,
+because the default has to be the safe answer for the deployment that faces the
+internet — an open form there hands this machine's Nominatim, Wikimedia and
+Open-Meteo budget, donated capacity all of it, to whoever finds the hostname. Off
+would be useless if it also broke invitation links, though: accepting one requires
+an account, and nothing here sends mail to make one another way. So a live
+invitation token is accepted by the sign-up form as authorisation in its own
+right. It is checked there and spent later, by the join — the failure worth having
+is an account with no trip, not an invitation burned on the way to a sign-up that
+then failed on a taken email address. A wrong token and no token get the same 403,
+so the form cannot be used to find out which invitations exist.
+
+**The login endpoint counts wrong answers.** Bcrypt alone is not an answer to
+guessing: it makes every attempt expensive for the *server*, so a word list
+becomes an outage rather than a breach. Failures are counted per account and per
+client address — the second catches a spray across many accounts that no single
+account's counter would ever see — and a success clears both, so an ordinary
+fumbled password leaves nothing behind. The gate closes in front of the password
+check, not behind it, because the point is to stop spending the hash. It is a
+window, not a lockout: with no password reset here, a lockout that outlived its
+window would be a way for a stranger to keep the real owner out for good.
 
 **A non-member gets 404, not 403.** A 403 confirms the trip exists, which lets
 anyone count trips by walking ids. A member with too weak a role does get 403 —
@@ -377,11 +462,6 @@ with the improvements closed. Section 13 is what closes that gap — modify wand
 and run it for others over a network, and those users are entitled to the source
 of what they are actually using. Self-hosting is the whole point of this project,
 so the licence that protects the people doing the hosting is the right one.
-
-It also keeps a clear line around **TREK**, the AGPL-licensed project read as a
-reference for patterns while building this. No code was copied and wander is not
-a port of it, but sharing its licence removes any question of the distinction
-mattering.
 
 Two consequences worth being clear about, since they are the parts people get
 wrong:

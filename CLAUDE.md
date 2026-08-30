@@ -14,13 +14,6 @@ build, two modules:
   TypeScript. Built by the Gradle node plugin and packaged **inside** the boot
   jar as `META-INF/resources`, so a deployment is one container.
 
-Not a port of TREK (`/media/veracrypt1/TREK`, a TypeScript monorepo). TREK is a
-reference for patterns only; do not copy its code. wander is now AGPL-3.0-or-later
-itself, so the licences no longer differ — but that is not a licence to paste from
-it. Copied code would carry TREK's copyright and its authors' attribution into
-this repository, which is a separate matter from the terms, and "not a port" is
-the claim this project makes about itself.
-
 **The licence is AGPL-3.0-or-later** (`LICENSE`, and see README's Licence
 section). One thing follows for the code: section 13 means a modified instance
 offered to others over a network owes those users its source, which in practice is
@@ -153,6 +146,24 @@ Java record → springdoc → `api/build/openapi.json` (written by
   you leave a trip. Authorisation is checked **before** the target is looked up, so
   a member who may not remove anyone cannot use the 404 to learn who is on the
   trip.
+- **Self-signup is off by default, and guessing a password is throttled.** Two
+  separate answers to "this instance is on the internet now". `registration-enabled`
+  defaults to **false** because the default belongs to the deployment that is
+  exposed, not to the laptop — and it would be useless if it sealed the instance,
+  so `UserAccountService.register` takes an optional invite token and a *live* one
+  authorises the account on its own (see Invitation links). The suite creates its
+  accounts by registering, so `api/src/test/resources/application-test.yml` turns
+  the switch back on for the `test` profile; the two closed-instance tests override
+  that with `@TestPropertySource`, which also gives each its own context.
+  `LoginThrottle` counts failed sign-ins per email **and** per client address —
+  the second is what catches a spray across many accounts, and it is the looser
+  limit because an office is one address. A success clears both, the gate closes
+  *before* the password is verified (spending a bcrypt round per guess is the
+  denial of service), and it is a window rather than a lockout: there is no
+  password reset on this instance, so a lockout would need the operator to undo
+  it. Its integration test gets its own context on purpose — one bean, one map,
+  and every test in the suite arrives from 127.0.0.1, so exhausting a counter in
+  the shared context would take everybody else's sign-in down with it.
 - **Flyway owns the schema**, Hibernate runs `ddl-auto: validate`. Schema changes
   are a new `V<n>__*.sql`; never edit an applied migration. That includes tables
   a library would happily create for itself: `V5` carries Spring Session's own
@@ -280,6 +291,15 @@ Java record → springdoc → `api/build/openapi.json` (written by
   list afterwards would turn a success into an error on screen. A transfer is the
   mirror image — it changes the *caller's* role, so the trip page re-reads the
   itinerary on `rolesChanged` or keeps offering edit controls it no longer has.
+- **The login page decides whether to offer a sign-up, and an invitation
+  overrides the instance.** `/api/config/sign-in` says whether this instance
+  accepts them, and "not answered yet" means no — that part is unchanged. But a
+  visitor sent here by `authGuard` from `/invite/<token>` is offered the form
+  regardless, with a line saying why, and the token travels with the
+  registration: it is the only thing authorising the account. The token comes out
+  of `returnUrl` and nowhere else, matched against that one route rather than
+  anything shaped like it, and it is not validated in the browser — a spent link
+  gets the server's answer, which is better than a page with no way forward.
 - **Components never call HTTP.** They go through a repo in `web/src/app/repo/`,
   which wraps the generated client. Offline support will land inside the repos;
   a component that bypasses them blocks that.
@@ -504,6 +524,16 @@ application's problem.
   learns which attempt found something real. A token that *exists* but is spent,
   revoked or expired answers 200 with `joinable: false` and the server's own
   reason — the holder is not an attacker and "ask for another" is actionable.
+- **A live token is also a permit to sign up.** `TripInviteService.admits` is
+  asked by registration, and it is the piece that keeps a closed instance from
+  being a sealed one: accepting an invitation needs an account, self-signup is off
+  by default, and nothing here sends mail — so without it, switching sign-ups off
+  would silently mean nobody but the first-boot admin could ever join. The token
+  is **checked, not spent**: `accept` still locks the row and re-checks
+  everything, so a token that dies between the two steps costs an account rather
+  than a membership. A wrong token, a spent one and no token at all are the same
+  403, so the register endpoint cannot be walked to find out which invitations
+  exist.
 - **No new public endpoint.** The preview is authenticated like everything else,
   so the journey is link → register → back to the link, carried by `returnUrl` on
   `authGuard`. An anonymous preview would have been the *second* exception to
@@ -837,6 +867,29 @@ alongside everything else.
   directory onto the last surviving copy in exactly the disaster it exists for;
   and it **pulls** rather than having the server push, because a compromised
   machine cannot reach a destination it holds no credentials for.
+
+## Shipping the image
+
+CI builds **one image for linux/amd64 and linux/arm64**, because the runners are
+x86 and the deployment target is an Ampere box: an amd64-only image pulls
+perfectly onto arm64 and then dies with `exec format error`, on the server, at
+`docker compose up`. It is nearly free here only because the build stage carries
+`--platform=$BUILDPLATFORM` — the jar it produces is bytecode and static files,
+identical on either architecture, so only the runtime stage is emulated. Drop
+that flag and buildx runs Gradle and npm under QEMU to produce a byte-identical
+artifact.
+
+**The image carries its own deployment bundle**: `docker run --rm <image> bundle
+| tar x` writes out `compose.yaml`, the `Caddyfile`, `backup/backup.sh`,
+`.env.example`, `DEPLOY.md` and `update.sh`. They are `COPY`d from the repository
+at build time, so the compose file a server runs is the one committed beside the
+image it runs. The alternative — a deployment repository holding its own copy —
+drifts the first time somebody edits one and not the other, and drift here starts
+a stack that is subtly wrong rather than failing. `deploy/entrypoint.sh` is the
+whole mechanism: `bundle` writes a tar, anything else is the application. The CI
+job extracts the bundle from the pushed image and checks the files are there, so
+a broken `bundle` is a red pipeline rather than something found on a machine with
+no source to fall back on.
 
 ## Scope discipline
 

@@ -63,6 +63,14 @@
           </p>
         }
 
+        @if (invited() && registrationEnabled() === false) {
+          <!-- Otherwise a form the rest of the world is refused is offered here
+               with no explanation of why it works. -->
+          <p class="text-sm text-muted">
+            You were invited to a trip, so you can create an account here.
+          </p>
+        }
+
         <button type="submit" class="btn-primary w-full" [disabled]="busy()">
           @if (busy()) {
             <svg class="size-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -79,8 +87,10 @@
 
     <!-- Nothing to offer on an instance that does not accept sign-ups, and no
          way back from the register form either — so this whole line waits until
-         the server has said which it is. -->
-    @if (registrationEnabled() || mode() === 'register') {
+         the server has said which it is. An invitation link overrides that: its
+         holder is admitted whatever the switch says, and a link with no way to
+         make an account at the end of it is a dead end. -->
+    @if (canRegister() || mode() === 'register') {
       <p class="mt-4 text-center text-sm text-muted">
         {{ mode() === 'login' ? "Don't have an account?" : 'Already have an account?' }}
         <button

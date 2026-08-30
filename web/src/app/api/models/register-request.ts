@@ -4,5 +4,6 @@
 export interface RegisterRequest {
   displayName: string;
   email: string;
+  inviteToken?: string;
   password: string;
 }
