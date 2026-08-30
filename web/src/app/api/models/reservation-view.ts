@@ -9,6 +9,7 @@ export interface ReservationView {
   id: number;
   kind: 'FLIGHT' | 'TRAIN' | 'BUS' | 'FERRY' | 'CAR' | 'HOTEL' | 'RESTAURANT' | 'ACTIVITY' | 'OTHER';
   notes?: string;
+  phone?: string;
   startZone: string;
   startsAt: string;
   startsAtLocal: string;

@@ -203,11 +203,21 @@
 
   <!-- Map beside the days on a wide screen, above them on a narrow one. The
        itinerary is the page; the map is a second view of it. -->
-  <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:items-start">
+  <!-- No `items-start` on this grid, deliberately. It sizes each column to its
+       own content, which leaves the map's column exactly as tall as the map — and
+       a sticky element with no room to travel inside its containing block never
+       moves. Stretching the column to the row's height is what gives `lg:sticky`
+       below something to stick within. -->
+  <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
     <div class="lg:order-1 lg:col-start-2">
       @if (mapConfig(); as map) {
+        <!-- `top-[4.5rem]`, not `top-6`: the shell's header is sticky too, 3.5rem
+             tall and above this in the stack, so anything nearer the top of the
+             viewport than that slides underneath it — which on this card is the
+             zoom control. -->
         <section
-          class="card overflow-hidden p-1 lg:sticky lg:top-6"
+          #mapSection
+          class="card overflow-hidden p-1 scroll-mt-[4.5rem] lg:sticky lg:top-[4.5rem]"
           [attr.aria-label]="'Map of ' + (trip()?.name ?? 'this trip')"
         >
           <div class="h-64 sm:h-80 lg:h-[26rem]">
