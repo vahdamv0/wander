@@ -50,6 +50,9 @@
               @if (booking.confirmation) {
                 <p class="text-sm">Ref <span class="font-mono">{{ booking.confirmation }}</span></p>
               }
+              @if (booking.phone) {
+                <p class="text-sm">Tel <span class="font-mono">{{ booking.phone }}</span></p>
+              }
               @if (booking.notes) {
                 <p class="whitespace-pre-line text-sm text-muted">{{ booking.notes }}</p>
               }
@@ -82,6 +85,12 @@
             }
             @if (booking.confirmation) {
               <p class="text-sm">Ref <span class="font-mono">{{ booking.confirmation }}</span></p>
+            }
+            <!-- The whole reason this field exists is the moment you are holding
+                 the paper and cannot tap anything, so it prints beside the
+                 reference rather than being treated as screen furniture. -->
+            @if (booking.phone) {
+              <p class="text-sm">Tel <span class="font-mono">{{ booking.phone }}</span></p>
             }
             @if (booking.notes) {
               <p class="whitespace-pre-line text-sm text-muted">{{ booking.notes }}</p>

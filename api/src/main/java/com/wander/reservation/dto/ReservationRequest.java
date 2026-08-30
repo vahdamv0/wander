@@ -23,6 +23,8 @@ public record ReservationRequest(
         @NotNull ReservationKind kind,
         @NotBlank @Size(max = 160) String title,
         @Size(max = 80) String confirmation,
+        /** A number to ring, as typed — free text, and never reformatted. */
+        @Size(max = 40) String phone,
         @Size(max = 2000) String notes,
         /** The time on the ticket, with no offset attached. */
         @NotNull LocalDateTime startsAtLocal,

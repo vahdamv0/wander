@@ -38,15 +38,16 @@ container, one Postgres.
   a note of who packed each shared thing
 - Bookings — flights, trains, hotels, tables — stored as instants with the zone
   they were booked in, so a flight keeps London time for its departure and Tokyo
-  time for its arrival, and the list is ordered by when things really happen
+  time for its arrival, and the list is ordered by when things really happen.
+  Each one can carry a phone number, shown as typed and dialable in a tap
 - Place enrichment: opening a place shows what OpenStreetMap, Wikidata, Wikipedia
   and Commons know about it — a description, opening hours, a website and
   photographs you can keep — each with its source and licence shown, plus
   directions in Google Maps or OpenStreetMap
 - Offline reading: open a trip once and its days, places, bookings and packing
   list stay readable with no connection, labelled with how old the copy is
-- Print or save the itinerary as a PDF — a day-by-day document with bookings and
-  confirmation references folded onto the days they happen on
+- Print or save the itinerary as a PDF — a day-by-day document with bookings,
+  confirmation references and phone numbers folded onto the days they happen on
 - Nightly database backups that are verified before they are kept, with a restore
   procedure that has actually been run
 - Light / dark / follow-the-OS theming, all driven by design tokens

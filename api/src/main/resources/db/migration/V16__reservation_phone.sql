@@ -1,0 +1,20 @@
+-- A number to ring when a booking goes wrong.
+--
+-- Place enrichment already surfaces a phone number from OpenStreetMap, but that
+-- only ever knows what the map knows: a chain hotel's node often carries none,
+-- and when it does it is the switchboard rather than the direct line on the
+-- booking email. The moment the number is wanted is a late arrival or a missed
+-- connection, when what you need is the number *and* the confirmation code in
+-- front of you — and, on the printed itinerary, in front of you on paper with
+-- nothing to tap.
+--
+-- Every kind, not just HOTEL. A restaurant holding a table, a car hire desk and
+-- a ferry terminal all want a number, and nothing in the schema knows what a
+-- booking "really" is beyond the word somebody picked.
+--
+-- Free text, deliberately. A phone number is not a parseable thing across
+-- countries — extensions, in-country prefixes to drop when dialling from abroad,
+-- "+81 3-4333-1234 (ask for the front desk)" — and a validator here would refuse
+-- numbers that work. It is stored as typed and offered as a tel: link, which is
+-- what the reader's own dialler is for.
+ALTER TABLE reservations ADD COLUMN phone VARCHAR(40);

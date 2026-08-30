@@ -84,6 +84,7 @@ public class ReservationService {
 
     private void apply(Reservation reservation, ReservationRequest request) {
         reservation.setConfirmation(blankToNull(request.confirmation()));
+        reservation.setPhone(blankToNull(request.phone()));
         reservation.setNotes(blankToNull(request.notes()));
 
         ZoneId startZone = zone(request.startZone(), "startZone");

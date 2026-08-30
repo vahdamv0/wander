@@ -574,6 +574,20 @@ that crosses a timezone.
 - **A zone is only shown when it is not the reader's own**, or every row of a
   domestic trip carries noise. The exception is a flight's arrival, which is
   labelled whenever it differs from the departure.
+- **A booking carries a phone number, and every kind does.** Place enrichment
+  already surfaces one from OpenStreetMap, but that only knows what the map knows
+  — a chain hotel's node often has none, and when it does it is the switchboard
+  rather than the direct line on the booking email. It is *not* gated on `HOTEL`,
+  and certainly not on `places.category`: a restaurant holding a table, a car hire
+  desk and a ferry terminal all want a number, and branching display on the
+  geocoder's own word for a place would promote a decorative label into a
+  load-bearing one. Stored as free text and **never parsed or reformatted** —
+  "+81 3-4333-1234 (front desk)" is a realistic and useful thing to write down,
+  and a validator here would refuse numbers that work. Only the `tel:` href is
+  reduced (`telHref`): everything from the first bracket is dropped and what is
+  left keeps its digits and a leading plus, with **nothing added** — a bare local
+  number stays local, because guessing a country code is how you ring a stranger
+  at 1am. It prints, which is half the point: on paper there is nothing to tap.
 
 ## The forecast on a day card
 
