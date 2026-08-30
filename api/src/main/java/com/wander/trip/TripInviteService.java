@@ -1,13 +1,7 @@
 package com.wander.trip;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Base64;
-import java.util.HexFormat;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
@@ -15,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.wander.common.ConflictException;
 import com.wander.common.NotFoundException;
+import com.wander.common.SecureToken;
 import com.wander.sync.TripChanges;
 import com.wander.trip.dto.CreateInviteRequest;
 import com.wander.trip.dto.CreatedInviteView;
@@ -49,15 +44,11 @@ import com.wander.user.UserRepository;
 @Service
 public class TripInviteService {
 
-    /** 256 bits, URL-safe. Long enough that guessing is not a threat model. */
-    private static final int TOKEN_BYTES = 32;
-
     private final TripInviteRepository invites;
     private final TripMemberRepository members;
     private final UserRepository users;
     private final TripAccessService access;
     private final TripChanges changes;
-    private final SecureRandom random = new SecureRandom();
 
     public TripInviteService(TripInviteRepository invites, TripMemberRepository members, UserRepository users,
             TripAccessService access, TripChanges changes) {
@@ -77,9 +68,9 @@ public class TripInviteService {
                     "A trip has one owner; use the role endpoint to transfer ownership");
         }
 
-        String token = mintToken();
+        String token = SecureToken.mint();
         Instant expiresAt = Instant.now().plus(Duration.ofDays(request.expiresInDaysOrDefault()));
-        TripInvite invite = invites.save(new TripInvite(owner.getTrip(), hash(token), request.role(),
+        TripInvite invite = invites.save(new TripInvite(owner.getTrip(), SecureToken.hash(token), request.role(),
                 owner.getUser(), expiresAt));
 
         // The token travels in this response and nowhere else, ever.
@@ -134,7 +125,7 @@ public class TripInviteService {
         if (token == null || token.isBlank()) {
             return false;
         }
-        return invites.findByTokenHash(hash(token))
+        return invites.findByTokenHash(SecureToken.hash(token))
                 .map(invite -> invite.isUsable(Instant.now()))
                 .orElse(false);
     }
@@ -148,7 +139,7 @@ public class TripInviteService {
      */
     @Transactional(readOnly = true)
     public InvitePreview preview(Long userId, String token) {
-        TripInvite invite = invites.findByTokenHash(hash(token))
+        TripInvite invite = invites.findByTokenHash(SecureToken.hash(token))
                 .orElseThrow(() -> new NotFoundException("No such invitation"));
 
         Trip trip = invite.getTrip();
@@ -182,7 +173,7 @@ public class TripInviteService {
      */
     @Transactional
     public Long accept(Long userId, String token) {
-        TripInvite invite = invites.findByTokenHashForUpdate(hash(token))
+        TripInvite invite = invites.findByTokenHashForUpdate(SecureToken.hash(token))
                 .orElseThrow(() -> new NotFoundException("No such invitation"));
 
         Trip trip = invite.getTrip();
@@ -217,26 +208,4 @@ public class TripInviteService {
         };
     }
 
-    private String mintToken() {
-        byte[] bytes = new byte[TOKEN_BYTES];
-        random.nextBytes(bytes);
-        // URL-safe and unpadded: the token is a path segment, so '+' and '/'
-        // would need escaping and '=' invites something in the chain to trim it.
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-    }
-
-    /**
-     * SHA-256, hex. See V15 for why this is not bcrypt: the token is 256 bits of
-     * CSPRNG output, so there is nothing to slow an attacker down about, and a
-     * per-row salt would make the lookup a full scan of every invitation.
-     */
-    static String hash(String token) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            return HexFormat.of().formatHex(digest.digest(token.getBytes(StandardCharsets.UTF_8)));
-        } catch (NoSuchAlgorithmException ex) {
-            // Every JVM ships SHA-256; this cannot happen.
-            throw new IllegalStateException("SHA-256 is unavailable", ex);
-        }
-    }
 }

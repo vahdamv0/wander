@@ -125,6 +125,20 @@ public class TripSyncHandler extends TextWebSocketHandler {
         return watchers == null ? 0 : watchers.size();
     }
 
+    /**
+     * Hangs up every socket one account holds, on any trip.
+     *
+     * The trip-scoped {@link #closeFor} is not enough for a disabled account: the
+     * point of disabling is that this person is no longer allowed to look at
+     * anything, and membership is resolved once at the handshake. A socket left
+     * open would keep being told about other people's edits by an account that
+     * cannot sign in any more — the exact hole {@code TripChange.revokedUserId}
+     * closes for a single trip.
+     */
+    void disconnectUser(Long userId) {
+        byTrip.keySet().forEach(tripId -> closeFor(tripId, userId));
+    }
+
     private void closeFor(Long tripId, Long userId) {
         Set<WebSocketSession> watchers = byTrip.get(tripId);
         if (watchers == null) {

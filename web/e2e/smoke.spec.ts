@@ -257,6 +257,50 @@ test('a signed-out visitor is sent to the login page, and back afterwards', asyn
 });
 
 /**
+ * The reset page is the one route outside `authGuard`, and this is the test that
+ * says so.
+ *
+ * Everybody who needs it is somebody who cannot sign in, so the whole feature is
+ * worthless the moment the route drifts inside the guard — and that failure is
+ * invisible from the server, which would go on answering
+ * `/api/auth/reset/{token}` anonymously and correctly while the browser bounced
+ * every holder to a login form they cannot use. A bogus token is deliberately
+ * enough: what is being asserted is that the page renders for an anonymous
+ * visitor at all, and a real token can only be minted by an administrator, which
+ * this suite cannot create — it makes its accounts by registering, and
+ * registration only ever produces a USER.
+ */
+test('a reset link opens for somebody who cannot sign in', async ({ page }) => {
+  const consoleErrors: string[] = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error') {
+      consoleErrors.push(message.text());
+    }
+  });
+  page.on('pageerror', (error) => consoleErrors.push(error.message));
+
+  await page.goto('/reset/not-a-real-token');
+
+  // Not bounced to /login, which is the entire point.
+  await expect(page).toHaveURL(/\/reset\/not-a-real-token$/);
+  await expect(page.getByRole('heading', { name: 'Set a new password' })).toBeVisible();
+  // A token that does not exist is a 404 whatever is wrong with it, so the page
+  // cannot be more specific than the server was willing to be.
+  await expect(page.getByText('This reset link is not valid.')).toBeVisible();
+
+  // Two failed requests are the *point* of this test rather than defects in it:
+  // the 401 is `SessionStore.restore` finding no session, which is the state
+  // being tested, and the 404 is a token that does not exist. Filtered by their
+  // status rather than switched off, so any other console error still fails —
+  // the lesson the live-sync test already learned about tests that provoke a
+  // failure and then assert on the console.
+  expect(
+    consoleErrors.filter((text) => !text.includes('401') && !text.includes('404')),
+    'unexpected console errors',
+  ).toEqual([]);
+});
+
+/**
  * The itinerary, end to end: derived days render, a place lands on the right
  * one, and reordering survives a round trip through the server (which owns
  * ranks and renumbers a whole day on every move).

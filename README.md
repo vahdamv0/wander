@@ -15,6 +15,10 @@ container, one Postgres.
   Postgres so a restart does not sign everybody out. Self-signup is off by
   default and an invitation link admits its holder anyway, so a closed instance
   is still one people can be let into; guessing a password is throttled
+- Administering the instance: an admin sees the accounts on it, can take one out
+  of service (which signs it out everywhere, at once), and can send somebody a
+  single-use link to set a new password — the recovery for a forgotten one, on an
+  instance that sends no email
 - Create, rename and reschedule trips, scoped to the people who are members of them
 - A trip's days are derived from its date range, never stored — and moving the
   dates carries the itinerary with it rather than stranding it
@@ -80,14 +84,17 @@ Four things, and none of them is a code change:
 2. `WANDER_SITE_ADDRESS` is your hostname and `WANDER_COOKIE_SECURE=true`. They
    move together; see the note in `.env.example` for what happens if only one of
    them does.
-3. **There is no password *reset*, and nothing here sends mail.** Somebody who
-   is signed in can change their own password (Account, from the avatar in the
-   header) — but somebody who has *forgotten* it cannot recover it themselves,
-   because a reset link would need email. The only way back is you, editing
-   `users.password_hash` in the database. That is tolerable for a household or a
-   few invited friends, and it is a real blocker for anything wider. Sign-ups
-   being off by default keeps the two facts in step: the people with accounts are
-   people you can reach.
+3. **There is no *self-service* password reset, because nothing here sends
+   mail.** Somebody signed in can change their own password (Account, from the
+   avatar in the header). Somebody who has *forgotten* it cannot recover it on
+   their own — there is no "forgot password" link, and there will not be one
+   while this instance sends no email. What there is instead is you: from
+   Accounts in the same menu, an admin mints a single-use link and delivers it
+   however they already talk to that person, exactly as an invitation link
+   works. Nobody has to edit `users.password_hash` by hand any more. The limit
+   that remains is that recovery goes through a human, so sign-ups being off by
+   default keeps the two facts in step: the people with accounts are people you
+   can reach.
 4. The backups are on the same disk as the database. They survive a bad
    migration, a wrong `DELETE` and a corrupted table; they do not survive losing
    the machine. Copy them off it — see below.
@@ -315,8 +322,9 @@ client address — the second catches a spray across many accounts that no singl
 account's counter would ever see — and a success clears both, so an ordinary
 fumbled password leaves nothing behind. The gate closes in front of the password
 check, not behind it, because the point is to stop spending the hash. It is a
-window, not a lockout: with no password reset here, a lockout that outlived its
-window would be a way for a stranger to keep the real owner out for good.
+window, not a lockout: recovering an account here goes through an administrator,
+so a lockout that outlived its window would be a way for a stranger to make
+somebody else's afternoon a support request.
 
 **A non-member gets 404, not 403.** A 403 confirms the trip exists, which lets
 anyone count trips by walking ids. A member with too weak a role does get 403 —

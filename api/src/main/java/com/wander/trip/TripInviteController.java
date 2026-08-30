@@ -32,8 +32,14 @@ import jakarta.validation.Valid;
  *
  * Every endpoint here is authenticated, including the recipient's. Somebody with
  * no account signs up first and then accepts, which costs one extra step and
- * keeps `/api/config/sign-in` the only anonymous endpoint in this application —
- * see `@PublicEndpoint` and `EndpointAuthRatchetTest`.
+ * keeps this feature off the anonymous surface entirely — see `@PublicEndpoint`
+ * and `EndpointAuthRatchetTest`.
+ *
+ * The password reset link, which arrived later, is the case where that argument
+ * does not hold: an invitation's holder can always register first, whereas
+ * everybody who needs a reset is somebody who cannot sign in. So that one is
+ * anonymous and this one is not, and the difference is the point rather than an
+ * inconsistency.
  *
  * Method names are the operation ids and ng-openapi-gen exports them unqualified,
  * hence `createInvite` and `listInvites` rather than `create` and `list`.

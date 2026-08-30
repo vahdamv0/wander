@@ -1,4 +1,4 @@
-import { Component, ElementRef, inject, signal } from '@angular/core';
+import { Component, ElementRef, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { InstanceConfigStore } from '../core/instance-config.store';
 import { SessionStore } from '../core/session.store';
@@ -67,6 +67,21 @@ import { SessionStore } from '../core/session.store';
           Your account
         </a>
 
+        <!-- Only for an administrator, and the route is guarded as well: a menu
+             item nobody else can see is a courtesy, not a control. It sits here
+             rather than in the header because administering the instance is a
+             rare errand, and the header belongs to the trip you are planning. -->
+        @if (isAdmin()) {
+          <a
+            role="menuitem"
+            routerLink="/admin"
+            class="block px-3 py-2 text-sm hover:bg-surface-2"
+            (click)="close()"
+          >
+            Accounts
+          </a>
+        }
+
         <button
           role="menuitem"
           type="button"
@@ -96,6 +111,7 @@ export class UserMenu {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   protected readonly user = this.session.user;
+  protected readonly isAdmin = computed(() => this.session.user()?.role === 'ADMIN');
   protected readonly versionLabel = inject(InstanceConfigStore).versionLabel;
   protected readonly open = signal(false);
 

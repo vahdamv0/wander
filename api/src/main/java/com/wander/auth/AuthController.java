@@ -19,11 +19,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.Map;
-
-import org.springframework.session.FindByIndexNameSessionRepository;
-import org.springframework.session.Session;
-
 import com.wander.auth.dto.ChangePasswordRequest;
 import com.wander.auth.dto.LoginRequest;
 import com.wander.auth.dto.RegisterRequest;
@@ -48,11 +43,11 @@ public class AuthController {
             .getContextHolderStrategy();
     private final UserAccountService accounts;
     private final LoginThrottle throttle;
-    private final FindByIndexNameSessionRepository<? extends Session> sessions;
+    private final AccountSessions sessions;
 
     public AuthController(AuthenticationManager authenticationManager,
             SecurityContextRepository securityContextRepository, UserAccountService accounts,
-            LoginThrottle throttle, FindByIndexNameSessionRepository<? extends Session> sessions) {
+            LoginThrottle throttle, AccountSessions sessions) {
         this.authenticationManager = authenticationManager;
         this.securityContextRepository = securityContextRepository;
         this.accounts = accounts;
@@ -199,17 +194,14 @@ public class AuthController {
     /**
      * Every session for this account except the one making the request.
      *
-     * Spring Session indexes sessions by principal name, so this is a lookup
-     * rather than a scan. The current session is skipped by id: the alternative —
-     * clearing the lot — signs the user out of the page they just used, which
-     * reads as the change having failed.
+     * The current session is skipped by id: the alternative — clearing the lot —
+     * signs the user out of the page they just used, which reads as the change
+     * having failed. Disabling an account does clear the lot, which is the same
+     * mechanism with the opposite intent; both live in {@link AccountSessions}.
      */
     private void endOtherSessions(String email, HttpServletRequest httpRequest) {
         String current = httpRequest.getSession(false) == null ? null : httpRequest.getSession(false).getId();
-        Map<String, ? extends Session> found = sessions.findByPrincipalName(email);
-        found.keySet().stream()
-                .filter(id -> !id.equals(current))
-                .forEach(sessions::deleteById);
+        sessions.endOthers(email, current);
     }
 
     @GetMapping("/me")

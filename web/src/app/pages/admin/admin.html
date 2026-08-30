@@ -1,0 +1,165 @@
+<main class="mx-auto max-w-3xl px-4 py-8">
+  <header class="mb-6">
+    <h1 class="text-xl font-semibold tracking-tight">Accounts</h1>
+    <p class="mt-1 text-sm text-muted">
+      Everybody with an account on this instance. Nothing here opens anybody's
+      trips — you see their accounts, not their itineraries.
+    </p>
+  </header>
+
+  @if (error()) {
+    <p class="mb-4 rounded-control bg-danger-soft px-3 py-2 text-sm text-danger" role="alert">
+      {{ error() }}
+    </p>
+  }
+
+  @if (loading() && !accounts().length) {
+    <p class="text-sm text-muted">Loading…</p>
+  }
+
+  <ul class="grid grid-cols-1 gap-3">
+    @for (account of accounts(); track account.id) {
+      <li class="card p-4">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div class="min-w-0">
+            <p class="flex flex-wrap items-center gap-2 font-medium">
+              <span class="truncate">{{ account.displayName }}</span>
+              @if (account.role === 'ADMIN') {
+                <span class="rounded-full border border-border px-2 py-0.5 text-xs font-medium
+                             uppercase tracking-wide text-muted">Admin</span>
+              }
+              @if (account.disabled) {
+                <span class="rounded-full bg-danger-soft px-2 py-0.5 text-xs font-medium
+                             uppercase tracking-wide text-danger">Disabled</span>
+              }
+            </p>
+            <p class="mt-0.5 truncate text-sm text-muted">{{ account.email }}</p>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2">
+            <!-- Not offered on a disabled account, because the server refuses to
+                 mint one: a link that cannot work is a worse answer than not
+                 offering it, and a button that always fails is worse than both.
+                 Enabling first is a decision, and it should be made on purpose. -->
+            @if (!account.disabled) {
+              <button
+                type="button"
+                class="btn-ghost text-sm"
+                [disabled]="saving()"
+                (click)="createReset(account.id)"
+              >
+                Reset password
+              </button>
+            }
+            <button
+              type="button"
+              class="btn-ghost text-sm"
+              [disabled]="saving()"
+              (click)="toggleResets(account.id)"
+            >
+              {{ openFor() === account.id ? 'Hide links' : 'Links' }}
+            </button>
+
+            @if (account.id === me()) {
+              <!-- Said rather than left as a button that would fail: disabling
+                   your own account would end this session mid-request and, on an
+                   instance with one administrator, leave nobody able to undo it. -->
+              <span class="text-xs text-muted">This is you</span>
+            } @else if (account.disabled) {
+              <button
+                type="button"
+                class="btn-ghost text-sm"
+                [disabled]="saving()"
+                (click)="setDisabled(account.id, false)"
+              >
+                Enable
+              </button>
+            } @else if (confirmingDisable() === account.id) {
+              <!-- Inline where the button was, like removing a place: no backdrop
+                   to dismiss by accident, and it names what happens. -->
+              <span class="flex flex-wrap items-center gap-2 text-sm">
+                <span class="text-muted">Sign them out and block sign-in?</span>
+                <button
+                  type="button"
+                  class="btn-danger text-sm"
+                  [disabled]="saving()"
+                  (click)="setDisabled(account.id, true)"
+                >
+                  Disable
+                </button>
+                <button type="button" class="btn-ghost text-sm" (click)="cancelDisable()">
+                  Cancel
+                </button>
+              </span>
+            } @else {
+              <button
+                type="button"
+                class="btn-ghost text-sm text-danger"
+                [disabled]="saving()"
+                (click)="askDisable(account.id)"
+              >
+                Disable
+              </button>
+            }
+          </div>
+        </div>
+
+        @if (created(); as newLink) {
+          <!-- Only under the account it was minted for: createReset opens that
+               account's panel, so this cannot drift onto another row. -->
+          @if (openFor() === account.id) {
+            <!-- Shown once and never again: the server keeps only a hash of the
+                 token, so there is nothing to re-read. A refresh here means
+                 revoking it and minting another. -->
+            <div class="mt-3 rounded-control bg-surface-2 p-3">
+              <p class="text-xs font-medium">Copy this now — it is not shown again.</p>
+              <p class="mt-1 break-all rounded-control bg-surface px-2 py-1.5 font-mono text-xs">
+                {{ resetUrl(newLink.path) }}
+              </p>
+              <p class="mt-2 text-xs text-muted">
+                Send it to them however you already talk to them. Whoever opens it
+                can set this account's password, once.
+              </p>
+              <div class="mt-2 flex items-center gap-2">
+                <button type="button" class="btn-primary text-sm" (click)="copyReset(newLink.path)">
+                  {{ copied() ? 'Copied' : 'Copy link' }}
+                </button>
+                <button type="button" class="btn-ghost text-sm" (click)="dismissCreated()">
+                  Done
+                </button>
+              </div>
+            </div>
+          }
+        }
+
+        @if (openFor() === account.id) {
+          @if (resets().length) {
+            <ul class="mt-3 grid gap-1.5">
+              @for (reset of resets(); track reset.id) {
+                <li class="flex flex-wrap items-center gap-2 text-xs">
+                  <span class="rounded-full border border-border px-2 py-0.5 font-medium
+                               uppercase tracking-wide text-muted">
+                    {{ statusLabel(reset.status) }}
+                  </span>
+                  <span class="text-muted">from {{ reset.createdByName }}</span>
+                  @if (reset.status === 'PENDING') {
+                    <button
+                      type="button"
+                      class="btn-ghost text-xs text-danger"
+                      [disabled]="saving()"
+                      (click)="revokeReset(account.id, reset.id)"
+                    >
+                      Revoke
+                    </button>
+                  }
+                </li>
+              }
+            </ul>
+          } @else {
+            <p class="mt-3 text-xs text-muted">No reset links for this account.</p>
+          }
+        }
+      </li>
+    }
+  </ul>
+</main>

@@ -223,7 +223,8 @@ Java record → springdoc → `api/build/openapi.json` (written by
   envelope's own `message` is the generic "Validation failed", so `messageOf`
   prefers the first field message — otherwise somebody refused for a weak
   password is told only that something was wrong.
-- **A password can be changed, never reset.** `POST /api/auth/password` takes the
+- **A password is changed by its owner and reset only by an administrator.**
+  `POST /api/auth/password` takes the
   current password as well as the new one, and that is the whole point: a session
   cookie somebody else has got hold of must not be enough to take the account for
   good. It goes through the *same* `LoginThrottle` as signing in — verifying a
@@ -237,8 +238,9 @@ Java record → springdoc → `api/build/openapi.json` (written by
   indexed by principal name, so a lookup rather than a scan) while the caller's
   own survives — somebody changing a password they think leaked expects exactly
   that, and signing them out of the page they are looking at would read as
-  failure. There is still no reset, and there will not be one while nothing here
-  sends mail.
+  failure. There is still no *self-service* reset and there will not be one while
+  nothing here sends mail; the recovery for a forgotten password is an
+  administrator minting a link — see "Administering accounts".
 - **Renaming yourself has to rewrite the session, not just the row.** The
   principal is serialised into the session at sign-in and read back on every
   request, so `PUT /api/auth/profile` rebuilds the `SecurityContext` with a fresh
@@ -433,6 +435,11 @@ answered yet" as *un*available — a "Create one" link that vanishes as somebody
 reaches for it is worse than one that appears a moment late, and not offering
 registration is the entire point. Keep the rest of `/api/config` authenticated:
 one anonymous endpoint for one boolean, not the operator's configuration.
+
+It is no longer the *only* public endpoint — `/api/auth/reset/{token}` is the
+second, and the reasoning for why that one had to be is in "Administering
+accounts" below. Two is still the whole anonymous surface, and both are listed
+in `SecurityConfig` beside the login and register pair.
 
 ## Place enrichment
 
@@ -644,6 +651,96 @@ application's problem.
   still in memory for the next person at that browser.
 - Status is **derived from timestamps**, never stored: nothing in this application
   runs on a clock to write "expired" at the right moment.
+
+## Administering accounts
+
+`GlobalRole.ADMIN` was written by `FirstBootAdmin` and read by **nothing** for
+most of this project's life: the first-boot account was labelled an administrator
+and had precisely the authority of everybody else. This is what the label means.
+
+- **Two powers, and the narrowness is the design.** List the accounts, and take
+  one out of service. Not their trips — `TripAccessService` answers an admin a
+  404 on a trip they are not a member of, exactly as it does anybody, and
+  `anAdministratorIsNotAMemberOfEverybodysTrips` pins that. Administering the
+  instance is authority over accounts, not a way into other people's holidays.
+- **Disabled, never deleted.** `users.disabled_at` — a timestamp, because "when
+  did this happen" is the first question about an account that was shut off.
+  There is no delete and there should not be: expenses and packing items
+  reference their user, and a departed member's shares are history the trip still
+  needs (`PersonBalance.stillAMember`), so removing the row would silently
+  forgive a debt on somebody else's trip.
+- **Disabling has to do three things or it does none.** Mark the row, which stops
+  the next sign-in (`WanderUserDetailsService` throws `DisabledException`); delete
+  every session, because the session *is* the credential and a live one would sail
+  past that check for as long as it lasted; and publish `AccountDisabled`, which
+  `TripSyncBroadcaster` turns into hanging up the sockets — membership is resolved
+  once at the handshake, so a socket left open keeps being told about other
+  people's edits. Only the first of the three is visible in the database, which is
+  why the test asserts on all three.
+- **The disabled check is thrown from the details service, not modelled on
+  `WanderUser`.** Adding a component to that record changes its serialized shape,
+  and it is Java-serialized into Postgres by Spring Session — so every session
+  written by the previous version would fail to deserialize on the first request
+  after an upgrade. Signing the whole instance out to ship a feature about
+  accounts is a poor trade.
+- **An admin may not disable themselves**, and may disable another admin. Not
+  paternalism: the caller would lose their own session mid-request, and on a
+  one-admin instance — every instance, by default — nobody would be left to undo
+  it. The recovery would be psql, which is the situation this whole feature exists
+  to end. Disabling *another* admin leaves somebody holding the keys, so it is
+  allowed.
+- **`@PreAuthorize` on the controller class, not a matcher in `SecurityConfig`.**
+  Both work; this one travels with the code. `EndpointAuthRatchetTest` cannot
+  catch a missing rule here, because it only asks whether an *anonymous* caller
+  gets in — an admin endpoint left open to every signed-in account passes it
+  perfectly. Annotating the type means a new method is guarded by existing.
+
+### The reset link
+
+The recovery for a forgotten password, and the same trick as an invitation:
+**a link needs no mail**, and the administrator already has a way to talk to the
+person. Everything about `trip_invites` applies — token never stored, SHA-256 and
+not bcrypt (256 CSPRNG bits have nothing to slow down, and a per-row salt would
+make the lookup a scan), single use, expiring, revoked rather than deleted,
+status derived from timestamps, and a row lock on redeem so two requests cannot
+both set a password. `SecureToken` is now the one copy of the mint-and-digest, so
+the two features cannot drift apart — and drift here fails silently, producing
+tokens that hash to nothing.
+
+Where it deliberately differs:
+
+- **Redeeming is anonymous, and it is the second public endpoint** after
+  `/api/config/sign-in`. The invitation preview is authenticated on the argument
+  that its holder can register first; that argument does not survive here,
+  because everybody who needs a reset is somebody who *cannot sign in*. An
+  authenticated reset is a door that opens only for people who do not need it.
+  What makes it affordable is that the token is the whole credential and a good
+  one, so an anonymous caller gets nothing they did not already hold.
+- **A missing token is 404, a real-but-unusable one answers with a reason.** Same
+  rule as an invitation, and the reason matters more: "ask for another" is
+  actionable, and a 404 on a revoked link reads as a mistyped URL.
+- **Redeeming ends every session for the account, with no exception** — unlike
+  changing your own password, which keeps the session doing the changing.
+  Somebody using a reset link is often recovering an account they believe
+  somebody else has open.
+- **It does not sign the redeemer in.** Typing the new password at the login form
+  is what proves it took, and issuing a session to whoever holds the link is a
+  strictly larger thing than letting them set a password.
+- **A disabled account can neither be minted for nor reset.** A link that cannot
+  work is a worse answer than saying so at the point of minting, and a live link
+  must not be a way back into an account somebody deliberately shut off.
+- **The password policy applies here too**, which is the third door onto the same
+  account — `@GuessablePassword`, same as registration and change-password.
+- Throttled per address in its own `LoginThrottle` namespace: the redeem call
+  spends a bcrypt round for an anonymous caller, which is the argument that
+  already covers `/api/auth/register`.
+
+`AdminRepo` is the **second repo with no offline cache**, after `InviteRepo` and
+for the same reasons sharpened — a minted token would be written to IndexedDB,
+and a cached list would show a disabled account as active and a revoked link as
+outstanding, which is backwards for controls whose purpose is taking access away.
+`/reset/:token` is the one route outside both the shell and `authGuard`;
+`adminGuard` is a courtesy on `/admin`, since the server refuses regardless.
 
 ## Packing lists
 
@@ -1013,5 +1110,7 @@ settling up, packing lists, and reservations. Milestone 5 is half done — offli
 *reads* are in; the write queue is deliberately not, and a decision rather than an
 omission. The day card is finished: a note, what the day cost, and the forecast
 when there is one. Beyond the roadmap: verified nightly backups with a rehearsed
-restore, and the itinerary as a printable document. See the roadmap in README.md.
+restore, the itinerary as a printable document, and the admin surface — which
+finally gives `GlobalRole.ADMIN` something to grant and removes the "no password
+reset" limit README had stated since the beginning. See the roadmap in README.md.
 Deliberately **out** of scope until asked: plugins, i18n, MCP. Keep v1 small.

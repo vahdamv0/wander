@@ -1,0 +1,90 @@
+<main class="mx-auto flex min-h-dvh max-w-md items-center px-4 py-10">
+  <div class="w-full">
+    <h1 class="text-xl font-semibold tracking-tight">Set a new password</h1>
+
+    @if (loading()) {
+      <p class="mt-4 text-sm text-muted">Checking this link…</p>
+    } @else if (done()) {
+      <div class="card mt-4 p-6">
+        <p class="text-sm">
+          Password set. This link has been used and won't work again.
+        </p>
+        <!-- Everywhere, including here, because somebody using a reset link is
+             often recovering an account they think someone else has open. -->
+        <p class="mt-2 text-sm text-muted">
+          Anywhere this account was signed in has been signed out.
+        </p>
+        <button type="button" class="btn-primary mt-4" (click)="goToLogin()">Sign in</button>
+      </div>
+    } @else if (preview(); as link) {
+      <p class="mt-1 text-sm text-muted">
+        For <span class="font-medium text-fg">{{ link.email }}</span>
+      </p>
+
+      @if (!link.usable) {
+        <!-- The whole message is the server's, advice included. A follow-up line
+             added here would be appended to every case, and "ask for another" is
+             wrong for an account that has been disabled. -->
+        <div class="card mt-4 p-6">
+          <p class="text-sm">{{ link.reason }}</p>
+          <button type="button" class="btn-ghost mt-4" (click)="goToLogin()">Back to sign in</button>
+        </div>
+      } @else {
+        <form class="card mt-4 grid gap-4 p-6" (ngSubmit)="submit()">
+          <label class="label">
+            New password
+            <input
+              class="field"
+              type="password"
+              name="newPassword"
+              autocomplete="new-password"
+              required
+              [ngModel]="newPassword()"
+              (ngModelChange)="newPassword.set($event)"
+            />
+            <span class="text-xs font-normal text-muted">
+              At least 10 characters, and not one of the common ones.
+            </span>
+          </label>
+
+          <label class="label">
+            <span>Confirm new password</span>
+            <input
+              class="field"
+              type="password"
+              name="confirmPassword"
+              autocomplete="new-password"
+              required
+              [ngModel]="confirmPassword()"
+              (ngModelChange)="confirmPassword.set($event)"
+            />
+            @if (mismatch()) {
+              <span class="text-xs font-normal text-danger">These don't match.</span>
+            }
+          </label>
+
+          @if (error()) {
+            <p class="rounded-control bg-danger-soft px-3 py-2 text-sm text-danger" role="alert">
+              {{ error() }}
+            </p>
+          }
+
+          <div>
+            <button type="submit" class="btn-primary" [disabled]="!canSubmit()">
+              @if (saving()) {
+                Working…
+              } @else {
+                Set password
+              }
+            </button>
+          </div>
+        </form>
+      }
+    } @else {
+      <div class="card mt-4 p-6">
+        <p class="text-sm" role="alert">{{ error() ?? 'This reset link is not valid.' }}</p>
+        <button type="button" class="btn-ghost mt-4" (click)="goToLogin()">Back to sign in</button>
+      </div>
+    }
+  </div>
+</main>
