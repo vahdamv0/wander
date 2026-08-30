@@ -44,6 +44,7 @@ export type { ResetPreview } from './models/reset-preview';
 export type { SessionUser } from './models/session-user';
 export type { SetDisabledRequest } from './models/set-disabled-request';
 export type { SetPhotoRequest } from './models/set-photo-request';
+export type { SetRoleRequest } from './models/set-role-request';
 export type { SettlementView } from './models/settlement-view';
 export type { SignInConfig } from './models/sign-in-config';
 export type { TripDay } from './models/trip-day';

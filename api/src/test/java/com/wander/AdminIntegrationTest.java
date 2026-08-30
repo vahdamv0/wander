@@ -132,6 +132,67 @@ class AdminIntegrationTest extends IntegrationTestBase {
     }
 
     @Test
+    void promotingSomebodyGivesThemTheAuthorityAndEndsTheirSession() {
+        Session admin = admin();
+        Session promoted = register("promoted");
+        Object promotedId = idOf(promoted);
+
+        // Refused before, allowed after: the whole point of the endpoint.
+        assertThat(get(promoted, "/api/admin/accounts").getStatusCode().value()).isEqualTo(403);
+
+        assertThat(put(admin, "/api/admin/accounts/" + promotedId + "/role", """
+                {"role":"ADMIN"}
+                """).getStatusCode().value()).isEqualTo(200);
+
+        // Their old session is gone. The principal is serialised into the session
+        // at sign-in and read back on every request, so a session that survived
+        // would carry the old role — for a *demotion* that means authority
+        // removed in the database and still held in fact, which is why both
+        // directions end sessions rather than only the dangerous one.
+        assertThat(get(promoted, "/api/auth/me").getStatusCode().value()).isEqualTo(401);
+
+        Session again = login(promoted.email(), PASSWORD);
+        assertThat(asMap(get(again, "/api/auth/me").getBody()).get("role")).isEqualTo("ADMIN");
+        assertThat(get(again, "/api/admin/accounts").getStatusCode().value()).isEqualTo(200);
+    }
+
+    @Test
+    void steppingDownIsAllowedWhenSomebodyElseCanTakeOver() {
+        // The shared context already has administrators from other tests, so
+        // there is always somebody else in charge here. That the *last* one
+        // cannot step down is an instance-wide count and is pinned by
+        // AdminServiceTest, which does not need a database to be sure of it.
+        Session colleague = admin();
+        Object colleagueId = idOf(colleague);
+
+        // Two of them, so stepping down is allowed — and it is the caller's own
+        // account, which is deliberately not refused: promoting a successor and
+        // handing over is how an instance changes hands.
+        assertThat(put(colleague, "/api/admin/accounts/" + colleagueId + "/role", """
+                {"role":"USER"}
+                """).getStatusCode().value()).isEqualTo(200);
+        // Stepping down ends your own session too — you should not keep a page
+        // still offering authority you have given up.
+        assertThat(get(colleague, "/api/auth/me").getStatusCode().value()).isEqualTo(401);
+        assertThat(get(login(colleague.email(), PASSWORD), "/api/admin/accounts")
+                .getStatusCode().value()).isEqualTo(403);
+    }
+
+    @Test
+    void settingTheRoleAnAccountAlreadyHasChangesNothing() {
+        Session admin = admin();
+        Session user = register("unchanged");
+        Object userId = idOf(user);
+
+        // Idempotent rather than an error, and it must not end their session:
+        // signing somebody out to confirm a no-op would be worse than the no-op.
+        assertThat(put(admin, "/api/admin/accounts/" + userId + "/role", """
+                {"role":"USER"}
+                """).getStatusCode().value()).isEqualTo(200);
+        assertThat(get(user, "/api/auth/me").getStatusCode().value()).isEqualTo(200);
+    }
+
+    @Test
     void anAdministratorIsNotAMemberOfEverybodysTrips() {
         Session admin = admin();
         Session user = register("private");

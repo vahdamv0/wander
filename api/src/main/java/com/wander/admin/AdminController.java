@@ -20,6 +20,7 @@ import com.wander.admin.dto.CreateResetRequest;
 import com.wander.admin.dto.CreatedResetView;
 import com.wander.admin.dto.PasswordResetView;
 import com.wander.admin.dto.SetDisabledRequest;
+import com.wander.admin.dto.SetRoleRequest;
 import com.wander.security.WanderUser;
 
 import jakarta.validation.Valid;
@@ -66,6 +67,21 @@ public class AdminController {
             @PathVariable Long userId,
             @Valid @RequestBody SetDisabledRequest request) {
         return admin.setDisabled(principal.id(), userId, request.disabled());
+    }
+
+    /**
+     * Make somebody an administrator, or stop being one.
+     *
+     * No principal is passed: unlike disabling, there is no rule here about who
+     * the target is relative to the caller. Stepping down is allowed and is the
+     * point — what is refused is leaving the instance with no administrator who
+     * can sign in, which is a fact about the instance rather than about who
+     * asked.
+     */
+    @PutMapping("/accounts/{userId}/role")
+    public AdminUserView setAccountRole(@PathVariable Long userId,
+            @Valid @RequestBody SetRoleRequest request) {
+        return admin.setRole(userId, request.role());
     }
 
     /**

@@ -12,6 +12,7 @@ import {
   redeemReset,
   revokeReset,
   setAccountDisabled,
+  setAccountRole,
 } from '../api';
 import { Connectivity } from '../core/connectivity';
 import { OfflineError } from '../core/errors';
@@ -90,6 +91,29 @@ export class AdminRepo {
     try {
       await this.api.invoke(setAccountDisabled, { userId, body: { disabled } });
       await this.load();
+    } finally {
+      this._saving.set(false);
+    }
+  }
+
+  /**
+   * Promote an account to administrator, or demote one back.
+   *
+   * Re-reads like the others, *except* when the caller has just stepped down.
+   * The server ends every session for the account it changed — the caller's own
+   * included — so re-reading the list would be a 401 the moment after a call
+   * that succeeded, and the page would report a failure for something that
+   * worked. `reload: false` is how the page says "I know I have just signed
+   * myself out"; it then clears the session and goes to the login form.
+   */
+  async setRole(userId: number, role: 'USER' | 'ADMIN', reload = true): Promise<void> {
+    this.requireOnline();
+    this._saving.set(true);
+    try {
+      await this.api.invoke(setAccountRole, { userId, body: { role } });
+      if (reload) {
+        await this.load();
+      }
     } finally {
       this._saving.set(false);
     }
