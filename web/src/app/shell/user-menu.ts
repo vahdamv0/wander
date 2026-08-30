@@ -1,5 +1,6 @@
 import { Component, ElementRef, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
+import { InstanceConfigStore } from '../core/instance-config.store';
 import { SessionStore } from '../core/session.store';
 
 /**
@@ -74,6 +75,17 @@ import { SessionStore } from '../core/session.store';
         >
           Sign out
         </button>
+
+        <!-- What is running. Not a menu item — it is not actionable, so it must
+             not be in the keyboard order or announced as something to choose.
+             Drawn only once the config has answered, so nothing flickers. -->
+        @if (versionLabel()) {
+          <p class="border-t border-border px-3 py-2 text-center text-xs text-muted">
+            <span class="rounded-full bg-surface-2 px-2 py-0.5">
+              wander {{ versionLabel() }}
+            </span>
+          </p>
+        }
       </div>
     }
   `,
@@ -84,6 +96,7 @@ export class UserMenu {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   protected readonly user = this.session.user;
+  protected readonly versionLabel = inject(InstanceConfigStore).versionLabel;
   protected readonly open = signal(false);
 
   protected toggle(): void {

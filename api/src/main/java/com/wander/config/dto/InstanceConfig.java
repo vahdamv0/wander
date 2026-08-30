@@ -22,5 +22,18 @@ public record InstanceConfig(
          * it already knows the answer to.
          */
         @NotNull boolean weatherEnabled,
-        @NotNull MapConfig map) {
+        @NotNull MapConfig map,
+        /**
+         * What is running. Shown in the account menu, so somebody reporting a
+         * problem can say which version they are on — the one question that is
+         * always asked and that nobody can answer from a self-hosted instance
+         * without SSH.
+         */
+        @NotNull String version,
+        /**
+         * The commit this image was built from, or empty when it was not built
+         * by CI. Empty is shown as nothing: a chip reading "unknown" is worse
+         * than a chip that simply stops after the version.
+         */
+        @NotNull String buildRef) {
 }

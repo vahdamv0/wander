@@ -26,7 +26,7 @@ class NominatimClientTest {
     private final NominatimClient client = new NominatimClient(properties(), JsonMapper.builder().build());
 
     private static WanderProperties properties() {
-        return new WanderProperties("test", true, "EUR", new WanderProperties.Admin("", ""),
+        return new WanderProperties("test", "", true, "EUR", new WanderProperties.Admin("", ""),
                 new WanderProperties.Login(10, 40, 15, 10000),
                 new WanderProperties.Geocoding(true, "http://localhost:1", "", "en", 1000, 2000, 600, 500),
                 new WanderProperties.Enrichment(true, "http://localhost:1", "http://localhost:1",

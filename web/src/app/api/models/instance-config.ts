@@ -3,8 +3,10 @@
 
 import { MapConfig } from '../models/map-config';
 export interface InstanceConfig {
+  buildRef: string;
   defaultCurrency: string;
   map: MapConfig;
   searchEnabled: boolean;
+  version: string;
   weatherEnabled: boolean;
 }

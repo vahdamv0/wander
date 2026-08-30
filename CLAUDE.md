@@ -906,6 +906,19 @@ identical on either architecture, so only the runtime stage is emulated. Drop
 that flag and buildx runs Gradle and npm under QEMU to produce a byte-identical
 artifact.
 
+**A version means a release, and nothing else.** `wander.version` is
+`${WANDER_VERSION:dev}`, and the only thing that sets it is CI building a **tag**
+— so an image built from an ordinary commit on `main` honestly calls itself
+`dev` rather than claiming a number somebody edited into a yaml file once. Beside
+it, `wander.build-ref` is the commit, baked in as a build argument on every
+build; that is the half that moves, and the only thing that identifies an
+instance updated by pulling `latest`. Both reach the client on `/api/config` and
+are drawn as one chip in the account menu, because "which build are you on" is
+the first question anybody asks and a self-hoster otherwise cannot answer it
+without SSH. The version argument is passed *only* when a tag exists: Spring
+reads a set-but-empty environment variable as a value, not as an absent one, so
+passing it empty would produce a blank version rather than `dev`.
+
 **The image carries its own deployment bundle**: `docker run --rm <image> bundle
 | tar x` writes out `compose.yaml`, the `Caddyfile`, `backup/backup.sh`,
 `.env.example`, `DEPLOY.md` and `update.sh`. They are `COPY`d from the repository

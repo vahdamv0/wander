@@ -119,6 +119,21 @@ at build time rather than kept as a second copy in a deployment repository. That
 is the point: a compose file maintained separately from the image drifts, and the
 symptom of drift is a stack that starts and is quietly wrong.
 
+### Cutting a release
+
+`main` publishes `:latest` and `:<short-sha>` on every commit, and those images
+call themselves `dev` — they are builds, not releases. A release is a **tag**:
+
+```bash
+git tag v0.2.0 && git push origin v0.2.0
+```
+
+That runs the same pipeline, publishes `:v0.2.0` alongside `:latest`, and is the
+only thing that gives the image a version. The account menu then reads
+`wander v0.2.0 · a1b2c3d` — the tag and the commit it was built from — so
+somebody reporting a problem can say what they are running without being asked to
+SSH anywhere.
+
 Updating later is `./update.sh` from that directory: pull, restart, prune. Pin a
 version by pointing `WANDER_IMAGE` at the commit tag CI pushes alongside
 `latest`, and note that a rollback of the image does not roll back a migration

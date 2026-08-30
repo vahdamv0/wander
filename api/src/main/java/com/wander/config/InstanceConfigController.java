@@ -47,6 +47,7 @@ public class InstanceConfigController {
         return new InstanceConfig(properties.geocoding().enabled(), properties.currency(),
                 properties.weather().enabled(),
                 new MapConfig(map.enabled(), map.styleUrl(), map.darkStyleUrl(), map.tileUrl(),
-                        map.attribution(), map.maxZoom()));
+                        map.attribution(), map.maxZoom()),
+                properties.version(), properties.buildRef());
     }
 }

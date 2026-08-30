@@ -104,6 +104,12 @@ test('rename yourself, and the header follows', async ({ page }) => {
   await expect(avatar).toHaveText('ON');
 
   await avatar.click();
+  // The version chip: "dev" for an image built outside a release pipeline, which
+  // is what a local run is. Not a menuitem — it is not actionable.
+  //
+  // Unanchored on purpose: getByText does not normalise whitespace when matching
+  // a regex, so a `^` is defeated by the template's own indentation.
+  await expect(page.getByText(/wander (dev|v\d)/)).toBeVisible();
   await page.getByRole('menuitem', { name: 'Your account' }).click();
   await expect(page).toHaveURL(/\/account$/);
 

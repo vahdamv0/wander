@@ -14,6 +14,18 @@ public record WanderProperties(
         @DefaultValue("dev") String version,
 
         /**
+         * The commit this image was built from, baked in by CI as a build
+         * argument. Blank for a build made any other way, and blank is shown as
+         * nothing rather than as "unknown".
+         *
+         * It is the half of the version that actually moves: `version` is a
+         * number somebody edits once a release, while a self-hosted instance is
+         * updated by pulling `latest` — so "which build am I on" can only be
+         * answered by the commit.
+         */
+        @DefaultValue("") String buildRef,
+
+        /**
          * Self-signup, and it is **off by default** because the default has to be
          * the safe answer for the deployment that is exposed to the internet: an
          * open instance hands this machine's Nominatim, Commons and Open-Meteo
