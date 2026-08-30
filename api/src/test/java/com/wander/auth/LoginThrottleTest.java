@@ -21,7 +21,7 @@ class LoginThrottleTest {
     private static final String ADDRESS = "203.0.113.7";
 
     private LoginThrottle throttle(int perEmail, int perAddress, Duration window) {
-        return new LoginThrottle(perEmail, perAddress, window, 100);
+        return new LoginThrottle(perEmail, perAddress, 100, window, 100);
     }
 
     @Test
@@ -105,7 +105,7 @@ class LoginThrottleTest {
 
     @Test
     void theMapDoesNotGrowWithoutBound() {
-        LoginThrottle throttle = new LoginThrottle(10, 10_000, Duration.ofMinutes(15), 4);
+        LoginThrottle throttle = new LoginThrottle(10, 10_000, 100, Duration.ofMinutes(15), 4);
 
         // The keys are attacker-supplied; this is the eviction that stops a
         // stream of invented addresses filling the heap.
@@ -114,5 +114,41 @@ class LoginThrottleTest {
         }
 
         assertThat(throttle.trackedKeyCount()).isLessThanOrEqualTo(4);
+    }
+
+    /**
+     * Registration counts *attempts*, not failures, and nothing clears them but
+     * the window passing — the opposite of the sign-in counters above. Both
+     * halves are the point: a successful sign-up still made an account, and a
+     * refused one still cost the lookup that refused it.
+     */
+    @Test
+    void countingEveryRegistrationRatherThanOnlyTheFailedOnes() {
+        LoginThrottle throttle = new LoginThrottle(100, 100, 3, Duration.ofMinutes(15), 100);
+
+        for (int attempt = 0; attempt < 3; attempt++) {
+            assertThatCode(() -> throttle.checkRegistration(ADDRESS)).doesNotThrowAnyException();
+            throttle.registrationAttempted(ADDRESS);
+        }
+
+        assertThatThrownBy(() -> throttle.checkRegistration(ADDRESS))
+                .isInstanceOf(RateLimitedException.class);
+    }
+
+    /**
+     * A run of bad passwords must not also stop somebody signing up, and a run
+     * of sign-ups must not lock the sign-in form — they are separate keys for
+     * separate arguments, and sharing one would make each limit the other's.
+     */
+    @Test
+    void registrationAndSignInCountSeparately() {
+        LoginThrottle throttle = new LoginThrottle(2, 2, 2, Duration.ofMinutes(15), 100);
+
+        throttle.failed("ana@example.com", ADDRESS);
+        throttle.failed("ana@example.com", ADDRESS);
+
+        assertThatThrownBy(() -> throttle.check("ana@example.com", ADDRESS))
+                .isInstanceOf(RateLimitedException.class);
+        assertThatCode(() -> throttle.checkRegistration(ADDRESS)).doesNotThrowAnyException();
     }
 }

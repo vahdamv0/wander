@@ -97,6 +97,31 @@ account and per client address and refused with a 429 past ten and forty of them
 in a quarter of an hour, and any success clears both counts. It is not a lockout,
 deliberately — see point 3 for why one would be unrecoverable.
 
+### If you turn sign-ups on
+
+`WANDER_REGISTRATION_ENABLED=true` opens the form to anyone who finds the
+hostname, so four things carry the weight once it is on. All four are on by
+default; the settings are in `.env.example`.
+
+- **Creating accounts is metered per address**, twenty in a quarter of an hour,
+  counted whether the sign-up succeeds or not. The endpoint is anonymous and
+  spends a bcrypt round on every call, so an unmetered one is both a way to burn
+  the machine's CPU and a way to fill its user table.
+- **The upstreams are metered per person.** Place search, place enrichment and
+  the forecast all run on somebody else's donated capacity, and that — rather
+  than anything about accounts — is the real reason self-signup is off by
+  default. Authentication alone stops nothing here once anybody can register.
+- **Passwords are checked against a list of the ones that get guessed.** Ten
+  characters was the whole policy before, and `password12` is ten characters.
+- **The proxy overwrites `X-Forwarded-For`.** The Caddyfile in this repository
+  does it; if you put something else in front, it has to as well. Without it the
+  per-address counters above are set by whoever is calling, and a header is a
+  cheap thing to rotate.
+
+wander also sends a Content-Security-Policy, assembled from your configured map
+hosts so that pointing at your own tile server does not blank the map. See
+`WANDER_CSP_REPORT_ONLY` in `.env.example` for how to diagnose one that does.
+
 ## Deploy it from the registry
 
 A server needs no source checkout and no JDK. CI publishes the image for

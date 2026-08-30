@@ -52,6 +52,10 @@ public record WanderProperties(
 
         @DefaultValue Login login,
 
+        @DefaultValue Quota quota,
+
+        @DefaultValue Csp csp,
+
         @DefaultValue Geocoding geocoding,
 
         @DefaultValue Enrichment enrichment,
@@ -87,8 +91,70 @@ public record WanderProperties(
             @DefaultValue("40") int maxFailuresPerAddress,
             /** How long a run of failures is remembered. Minutes, and it is not a lockout. */
             @DefaultValue("15") int windowMinutes,
+            /**
+             * How many accounts one address may create inside the window.
+             *
+             * Counted whether the registration succeeds or not, because both
+             * cost a bcrypt round — see {@code LoginThrottle}. Twenty is meant
+             * to be out of the way of a household signing everybody up on the
+             * same evening and firmly in the way of a script.
+             *
+             * **The browser suite creates every one of its accounts by
+             * registering, all from one address**, so an instance you point
+             * `npm run e2e` at needs this raised — the same footnote that
+             * already applies to `registration-enabled`.
+             */
+            @DefaultValue("20") int maxRegistrationsPerAddress,
             /** Cap on the counter map. The keys are attacker-supplied, so it is bounded. */
             @DefaultValue("10000") int trackedKeys) {
+    }
+
+    /**
+     * How much of this instance's *upstream* budget one signed-in person may
+     * spend — see {@code UpstreamQuota} for why this is per user id rather than
+     * per address, and why {@code RateGate} is not a substitute.
+     *
+     * The limits are per window and deliberately generous: they are drawn to be
+     * invisible to somebody planning a trip and ruinous to a script pointed at
+     * the donated services this instance depends on.
+     */
+    public record Quota(
+            /** Typeahead, so the loosest: roughly one search every two seconds, sustained. */
+            @DefaultValue("120") int searchesPerWindow,
+            /** Opening a place, which on first sight may walk four services. */
+            @DefaultValue("60") int enrichmentsPerWindow,
+            /** One request covers a whole trip, so this is really per page view. */
+            @DefaultValue("60") int forecastsPerWindow,
+            @DefaultValue("5") int windowMinutes,
+            @DefaultValue("10000") int trackedKeys) {
+    }
+
+    /**
+     * The Content-Security-Policy header.
+     *
+     * Not a fixed string, because the hosts it has to allow are the operator's
+     * choice: the map style, its glyphs and sprites, and the tiles all come from
+     * whatever {@code map} points at, and a hardcoded policy would blank the map
+     * for the first self-hoster to run their own tile server. It is assembled
+     * from {@code MapTiles} at startup instead — see {@code ContentSecurityPolicy}.
+     */
+    public record Csp(
+            @DefaultValue("true") boolean enabled,
+            /**
+             * Report rather than refuse. The escape hatch for an instance whose
+             * map draws from somewhere this policy did not anticipate: turn it
+             * on, load the page, read the console, and send the host that the
+             * violations name. A blank map with nothing in the log is the
+             * failure mode this exists to avoid — see the MapLibre worker note
+             * in CLAUDE.md for how quiet that gets.
+             */
+            @DefaultValue("false") boolean reportOnly,
+            /**
+             * Extra sources appended to `connect-src`, `img-src` and `font-src`,
+             * space-separated. For an instance whose tiles, fonts or photographs
+             * live somewhere this does not work out on its own.
+             */
+            @DefaultValue("") String extraSources) {
     }
 
     /**

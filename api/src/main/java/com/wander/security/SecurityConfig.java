@@ -77,8 +77,8 @@ public class SecurityConfig {
     }
 
     @Bean
-    SecurityFilterChain filterChain(HttpSecurity http, SecurityContextRepository securityContextRepository)
-            throws Exception {
+    SecurityFilterChain filterChain(HttpSecurity http, SecurityContextRepository securityContextRepository,
+            ContentSecurityPolicy csp) throws Exception {
 
         // Angular's HttpClient reads the XSRF-TOKEN cookie and echoes it as
         // X-XSRF-TOKEN with no configuration, which is exactly what
@@ -112,6 +112,22 @@ public class SecurityConfig {
                 // An unauthenticated API call gets a bare 401. The default would
                 // redirect to a login page that does not exist in an SPA, and the
                 // client would see an opaque 200 of HTML instead.
+                // Spring Security's defaults (nosniff, X-Frame-Options: DENY,
+                // HSTS over TLS) stay as they are; only the policy it has no
+                // default for is added, and it is assembled from the configured
+                // map hosts rather than written out here — see
+                // ContentSecurityPolicy.
+                .headers(headers -> {
+                    if (!csp.isEnabled()) {
+                        return;
+                    }
+                    headers.contentSecurityPolicy(policy -> {
+                        policy.policyDirectives(csp.header());
+                        if (csp.isReportOnly()) {
+                            policy.reportOnly();
+                        }
+                    });
+                })
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
