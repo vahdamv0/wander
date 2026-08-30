@@ -77,7 +77,19 @@ springdoc:
 
 wander:
   version: 0.1.0
-  registration-enabled: ${WANDER_REGISTRATION_ENABLED:true}
+  # Self-signup, off by default: the default has to be the safe answer for an
+  # instance on a public hostname, where an open sign-up form hands this
+  # machine's Nominatim, Commons and Open-Meteo budget to whoever finds it.
+  # An invitation link still admits its holder either way, so "off" is a closed
+  # instance rather than a sealed one.
+  registration-enabled: ${WANDER_REGISTRATION_ENABLED:false}
+  login:
+    # Failed sign-ins remembered per account and per client address; a success
+    # clears both. See LoginThrottle — this is the one endpoint an
+    # internet-facing instance gets probed on without being singled out.
+    max-failures-per-email: ${WANDER_LOGIN_MAX_FAILURES:10}
+    max-failures-per-address: ${WANDER_LOGIN_MAX_FAILURES_PER_ADDRESS:40}
+    window-minutes: ${WANDER_LOGIN_WINDOW_MINUTES:15}
   # What a new trip's money is counted in when its creator does not say. Fixed
   # per trip once created, so this only ever affects the next one.
   currency: ${WANDER_CURRENCY:EUR}

@@ -109,6 +109,37 @@ public class TripInviteService {
     }
 
     /**
+     * Whether this token is a live invitation — asked by registration, on an
+     * instance where self-signup is off.
+     *
+     * It is the piece that keeps a closed instance from being a sealed one. The
+     * journey has always been link -> register -> accept, and with sign-ups off
+     * the middle step used to refuse, which left an invitation link that could
+     * only ever be used by somebody who already had an account. Since nothing
+     * here sends mail and there is no other way to create one, that would have
+     * made "registration disabled" mean "nobody else can ever join".
+     *
+     * The invitation is **not spent here**. This admits somebody to the sign-up
+     * form; `accept` is still what puts them on the trip and burns the link, and
+     * it re-checks everything — so a token that expires between the two steps
+     * costs an account, not a membership.
+     *
+     * Nothing is leaked by answering: a caller who guesses a live token can
+     * register, which is exactly what a live token is *for*, and the tokens are
+     * 256 bits from a CSPRNG. A wrong one is indistinguishable from sign-ups
+     * simply being off, because the caller gets the same 403 either way.
+     */
+    @Transactional(readOnly = true)
+    public boolean admits(String token) {
+        if (token == null || token.isBlank()) {
+            return false;
+        }
+        return invites.findByTokenHash(hash(token))
+                .map(invite -> invite.isUsable(Instant.now()))
+                .orElse(false);
+    }
+
+    /**
      * What the holder of a link is shown before they commit to it.
      *
      * Always answers for a token that exists, even an unusable one, because

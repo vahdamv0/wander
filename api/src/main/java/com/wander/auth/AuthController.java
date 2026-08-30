@@ -3,6 +3,7 @@ package com.wander.auth;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -38,12 +39,15 @@ public class AuthController {
     private final SecurityContextHolderStrategy contextHolderStrategy = SecurityContextHolder
             .getContextHolderStrategy();
     private final UserAccountService accounts;
+    private final LoginThrottle throttle;
 
     public AuthController(AuthenticationManager authenticationManager,
-            SecurityContextRepository securityContextRepository, UserAccountService accounts) {
+            SecurityContextRepository securityContextRepository, UserAccountService accounts,
+            LoginThrottle throttle) {
         this.authenticationManager = authenticationManager;
         this.securityContextRepository = securityContextRepository;
         this.accounts = accounts;
+        this.throttle = throttle;
     }
 
     @PublicEndpoint
@@ -51,19 +55,43 @@ public class AuthController {
     @ResponseStatus(HttpStatus.CREATED)
     public SessionUser register(@Valid @RequestBody RegisterRequest request, HttpServletRequest httpRequest,
             HttpServletResponse httpResponse) {
-        User created = accounts.register(request.email(), request.displayName(), request.password());
+        User created = accounts.register(request.email(), request.displayName(), request.password(),
+                request.inviteToken());
         // Log the new account straight in — a register call that then makes the
         // client POST /login separately is two round trips for no gain.
         authenticate(created.getEmail(), request.password(), httpRequest, httpResponse);
         return new SessionUser(created.getId(), created.getEmail(), created.getDisplayName(), created.getRole());
     }
 
+    /**
+     * The only endpoint here that is worth guessing at, and the only one with a
+     * throttle in front of it — see {@code LoginThrottle}.
+     *
+     * The gate is closed *before* the password is verified, so a spent counter
+     * costs a map lookup rather than a bcrypt round: hashing on behalf of an
+     * attacker is how a guessing attempt becomes an outage. A wrong password is
+     * still a 401 exactly as it was; only the reply after too many of them
+     * changes, to a 429 that says nothing about whether the address has an
+     * account.
+     */
     @PublicEndpoint
     @PostMapping("/login")
     public SessionUser login(@Valid @RequestBody LoginRequest request, HttpServletRequest httpRequest,
             HttpServletResponse httpResponse) {
-        Authentication authentication = authenticate(request.email(), request.password(), httpRequest, httpResponse);
-        return SessionUser.from((WanderUser) authentication.getPrincipal());
+        String address = clientAddress(httpRequest);
+        throttle.check(request.email(), address);
+        try {
+            Authentication authentication = authenticate(request.email(), request.password(), httpRequest,
+                    httpResponse);
+            throttle.succeeded(request.email(), address);
+            return SessionUser.from((WanderUser) authentication.getPrincipal());
+        } catch (AuthenticationException ex) {
+            throttle.failed(request.email(), address);
+            // Rethrown untouched: ExceptionTranslationFilter turns it into the
+            // bare 401 the SPA expects, and a message of our own here would be
+            // the place somebody eventually leaks "no such account".
+            throw ex;
+        }
     }
 
     @PostMapping("/logout")
@@ -80,6 +108,24 @@ public class AuthController {
     @GetMapping("/me")
     public SessionUser me(@AuthenticationPrincipal WanderUser principal) {
         return SessionUser.from(principal);
+    }
+
+    /**
+     * Who is knocking, for the throttle's second counter.
+     *
+     * This is the client's address rather than the proxy's because
+     * `server.forward-headers-strategy: framework` puts Spring's
+     * ForwardedHeaderFilter in front of everything, and it rewrites the remote
+     * address from X-Forwarded-For. Trusting that header is only safe because
+     * nothing but the proxy can reach this port — compose binds 8080 to
+     * loopback, which is the same reason the secure-cookie note in .env.example
+     * gives. Expose the app port directly and this becomes a header anybody can
+     * set, which would make the per-address counter free to evade. It would not
+     * weaken the per-email one.
+     */
+    private static String clientAddress(HttpServletRequest request) {
+        String address = request.getRemoteAddr();
+        return address == null ? "" : address;
     }
 
     private Authentication authenticate(String email, String password, HttpServletRequest httpRequest,
