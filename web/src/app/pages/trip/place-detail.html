@@ -157,15 +157,17 @@
           </div>
         }
 
-        @if (facts.photos.length && canEdit()) {
+        @if (otherPhotos().length && canEdit()) {
           <div class="mt-4">
-            <p class="text-[0.6875rem] font-medium uppercase tracking-wide text-muted">Photos</p>
+            <p class="text-[0.6875rem] font-medium uppercase tracking-wide text-muted">
+              {{ place().photoUrl ? 'Other photos' : 'Photos' }}
+            </p>
             <ul class="mt-1 flex flex-wrap gap-1.5">
-              @for (photo of facts.photos; track photo.url) {
+              @for (photo of otherPhotos(); track photo.url) {
                 <li>
                   <button type="button"
-                          class="block overflow-hidden rounded-control border border-border"
-                          [class.border-accent]="place().photoUrl === photo.url"
+                          class="block overflow-hidden rounded-control border border-border
+                                 hover:border-accent"
                           [disabled]="saving()"
                           [title]="photo.author + ' · ' + photo.licence"
                           (click)="keepPhoto(photo)">
@@ -185,64 +187,114 @@
       <p class="mt-4 text-sm text-muted">Looking this place up…</p>
     }
 
-    <div class="mt-5 flex flex-wrap gap-2 border-t border-border pt-4">
-      <!-- Two routing services rather than one, and a menu because neither is
-           chosen for the user. Opens upward: this row is the last thing in a
-           scrollable panel, so a menu dropping down would open into nothing. -->
-      @if (directionsLinks(); as directions) {
-        <div class="relative">
-          <button type="button" class="btn-ghost text-sm"
-                  aria-haspopup="menu"
-                  [attr.aria-expanded]="directionsOpen()"
-                  (click)="toggleDirections()">
-            Directions
-            <svg class="size-3.5 transition-transform" [class.rotate-180]="directionsOpen()"
-                 viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="m6 9 6 6 6-6" />
+    <!-- Outward links on the left, the two controls that change the place on the
+         right: they are different kinds of thing, and grouping them is what stops
+         Remove sitting next to Website. Each label keeps its word and gains an
+         icon — icon-only would be a bare glyph for the one irreversible action
+         here, and this row's contents vary by place, so no position is learnable. -->
+    <div class="mt-5 flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-border pt-4">
+      <div class="flex flex-wrap items-center gap-1">
+        <!-- Two routing services rather than one, and a menu because neither is
+             chosen for the user. Opens upward: this row is the last thing in a
+             scrollable panel, so a menu dropping down would open into nothing. -->
+        @if (directionsLinks(); as directions) {
+          <div class="relative">
+            <button type="button" class="btn-ghost gap-1.5 px-2.5 text-sm"
+                    aria-haspopup="menu"
+                    [attr.aria-expanded]="directionsOpen()"
+                    (click)="toggleDirections()">
+              <svg class="size-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
+                   aria-hidden="true">
+                <path d="M15 14l5-5-5-5" />
+                <path d="M4 20v-7a4 4 0 0 1 4-4h12" />
+              </svg>
+              Directions
+              <svg class="size-3.5 transition-transform" [class.rotate-180]="directionsOpen()"
+                   viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                   stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
+
+            @if (directionsOpen()) {
+              <!-- Clicking anywhere else dismisses it. A plain div, because it is
+                   not a control: the menu's own items and Escape are the paths a
+                   keyboard takes, and this would only be a stop on the way. -->
+              <div class="fixed inset-0 z-30" (click)="closeDirections()"></div>
+
+              <div class="absolute bottom-full left-0 z-40 mb-1 min-w-44 overflow-hidden rounded-control
+                          border border-border bg-surface py-1 shadow-lg"
+                   role="menu" aria-label="Open directions in">
+                @for (target of directions; track target.label) {
+                  <a [href]="target.url" target="_blank" rel="noopener noreferrer"
+                     role="menuitem"
+                     class="flex items-center gap-2.5 px-3 py-2 text-sm text-ink hover:bg-surface-2"
+                     (click)="closeDirections()">
+                    <svg class="size-4 shrink-0 text-muted" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                         stroke-linejoin="round" aria-hidden="true">
+                      <path d="M22 2 11 13M22 2l-7 20-4-9-9-4Z" />
+                    </svg>
+                    {{ target.label }}
+                  </a>
+                }
+              </div>
+            }
+          </div>
+        }
+        @if (facts()?.website; as website) {
+          <a [href]="website" target="_blank" rel="noopener noreferrer"
+             class="btn-ghost gap-1.5 px-2.5 text-sm">
+            <svg class="size-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
+                 aria-hidden="true">
+              <path d="M15 3h6v6M10 14 21 3" />
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
             </svg>
+            Website
+          </a>
+        }
+        @if (facts()?.phone; as phone) {
+          <a [href]="'tel:' + phone" class="btn-ghost gap-1.5 px-2.5 text-sm">
+            <svg class="size-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
+                 aria-hidden="true">
+              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.2 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92Z" />
+            </svg>
+            {{ phone }}
+          </a>
+        }
+      </div>
+
+      @if (canEdit()) {
+        <!-- `ml-auto`, not `justify-between` on the row: these two wrap to their own
+             line as soon as a place has a phone number, and a wrapped line is laid
+             out on its own — so only a margin keeps them at the right-hand end
+             wherever they land. -->
+        <div class="ml-auto flex items-center gap-1">
+          <button type="button" class="btn-ghost gap-1.5 px-2.5 text-sm" (click)="openEdit()">
+            <svg class="size-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
+                 aria-hidden="true">
+              <path d="M12 20h9" />
+              <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+            </svg>
+            Edit
           </button>
-
-          @if (directionsOpen()) {
-            <!-- Clicking anywhere else dismisses it. A plain div, because it is
-                 not a control: the menu's own items and Escape are the paths a
-                 keyboard takes, and this would only be a stop on the way. -->
-            <div class="fixed inset-0 z-30" (click)="closeDirections()"></div>
-
-            <div class="absolute bottom-full left-0 z-40 mb-1 min-w-44 overflow-hidden rounded-control
-                        border border-border bg-surface py-1 shadow-lg"
-                 role="menu" aria-label="Open directions in">
-              @for (target of directions; track target.label) {
-                <a [href]="target.url" target="_blank" rel="noopener noreferrer"
-                   role="menuitem"
-                   class="flex items-center gap-2.5 px-3 py-2 text-sm text-ink hover:bg-surface-2"
-                   (click)="closeDirections()">
-                  <svg class="size-4 shrink-0 text-muted" viewBox="0 0 24 24" fill="none"
-                       stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
-                       stroke-linejoin="round" aria-hidden="true">
-                    <path d="M22 2 11 13M22 2l-7 20-4-9-9-4Z" />
-                  </svg>
-                  {{ target.label }}
-                </a>
-              }
-            </div>
+          @if (!confirmingRemoval()) {
+            <button type="button" class="btn-ghost gap-1.5 px-2.5 text-sm text-danger"
+                    [disabled]="saving()" (click)="askRemove()">
+              <svg class="size-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
+                   aria-hidden="true">
+                <path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2" />
+                <path d="m19 6-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+              </svg>
+              Remove
+            </button>
           }
         </div>
-      }
-      @if (facts()?.website; as website) {
-        <a [href]="website" target="_blank" rel="noopener noreferrer" class="btn-ghost text-sm">
-          Website
-        </a>
-      }
-      @if (facts()?.phone; as phone) {
-        <a [href]="'tel:' + phone" class="btn-ghost text-sm">{{ phone }}</a>
-      }
-      @if (canEdit()) {
-        <button type="button" class="btn-ghost text-sm" (click)="openEdit()">Edit</button>
-        @if (!confirmingRemoval()) {
-          <button type="button" class="btn-ghost text-sm text-danger" [disabled]="saving()"
-                  (click)="askRemove()">Remove</button>
-        }
       }
     </div>
 
@@ -257,10 +309,10 @@
           }
           This cannot be undone.
         </p>
-        <div class="mt-2.5 flex gap-2">
-          <button type="button" class="btn-ghost text-sm text-danger" [disabled]="saving()"
+        <div class="mt-2.5 flex gap-1">
+          <button type="button" class="btn-ghost px-2.5 text-sm text-danger" [disabled]="saving()"
                   (click)="remove()">Remove</button>
-          <button type="button" class="btn-ghost text-sm" [disabled]="saving()"
+          <button type="button" class="btn-ghost px-2.5 text-sm" [disabled]="saving()"
                   (click)="cancelRemove()">Keep it</button>
         </div>
       </div>
