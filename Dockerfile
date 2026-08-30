@@ -47,6 +47,21 @@ COPY backup/backup.sh /app/deploy/backup/
 COPY deploy/DEPLOY.md deploy/update.sh /app/deploy/
 COPY deploy/entrypoint.sh /app/entrypoint.sh
 
+# What this image says it is, both halves passed by CI and drawn together in the
+# account menu — so "which build is that instance on" has an answer that does not
+# need SSH.
+#
+# WANDER_VERSION is the release tag, and only a tag pipeline sets it: an image
+# built from an ordinary commit on main is honestly "dev", because it is not a
+# release. WANDER_BUILD_REF is the commit, which is the half that moves on every
+# build and the only thing that identifies an instance updated by pulling
+# `latest`. Blank build ref means a build made outside CI, and blank is drawn as
+# nothing rather than as "unknown".
+ARG WANDER_VERSION=dev
+ENV WANDER_VERSION=${WANDER_VERSION}
+ARG WANDER_BUILD_REF=""
+ENV WANDER_BUILD_REF=${WANDER_BUILD_REF}
+
 USER wander
 EXPOSE 8080
 # Container-aware heap sizing: the JVM otherwise reads the host's memory, not

@@ -113,33 +113,49 @@ container-image:
     # builder can.
     - docker buildx create --name wander --driver docker-container --use
     - docker buildx inspect --bootstrap
-    # One build, both tags, pushed as a single manifest list. The sha is what a
-    # deployment pins to; `latest` is what `docker compose pull` follows.
+    # What this image calls itself. A tag pipeline is a release, so the version
+    # is the tag with any leading "v" removed; anything else is honestly "dev",
+    # and the commit is what identifies it. Both are baked in as build arguments
+    # and come back out through /api/config.
     #
-    # --provenance=false is not optional against GitLab's registry. Since buildx
-    # 0.11 a build also emits an attestation manifest describing how it was
-    # made, and GitLab's registry accepts the manifest list and then rejects its
-    # blobs: `blob unknown to registry`, at the very last step, after the whole
-    # build has succeeded. Nothing here consumes provenance, so the fix is to
-    # not produce it.
+    # The version argument is added only when there *is* a tag: passing it empty
+    # would set the environment variable to an empty string, and Spring reads a
+    # set-but-empty variable as a value rather than falling back to its default.
     - |
+      TAGS="-t $CI_REGISTRY_IMAGE:latest"
+      VERSION_ARG=""
+      if [ -n "$CI_COMMIT_TAG" ]; then
+        TAGS="$TAGS -t $CI_REGISTRY_IMAGE:$CI_COMMIT_TAG"
+        VERSION_ARG="--build-arg WANDER_VERSION=${CI_COMMIT_TAG#v}"
+        IMAGE_REF="$CI_REGISTRY_IMAGE:$CI_COMMIT_TAG"
+      else
+        TAGS="$TAGS -t $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA"
+        IMAGE_REF="$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA"
+      fi
+      echo "Building $IMAGE_REF"
       docker buildx build \
         --platform linux/amd64,linux/arm64 \
         --provenance=false \
         --sbom=false \
-        -t "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA" \
-        -t "$CI_REGISTRY_IMAGE:latest" \
+        --build-arg WANDER_BUILD_REF="$CI_COMMIT_SHORT_SHA" \
+        $VERSION_ARG \
+        $TAGS \
         --push .
+      echo "$IMAGE_REF" > image-ref.txt
     # The image carries its own deployment bundle. Proving it here means a
     # broken `bundle` is a red pipeline rather than a discovery made on a server
     # with no source checkout to fall back on.
-    - docker pull "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA"
+    - IMAGE_REF=$(cat image-ref.txt)
+    - docker pull "$IMAGE_REF"
     - mkdir -p /tmp/bundle
-    - docker run --rm "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA" bundle | tar x -C /tmp/bundle
+    - docker run --rm "$IMAGE_REF" bundle | tar x -C /tmp/bundle
     - test -f /tmp/bundle/compose.yaml
     - test -f /tmp/bundle/Caddyfile
     - test -f /tmp/bundle/.env.example
     - test -x /tmp/bundle/update.sh
     - test -f /tmp/bundle/backup/backup.sh
   rules:
+    # A tag is a release: it publishes :<tag> alongside :latest, and it is the
+    # only thing that gives the image a version rather than "dev".
+    - if: $CI_COMMIT_TAG
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
