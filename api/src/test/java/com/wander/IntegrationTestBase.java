@@ -97,6 +97,42 @@ abstract class IntegrationTestBase {
         return new Session(SESSION_COOKIE + "=" + session, refreshed != null ? refreshed : csrf, email);
     }
 
+    /**
+     * One sign-in attempt, returned whatever it was: 200, the 401 of a wrong
+     * password, or the 429 of too many of them. Each call fetches its own CSRF
+     * token, exactly as a browser sitting on the login page would.
+     */
+    protected ResponseEntity<String> attemptLogin(String email, String password) {
+        return attemptLogin(email, password, bootstrapCsrf());
+    }
+
+    private ResponseEntity<String> attemptLogin(String email, String password, String csrf) {
+        return http().post()
+                .uri("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header(HttpHeaders.COOKIE, "XSRF-TOKEN=" + csrf)
+                .header("X-XSRF-TOKEN", csrf)
+                .body("""
+                        {"email":"%s","password":"%s"}
+                        """.formatted(email, password))
+                .retrieve()
+                .toEntity(String.class);
+    }
+
+    /** A signed-in browser, for an account this test did not create by registering. */
+    protected Session login(String email, String password) {
+        String csrf = bootstrapCsrf();
+        ResponseEntity<String> response = attemptLogin(email, password, csrf);
+        assertThat(response.getStatusCode().value()).as("login %s", email).isEqualTo(200);
+        String session = cookieValue(response, SESSION_COOKIE);
+        assertThat(session).as("session cookie after login").isNotNull();
+        // The CSRF token is cookie-backed and survives the new session id, so a
+        // login need not set it again — keep the one we bootstrapped with, as
+        // register() does.
+        String refreshed = cookieValue(response, "XSRF-TOKEN");
+        return new Session(SESSION_COOKIE + "=" + session, refreshed != null ? refreshed : csrf, email);
+    }
+
     /** The value of one Set-Cookie on a response, or null if it was not set. */
     private static String cookieValue(ResponseEntity<?> response, String name) {
         List<String> cookies = response.getHeaders().get(HttpHeaders.SET_COOKIE);

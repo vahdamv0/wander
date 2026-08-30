@@ -1,0 +1,13 @@
+# The "test" profile, active for everything under @PostgresIntegrationTest.
+#
+# Self-signup is off in the shipped configuration, because that is the right
+# default for an instance on a public hostname. The suite creates its accounts by
+# posting to /api/auth/register, so it turns it back on here — a test instance is
+# a container that lives for one run and is reachable from nowhere.
+#
+# RegistrationDisabledIntegrationTest and InviteRegistrationIntegrationTest set
+# it back to false with @TestPropertySource, which outranks this file, and each
+# therefore gets its own application context — which is what makes them a real
+# test of the closed instance rather than of this line.
+wander:
+  registration-enabled: true

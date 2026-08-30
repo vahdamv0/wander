@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Api, getSignInConfig } from '../../api';
@@ -29,6 +29,37 @@ export class LoginPage {
       ? requested
       : '/trips';
   }
+
+  /**
+   * The invitation this sign-in is on the way to, if it is on the way to one.
+   *
+   * An instance with sign-ups switched off still admits the holder of a live
+   * link — otherwise turning them off would break every invitation, since
+   * accepting one needs an account and nothing here sends mail to make one. The
+   * token is the authorisation, so it has to travel with the registration; the
+   * only place it exists at this point is the `returnUrl` the guard put here on
+   * the way past.
+   *
+   * Read from the snapshot once, like `returnUrl` — this page is not reused
+   * across navigations.
+   */
+  private readonly inviteToken = signal(inviteTokenIn(this.returnUrl()));
+
+  /**
+   * Whether to offer a sign-up at all: this instance accepts them, or this
+   * visitor is holding an invitation that says otherwise.
+   *
+   * The token is not checked here — the server does that, and a made-up one is
+   * refused with the same 403 as no token at all. Offering the form to somebody
+   * whose link turns out to be spent is the better failure: they get the
+   * server's answer instead of a page with no way forward on it.
+   */
+  /** Whether this visitor arrived holding a link, which the form says out loud. */
+  protected readonly invited = computed(() => this.inviteToken() !== null);
+
+  protected readonly canRegister = computed(
+    () => this.registrationEnabled() === true || this.inviteToken() !== null,
+  );
 
   /**
    * Whether this instance accepts sign-ups. Null until the server says, and the
@@ -74,7 +105,12 @@ export class LoginPage {
       if (this.mode() === 'login') {
         await this.session.login(this.email(), this.password());
       } else {
-        await this.session.register(this.email(), this.displayName(), this.password());
+        await this.session.register(
+          this.email(),
+          this.displayName(),
+          this.password(),
+          this.inviteToken(),
+        );
       }
       await this.router.navigateByUrl(this.returnUrl());
     } catch (err: unknown) {
@@ -88,4 +124,16 @@ export class LoginPage {
     this.mode.update((m) => (m === 'login' ? 'register' : 'login'));
     this.error.set(null);
   }
+}
+
+/**
+ * The token out of an `/invite/<token>` path, or null for anything else.
+ *
+ * Deliberately narrow: this decides whether to offer a sign-up form on an
+ * instance that has them switched off, so it matches that one route and nothing
+ * that merely resembles it.
+ */
+function inviteTokenIn(path: string): string | null {
+  const match = /^\/invite\/([^/?#]+)$/.exec(path);
+  return match ? decodeURIComponent(match[1]) : null;
 }

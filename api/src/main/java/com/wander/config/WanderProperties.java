@@ -13,8 +13,21 @@ public record WanderProperties(
         /** Reported in the geocoder User-Agent, which is how a blocked instance gets identified. */
         @DefaultValue("dev") String version,
 
-        /** Self-signup. Off means an admin creates accounts (invites land in a later milestone). */
-        @DefaultValue("true") boolean registrationEnabled,
+        /**
+         * Self-signup, and it is **off by default** because the default has to be
+         * the safe answer for the deployment that is exposed to the internet: an
+         * open instance hands this machine's Nominatim, Commons and Open-Meteo
+         * budget — all of them somebody else's donated capacity — to anybody who
+         * finds the hostname.
+         *
+         * Off does not mean closed. A valid invitation link still admits its
+         * holder, so the link -> register -> accept journey works exactly as it
+         * did; see {@code UserAccountService.register}. Without that, "off" would
+         * have meant an instance nobody but the first-boot admin could ever join,
+         * because nothing here sends mail and there is no other way to make an
+         * account.
+         */
+        @DefaultValue("false") boolean registrationEnabled,
 
         /**
          * The currency a new trip gets when its creator does not choose one. An
@@ -24,6 +37,8 @@ public record WanderProperties(
         @DefaultValue("EUR") String currency,
 
         @DefaultValue Admin admin,
+
+        @DefaultValue Login login,
 
         @DefaultValue Geocoding geocoding,
 
@@ -39,6 +54,29 @@ public record WanderProperties(
      * hand-edit the database to get in.
      */
     public record Admin(@DefaultValue("") String email, @DefaultValue("") String password) {
+    }
+
+    /**
+     * How hard a password may be guessed. See {@code LoginThrottle} for why there
+     * are two limits rather than one.
+     *
+     * The defaults are meant to be invisible to anybody using the application and
+     * ruinous to a word list: ten wrong passwords for one account in a quarter of
+     * an hour is already a bad afternoon, and forty from one address is several
+     * people all having one.
+     */
+    public record Login(
+            @DefaultValue("10") int maxFailuresPerEmail,
+            /**
+             * Looser than the per-email limit on purpose: a household, an office
+             * or a mobile network arrives as one address, and several people
+             * signing in from it must not add up to a lockout.
+             */
+            @DefaultValue("40") int maxFailuresPerAddress,
+            /** How long a run of failures is remembered. Minutes, and it is not a lockout. */
+            @DefaultValue("15") int windowMinutes,
+            /** Cap on the counter map. The keys are attacker-supplied, so it is bounded. */
+            @DefaultValue("10000") int trackedKeys) {
     }
 
     /**

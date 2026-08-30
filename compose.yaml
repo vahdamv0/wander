@@ -40,7 +40,9 @@ services:
       WANDER_DB_PASSWORD: ${POSTGRES_PASSWORD}
       WANDER_ADMIN_EMAIL: ${WANDER_ADMIN_EMAIL:-}
       WANDER_ADMIN_PASSWORD: ${WANDER_ADMIN_PASSWORD:-}
-      WANDER_REGISTRATION_ENABLED: ${WANDER_REGISTRATION_ENABLED:-true}
+      # Off by default. An invitation link still admits its holder, so this is a
+      # closed instance rather than a sealed one — see .env.example.
+      WANDER_REGISTRATION_ENABLED: ${WANDER_REGISTRATION_ENABLED:-false}
       WANDER_GEOCODING_ENABLED: ${WANDER_GEOCODING_ENABLED:-true}
       WANDER_GEOCODING_URL: ${WANDER_GEOCODING_URL:-https://nominatim.openstreetmap.org}
       WANDER_GEOCODING_CONTACT: ${WANDER_GEOCODING_CONTACT:-}

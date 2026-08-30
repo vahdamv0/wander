@@ -4,7 +4,16 @@
 # --- build -----------------------------------------------------------------
 # Debian rather than Alpine: the Gradle node plugin downloads glibc node
 # binaries, which do not run on musl.
-FROM eclipse-temurin:21-jdk AS build
+#
+# --platform=$BUILDPLATFORM pins this stage to the *builder's* architecture,
+# which is what makes a multi-architecture image affordable here. What this
+# stage produces — a jar with the Angular build inside it — is bytecode and
+# static files, identical whatever CPU compiled them, so building it once
+# natively and copying it into each runtime is not a shortcut but the correct
+# answer. Without the flag, buildx would run Gradle and npm under QEMU to
+# produce a byte-identical jar, turning a five-minute build into most of an
+# hour.
+FROM --platform=$BUILDPLATFORM eclipse-temurin:21-jdk AS build
 WORKDIR /src
 
 # Build scripts and the lockfile first, so editing source does not re-resolve
@@ -28,9 +37,19 @@ FROM eclipse-temurin:21-jre-alpine AS runtime
 RUN addgroup -S wander && adduser -S -G wander wander
 WORKDIR /app
 COPY --from=build /src/api/build/libs/*-SNAPSHOT.jar /app/wander.jar
+
+# What a server needs beside the image, carried inside it: `docker run --rm
+# <image> bundle | tar x` writes these out. They are copied from the repository
+# at build time, so the compose file a deployment runs is the one committed
+# alongside the image it runs — there is no second copy to drift.
+COPY compose.yaml Caddyfile .env.example /app/deploy/
+COPY backup/backup.sh /app/deploy/backup/
+COPY deploy/DEPLOY.md deploy/update.sh /app/deploy/
+COPY deploy/entrypoint.sh /app/entrypoint.sh
+
 USER wander
 EXPOSE 8080
 # Container-aware heap sizing: the JVM otherwise reads the host's memory, not
 # the container limit.
 ENV JAVA_OPTS="-XX:MaxRAMPercentage=75"
-ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar /app/wander.jar"]
+ENTRYPOINT ["/app/entrypoint.sh"]
