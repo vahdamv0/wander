@@ -53,6 +53,19 @@ export class PlaceDetail {
 
   protected readonly facts = computed(() => this.enrichment.forPlace()[this.place().id]);
 
+  /**
+   * The candidates that are not already the picture at the top of the panel.
+   *
+   * Most places come back with exactly one, so an unfiltered chooser drew the
+   * same photograph twice — once as the place's picture and again as the only
+   * thing on offer, under a heading and a licence sentence. A chooser with
+   * nothing to choose is noise, so the current photo lives in one place: the
+   * hero, whose caption carries the credit and the way to put it back.
+   */
+  protected readonly otherPhotos = computed(
+    () => this.facts()?.photos.filter((photo) => photo.url !== this.place().photoUrl) ?? [],
+  );
+
   /** Whether the directions menu is showing. */
   protected readonly directionsOpen = signal(false);
 
