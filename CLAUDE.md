@@ -284,6 +284,16 @@ Java record → springdoc → `api/build/openapi.json` (written by
 
 ## Client conventions
 
+- **`inlineCritical` is off in `angular.json`, and the CSP is why.** Angular's
+  critical-CSS inlining rewrites the stylesheet link to
+  `media="print" onload="this.media='all'"` — an **inline event handler**, which
+  `script-src 'self'` refuses and which no hash or nonce can rescue (hashes do
+  not apply to event handlers without `'unsafe-hashes'`, and adding that to get
+  a rendering optimisation would be trading the directive for the thing it is
+  for). Turning it off costs a first-paint optimisation on a bundle served from
+  the same container. The symptom if it comes back is instructive: the app looks
+  and behaves perfectly, and every one of the 24 browser tests that asserts on
+  console errors fails at the last line with a CSP violation.
 - **Styling goes through tokens, never raw colours.** `bg-surface`, `text-muted`,
   `border-border` — not `bg-white` or a hex literal. That is what makes the
   three-state theme (system / light / dark, in `web/src/styles.css`) work
