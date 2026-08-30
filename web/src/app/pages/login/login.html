@@ -50,7 +50,7 @@
             (ngModelChange)="password.set($event)"
           />
           @if (mode() === 'register') {
-            <span class="text-xs font-normal text-muted">At least 10 characters.</span>
+            <span class="text-xs font-normal text-muted">At least 10 characters, and not one of the common ones.</span>
           }
         </label>
 

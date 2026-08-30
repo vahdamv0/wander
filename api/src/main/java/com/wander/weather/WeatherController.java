@@ -6,6 +6,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.wander.common.UpstreamQuota;
 import com.wander.security.WanderUser;
 import com.wander.weather.dto.TripWeather;
 
@@ -27,9 +28,11 @@ import com.wander.weather.dto.TripWeather;
 public class WeatherController {
 
     private final WeatherService weather;
+    private final UpstreamQuota quota;
 
-    public WeatherController(WeatherService weather) {
+    public WeatherController(WeatherService weather, UpstreamQuota quota) {
         this.weather = weather;
+        this.quota = quota;
     }
 
     /**
@@ -40,6 +43,7 @@ public class WeatherController {
     @GetMapping
     public TripWeather getTripWeather(@AuthenticationPrincipal WanderUser principal,
             @PathVariable Long tripId) {
+        quota.forecast(principal.id());
         return weather.forTrip(principal.id(), tripId);
     }
 }

@@ -197,6 +197,44 @@ test('change your own password, and the old one stops working', async ({ page })
   expect(consoleErrors, 'unexpected console errors').toEqual([]);
 });
 
+test('a guessable password is refused, and the form says why', async ({ page }) => {
+  const consoleErrors: string[] = [];
+  page.on('console', (message) => {
+    // The startup 401 and the 400 this test deliberately provokes.
+    if (
+      message.type() === 'error' &&
+      !message.text().includes('401') &&
+      !message.text().includes('400')
+    ) {
+      consoleErrors.push(message.text());
+    }
+  });
+  page.on('pageerror', (error) => consoleErrors.push(error.message));
+
+  await page.goto('/login');
+  await page.getByText('Create one').click();
+  await page.locator('input[name=email]').fill(`e2e-weak-${Date.now()}@example.com`);
+  await page.locator('input[name=displayName]').fill('Weak Password');
+  // Ten characters, so it clears the length bound — this is the blocklist
+  // talking, not @Size.
+  await page.locator('input[name=password]').fill('password12');
+  await page.locator('button[type=submit]').click();
+
+  // The half worth asserting is the *text*. The server answers a validation
+  // failure with a generic "Validation failed" in `message` and the real reason
+  // in `fields`, so a client that reads only the former leaves somebody staring
+  // at a password the form let them type with no idea what is wrong with it.
+  await expect(page.locator('[role=alert]')).toContainText(/too easy to guess/i);
+  await expect(page).toHaveURL(/\/login/);
+
+  // And a real passphrase still gets through the same form.
+  await page.locator('input[name=password]').fill('a-quiet-week-in-kanazawa');
+  await page.locator('button[type=submit]').click();
+  await expect(page).toHaveURL(/\/trips$/);
+
+  expect(consoleErrors, 'unexpected console errors').toEqual([]);
+});
+
 test('a signed-out visitor is sent to the login page, and back afterwards', async ({ page }) => {
   await page.goto('/trips');
   await expect(page).toHaveURL(/\/login\?returnUrl=%2Ftrips$/);

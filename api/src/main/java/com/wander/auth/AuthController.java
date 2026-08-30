@@ -60,11 +60,24 @@ public class AuthController {
         this.sessions = sessions;
     }
 
+    /**
+     * Make an account, and be signed in by the same call.
+     *
+     * Throttled per address, which login's own counters do not cover: this
+     * endpoint is anonymous, spends a bcrypt round on every call and leaves a row
+     * behind when it works, so an unmetered one is both a way to burn this box's
+     * CPU and a way to fill its user table. Only the address is keyed — the email
+     * belongs to an account that does not exist yet — and the attempt is counted
+     * whether it succeeds or not, because both outcomes cost the same.
+     */
     @PublicEndpoint
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
     public SessionUser register(@Valid @RequestBody RegisterRequest request, HttpServletRequest httpRequest,
             HttpServletResponse httpResponse) {
+        String address = clientAddress(httpRequest);
+        throttle.checkRegistration(address);
+        throttle.registrationAttempted(address);
         User created = accounts.register(request.email(), request.displayName(), request.password(),
                 request.inviteToken());
         // Log the new account straight in — a register call that then makes the
@@ -210,12 +223,19 @@ public class AuthController {
      * This is the client's address rather than the proxy's because
      * `server.forward-headers-strategy: framework` puts Spring's
      * ForwardedHeaderFilter in front of everything, and it rewrites the remote
-     * address from X-Forwarded-For. Trusting that header is only safe because
-     * nothing but the proxy can reach this port — compose binds 8080 to
-     * loopback, which is the same reason the secure-cookie note in .env.example
-     * gives. Expose the app port directly and this becomes a header anybody can
-     * set, which would make the per-address counter free to evade. It would not
-     * weaken the per-email one.
+     * address from X-Forwarded-For.
+     *
+     * **What makes that header trustworthy is the proxy overwriting it**, which
+     * the Caddyfile does with `header_up X-Forwarded-For {remote_host}`. Caddy's
+     * default is to *append* the real client to whatever arrived, and
+     * ForwardedHeaderFilter reads the first entry — so without that line a caller
+     * sets their own address and the per-address counters here are free to evade.
+     * Binding 8080 to loopback is a different protection for a different attack:
+     * it stops somebody reaching the app *around* the proxy, and this one goes
+     * through it. Put another proxy in front and it must overwrite the header too.
+     *
+     * Neither of those weakens the per-email counter, which needs no address to
+     * be right.
      */
     private static String clientAddress(HttpServletRequest request) {
         String address = request.getRemoteAddr();

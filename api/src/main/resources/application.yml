@@ -94,6 +94,32 @@ wander:
     max-failures-per-email: ${WANDER_LOGIN_MAX_FAILURES:10}
     max-failures-per-address: ${WANDER_LOGIN_MAX_FAILURES_PER_ADDRESS:40}
     window-minutes: ${WANDER_LOGIN_WINDOW_MINUTES:15}
+    # Accounts one address may create inside the same window. Counted whether
+    # the sign-up works or not: registering is anonymous, spends a bcrypt round
+    # every time and leaves a row behind when it succeeds. The browser suite
+    # registers every one of its accounts from a single address, so an instance
+    # you point `npm run e2e` at needs this raised.
+    max-registrations-per-address: ${WANDER_REGISTRATION_MAX_PER_ADDRESS:20}
+  # How much of this instance's *upstream* budget one signed-in person may
+  # spend. Three endpoints reach somebody else's donated service on a caller's
+  # behalf, and RateGate — which spaces what wander sends out — does not help:
+  # it parks the request thread, so one heavy caller queues everybody else's
+  # searches behind their own. Keyed by user id, which needs no proxy to be
+  # configured correctly to mean anything. See UpstreamQuota.
+  quota:
+    searches-per-window: ${WANDER_QUOTA_SEARCHES:120}
+    enrichments-per-window: ${WANDER_QUOTA_ENRICHMENTS:60}
+    forecasts-per-window: ${WANDER_QUOTA_FORECASTS:60}
+    window-minutes: ${WANDER_QUOTA_WINDOW_MINUTES:5}
+  # The Content-Security-Policy header, assembled from the map settings below
+  # rather than written out, so an operator running their own tiles does not get
+  # a blank map. Set report-only=true to load the page and read the violations
+  # instead of being refused by them; extra-sources appends space-separated
+  # origins to connect-src, img-src and font-src.
+  csp:
+    enabled: ${WANDER_CSP_ENABLED:true}
+    report-only: ${WANDER_CSP_REPORT_ONLY:false}
+    extra-sources: ${WANDER_CSP_EXTRA_SOURCES:}
   # What a new trip's money is counted in when its creator does not say. Fixed
   # per trip once created, so this only ever affects the next one.
   currency: ${WANDER_CURRENCY:EUR}

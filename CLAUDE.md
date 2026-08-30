@@ -164,6 +164,65 @@ Java record → springdoc → `api/build/openapi.json` (written by
   it. Its integration test gets its own context on purpose — one bean, one map,
   and every test in the suite arrives from 127.0.0.1, so exhausting a counter in
   the shared context would take everybody else's sign-in down with it.
+- **The per-address limits are only as honest as the proxy.** `LoginThrottle`
+  counts by client address as well as by email, and that counter is worth
+  nothing unless `X-Forwarded-For` is *overwritten* by the proxy — Caddy's
+  default is to append the real client to whatever arrived, and
+  `server.forward-headers-strategy: framework` reads the **first** entry, so an
+  appending proxy lets a caller name their own address. The Caddyfile's
+  `header_up X-Forwarded-For {remote_host}` is the whole fix and it is
+  load-bearing; binding 8080 to loopback is a different protection for a
+  different attack (going *around* the proxy, not through it). Nothing fails
+  visibly when this is wrong: the limit still exists, still answers 429, and
+  still never fires for the caller it was meant for. `UpstreamQuota` sidesteps
+  the question entirely by keying on the user id, which is the better key
+  wherever the endpoint is authenticated.
+- **Registering is counted too, and counts attempts rather than failures.**
+  `POST /api/auth/register` is anonymous, spends a bcrypt round on every call and
+  leaves a row behind when it works, so an unmetered one is both a way to burn
+  the box's CPU and a way to fill the user table. It shares `LoginThrottle`
+  rather than getting a counter of its own — same argument, and two windows would
+  be two places to get the arithmetic wrong — but keys only the address (the
+  email belongs to an account that does not exist yet) and clears on nothing but
+  the window passing. **The browser suite creates every account by registering,
+  from one address**, so `application-test.yml` raises the limit and
+  `npm run e2e` needs `WANDER_REGISTRATION_MAX_PER_ADDRESS` raised on whatever
+  instance it drives.
+- **A quota per person on the endpoints that spend somebody else's budget.**
+  `UpstreamQuota` meters place search, enrichment and the forecast per user id.
+  `RateGate` is not this and does not help: it spaces what wander sends *out*, by
+  parking the request thread, so without an inbound limit one heavy caller
+  queues everybody else's searches behind their own and the 429s land on people
+  who did nothing. Cached reads count, because a quota that only counted misses
+  is one anybody can sit just underneath. This is the piece that makes opening
+  self-signup survivable — `.env.example` names the donated capacity as the
+  reason it is off, and authentication alone stops nothing once anybody can get
+  an account.
+- **The password policy is a list, not a rule about capitals.** `@Size(min = 10)`
+  was the whole policy, and `password12` is ten characters. `@GuessablePassword`
+  adds a bundled blocklist plus the patterns too numerous to list (one character
+  held down, a straight run of the keyboard or the digits, in either direction).
+  Composition rules were rejected deliberately: they produce `Password1!`, which
+  is on every list there is, while making the password harder to remember. No
+  breach-list API call either — it would put an outbound dependency on the one
+  page that must work with no outbound network. It applies to **both** doors;
+  a policy at registration but not at change-password is just the door people
+  use to get a weak one. The suite's own `correct-horse-battery` has to keep
+  passing it, which is what `GuessablePasswordValidatorTest` pins.
+- **The CSP is assembled from the map settings, never hardcoded.**
+  `ContentSecurityPolicy` reads the style, dark-style and tile URLs out of
+  `MapTiles` and puts their origins in `connect-src`, `img-src` and `font-src`,
+  because those hosts are the operator's choice and a fixed policy would blank
+  the map for the first self-hoster who runs their own tiles. `style-src` needs
+  `'unsafe-inline'` and always will — Leaflet and MapLibre position DOM they
+  built themselves by writing style attributes, which no nonce can reach — but
+  `script-src` gets no such exemption, and that is the half that stops an
+  injection. The tile URL is parsed with a regex rather than as a URI because
+  `{z}/{x}/{y}` is not legal in one.
+- **A validation failure's message is in `fields`, not in `message`.** The
+  envelope's own `message` is the generic "Validation failed", so `messageOf`
+  prefers the first field message — otherwise somebody refused for a weak
+  password is told only that something was wrong.
 - **A password can be changed, never reset.** `POST /api/auth/password` takes the
   current password as well as the new one, and that is the whole point: a session
   cookie somebody else has got hold of must not be enough to take the account for
