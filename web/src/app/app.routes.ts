@@ -1,4 +1,5 @@
 import { Routes } from '@angular/router';
+import { adminGuard } from './core/admin.guard';
 import { authGuard } from './core/auth.guard';
 import { AppShell } from './shell/app-shell';
 
@@ -6,6 +7,15 @@ export const routes: Routes = [
   {
     path: 'login',
     loadComponent: () => import('./pages/login/login').then((m) => m.LoginPage),
+  },
+  {
+    // Outside the shell and outside the guard, which is the one place in this
+    // application that is true of. It has to be: everybody who needs this page
+    // is somebody who cannot sign in, so putting it behind authGuard would make
+    // it a door that only opens for people who do not need it. The invitation
+    // page is the opposite case and stays inside — its holder can register.
+    path: 'reset/:token',
+    loadComponent: () => import('./pages/reset/reset').then((m) => m.ResetPage),
   },
   {
     // Everything signed-in renders inside the shell, so a page never draws the
@@ -58,6 +68,14 @@ export const routes: Routes = [
         // password manager fills a real form far better than a modal.
         path: 'account',
         loadComponent: () => import('./pages/account/account').then((m) => m.AccountPage),
+      },
+      {
+        // Administering the instance's accounts. adminGuard runs after
+        // authGuard on this route and is a courtesy — the server refuses these
+        // requests from a non-admin whatever the browser believes.
+        path: 'admin',
+        canActivate: [adminGuard],
+        loadComponent: () => import('./pages/admin/admin').then((m) => m.AdminPage),
       },
       {
         path: 'trips/:tripId/reservations',

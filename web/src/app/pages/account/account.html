@@ -52,12 +52,14 @@
 
   <section class="card p-6">
     <h2 class="text-base font-semibold">Change password</h2>
-    <!-- Said plainly, because it is the reason this page matters: there is no
-         reset on this instance, so a forgotten password is somebody else's
-         afternoon with psql. -->
+    <!-- Still said plainly, because the recovery is not the one people expect.
+         Nothing here sends email, so there is no "forgot password" link — what
+         there is instead is a person, and knowing that in advance is the whole
+         value of the sentence. -->
     <p class="mt-1 mb-5 text-sm text-muted">
-      There's no password reset here — nothing on this instance sends email — so
-      keep the new one somewhere safe.
+      Nothing on this instance sends email, so there's no self-service reset. If
+      you lose this password, whoever administers this instance can send you a
+      link to set a new one.
     </p>
 
     <form class="grid gap-4" (ngSubmit)="submit()">

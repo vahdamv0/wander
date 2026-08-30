@@ -4,6 +4,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
+import com.wander.user.AccountDisabled;
+
 /**
  * Turns a committed change into frames on the wire.
  *
@@ -27,5 +29,17 @@ public class TripSyncBroadcaster {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void onTripChange(TripChange change) {
         handler.broadcast(change);
+    }
+
+    /**
+     * An account was taken out of service: hang up everything it holds open.
+     *
+     * `AFTER_COMMIT` for the same reason as above, with a sharper consequence —
+     * disconnecting somebody whose disabling then rolled back would sign them out
+     * of an account that is still perfectly valid, and nothing would say why.
+     */
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
+    public void onAccountDisabled(AccountDisabled event) {
+        handler.disconnectUser(event.userId());
     }
 }

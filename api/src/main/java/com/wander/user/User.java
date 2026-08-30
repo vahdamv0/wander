@@ -41,6 +41,22 @@ public class User {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt = Instant.now();
 
+    /**
+     * When this account was taken out of service, or null for one in normal use.
+     *
+     * A timestamp rather than a boolean, because "when did this happen" is the
+     * first question asked about an account that has been shut off, and the row
+     * is no bigger for answering it — the same choice
+     * {@code trip_invites.revoked_at} makes.
+     *
+     * Disabling is deliberately the only way an account stops being usable;
+     * there is no delete. Expenses and packing items reference their user, and a
+     * departed member's shares are history the trip still needs, so removing the
+     * row would silently forgive a debt on somebody else's trip.
+     */
+    @Column(name = "disabled_at")
+    private Instant disabledAt;
+
     protected User() {
         // JPA
     }
@@ -75,6 +91,31 @@ public class User {
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    public Instant getDisabledAt() {
+        return disabledAt;
+    }
+
+    public boolean isDisabled() {
+        return disabledAt != null;
+    }
+
+    /**
+     * Takes the account out of service.
+     *
+     * A second call leaves the original timestamp alone: when it was *first*
+     * disabled is the fact worth keeping, and an admin clicking twice should not
+     * quietly rewrite it.
+     */
+    public void disable(Instant when) {
+        if (disabledAt == null) {
+            this.disabledAt = when;
+        }
+    }
+
+    public void enable() {
+        this.disabledAt = null;
     }
 
     /**

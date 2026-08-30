@@ -97,6 +97,25 @@ public class UserAccountService {
     }
 
     /**
+     * Set a password without checking the old one.
+     *
+     * The exception to the rule stated on {@link #changePassword}, and it is
+     * narrow on purpose: the only caller is {@code PasswordResetService}, where
+     * the credential presented is a single-use link an administrator minted, and
+     * the whole point is that its holder does not know the current password.
+     *
+     * It takes the entity rather than an id, so the caller is the one that
+     * decided which account this is — here that decision is made under a row lock
+     * on the reset, and passing an id would invite a second, unlocked lookup.
+     * Encoding stays in this class, which is where the encoder lives and where
+     * every other password is hashed.
+     */
+    @Transactional
+    public void setPassword(User user, String rawPassword) {
+        user.changePassword(passwordEncoder.encode(rawPassword));
+    }
+
+    /**
      * Rename yourself. Only the display name — see {@code UpdateProfileRequest}
      * for why the email is not editable here.
      *

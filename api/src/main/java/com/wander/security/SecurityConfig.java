@@ -101,6 +101,14 @@ public class SecurityConfig {
                         // page has to know before anybody has a session. One
                         // boolean; the rest of /api/config stays authenticated.
                         .requestMatchers("/api/config/sign-in").permitAll()
+                        // Redeeming a password reset link. The second anonymous
+                        // endpoint in this application and the only one that
+                        // takes a write, and it has to be: everybody who needs
+                        // it is somebody who cannot sign in. The token is the
+                        // credential — 256 bits, hashed at rest, single use,
+                        // expiring — and it is throttled per address like the
+                        // other anonymous doors. See PasswordResetController.
+                        .requestMatchers("/api/auth/reset/**").permitAll()
                         // The OpenAPI document is what generates the typed client.
                         .requestMatchers("/v3/api-docs", "/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**")
                         .permitAll()

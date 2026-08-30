@@ -124,6 +124,35 @@ public class LoginThrottle {
         counter.record(registrationKey(address));
     }
 
+    /**
+     * Called before a reset link is looked at or redeemed.
+     *
+     * Keyed by address alone — a reset link carries no email address, which is
+     * rather the point of it — and bounded by the same limit as a run of wrong
+     * passwords, because that is what presenting a bad token is. Two things are
+     * being metered at once and they want the same number: guessing at links
+     * (hopeless against 256 bits, but it should still cost something), and the
+     * bcrypt round the redeem call spends encoding a new password for an
+     * anonymous caller.
+     *
+     * @throws RateLimitedException when this address has presented too many bad links
+     */
+    public void checkReset(String address) {
+        if (counter.spent(resetKey(address), maxPerAddress)) {
+            throw new RateLimitedException("Too many attempts. Wait a few minutes and try again.");
+        }
+    }
+
+    /** A link that does not exist. Counted; an expired or spent one is not, because it was real. */
+    public void resetFailed(String address) {
+        counter.record(resetKey(address));
+    }
+
+    /** A password actually set. Clears the counter, exactly as a successful sign-in does. */
+    public void resetSucceeded(String address) {
+        counter.forget(resetKey(address));
+    }
+
     /** For the test that holds the bound on the map. */
     int trackedKeyCount() {
         return counter.trackedKeyCount();
@@ -144,5 +173,10 @@ public class LoginThrottle {
     /** Its own namespace, so a run of bad passwords does not also block signing up. */
     private static String registrationKey(String address) {
         return "r:" + (address == null ? "" : address);
+    }
+
+    /** And its own again, so a spent reset counter does not lock the household out of signing in. */
+    private static String resetKey(String address) {
+        return "p:" + (address == null ? "" : address);
     }
 }

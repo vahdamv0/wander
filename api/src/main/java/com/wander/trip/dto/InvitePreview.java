@@ -12,8 +12,9 @@ import jakarta.validation.constraints.NotNull;
  * link must not become a way to read a trip.
  *
  * This endpoint is **authenticated**, like everything else here. Signing in first
- * and then seeing the invitation costs one extra step and keeps
- * `/api/config/sign-in` the single anonymous endpoint in this application.
+ * and then seeing the invitation costs one extra step, and it is affordable
+ * precisely because an invitation's holder can register — unlike the holder of a
+ * password reset link, which is why that one is anonymous and this one is not.
  */
 public record InvitePreview(
         @NotNull String tripName,
