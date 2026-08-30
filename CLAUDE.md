@@ -180,6 +180,17 @@ Java record → springdoc → `api/build/openapi.json` (written by
   that, and signing them out of the page they are looking at would read as
   failure. There is still no reset, and there will not be one while nothing here
   sends mail.
+- **Renaming yourself has to rewrite the session, not just the row.** The
+  principal is serialised into the session at sign-in and read back on every
+  request, so `PUT /api/auth/profile` rebuilds the `SecurityContext` with a fresh
+  `WanderUser` and saves it back — exactly what `authenticate` does after a login.
+  Update the row alone and `/me` keeps answering with the old name: the change
+  appears to work and then undoes itself on the next page load, with nothing
+  failing. `UpdateProfileIntegrationTest` asserts on `/me`, not on the response
+  body, for that reason. **Only the display name is editable**: the email address
+  is the account's handle — members are added by address and invitations are
+  accepted against one — so changing it is a rename with consequences elsewhere
+  rather than an edit to a label.
 - **Flyway owns the schema**, Hibernate runs `ddl-auto: validate`. Schema changes
   are a new `V<n>__*.sql`; never edit an applied migration. That includes tables
   a library would happily create for itself: `V5` carries Spring Session's own

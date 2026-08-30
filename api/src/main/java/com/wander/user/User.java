@@ -88,4 +88,8 @@ public class User {
     public void changePassword(String encodedPasswordHash) {
         this.passwordHash = encodedPasswordHash;
     }
+
+    public void rename(String displayName) {
+        this.displayName = displayName;
+    }
 }

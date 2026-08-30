@@ -1,10 +1,10 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, linkedSignal, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { messageOf } from '../../core/errors';
 import { SessionStore } from '../../core/session.store';
 
 /**
- * Your own account. One thing on it so far: changing your password.
+ * Your own account: your name, and your password.
  *
  * It is a page rather than a dialog because it is reached from the header on
  * every screen, and because a password field inside a modal over a trip is the
@@ -19,6 +19,39 @@ export class AccountPage {
   private readonly session = inject(SessionStore);
 
   protected readonly user = this.session.user;
+
+  /**
+   * A linked signal rather than a plain one seeded in the constructor: it
+   * re-syncs when the stored identity changes, so a successful save leaves the
+   * field showing what the server actually recorded (trimmed, in particular)
+   * instead of what was typed.
+   */
+  protected readonly displayName = linkedSignal(() => this.user()?.displayName ?? '');
+  protected readonly savingName = signal(false);
+  protected readonly nameError = signal<string | null>(null);
+  protected readonly nameSaved = signal(false);
+
+  protected readonly canSaveName = computed(() => {
+    const next = this.displayName().trim();
+    return !this.savingName() && next.length > 0 && next !== this.user()?.displayName;
+  });
+
+  protected async saveName(): Promise<void> {
+    if (!this.canSaveName()) {
+      return;
+    }
+    this.savingName.set(true);
+    this.nameError.set(null);
+    this.nameSaved.set(false);
+    try {
+      await this.session.updateDisplayName(this.displayName().trim());
+      this.nameSaved.set(true);
+    } catch (err) {
+      this.nameError.set(messageOf(err));
+    } finally {
+      this.savingName.set(false);
+    }
+  }
 
   protected readonly currentPassword = signal('');
   protected readonly newPassword = signal('');

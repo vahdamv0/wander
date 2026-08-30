@@ -13,6 +13,7 @@ import org.springframework.security.core.context.SecurityContextHolderStrategy;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -27,6 +28,7 @@ import com.wander.auth.dto.ChangePasswordRequest;
 import com.wander.auth.dto.LoginRequest;
 import com.wander.auth.dto.RegisterRequest;
 import com.wander.auth.dto.SessionUser;
+import com.wander.auth.dto.UpdateProfileRequest;
 import com.wander.common.ApiError;
 import com.wander.common.PublicEndpoint;
 import com.wander.security.WanderUser;
@@ -111,6 +113,34 @@ public class AuthController {
         if (httpRequest.getSession(false) != null) {
             httpRequest.getSession(false).invalidate();
         }
+    }
+
+    /**
+     * Rename yourself.
+     *
+     * The subtlety is the last half of it. The principal is written into the
+     * session when you sign in and read back from there on every request, so
+     * updating the row alone leaves a session still carrying the old name —
+     * {@code /me} would answer with it after a reload, and the change would
+     * appear to undo itself. So the security context is rebuilt and saved back
+     * into the session here, which is the same thing {@code authenticate} does
+     * after a login.
+     */
+    @PutMapping("/profile")
+    public SessionUser updateProfile(@Valid @RequestBody UpdateProfileRequest request,
+            @AuthenticationPrincipal WanderUser principal, HttpServletRequest httpRequest,
+            HttpServletResponse httpResponse) {
+        User updated = accounts.updateProfile(principal.id(), request.displayName());
+        WanderUser refreshed = WanderUser.from(updated);
+
+        Authentication authentication = UsernamePasswordAuthenticationToken.authenticated(refreshed, null,
+                refreshed.getAuthorities());
+        SecurityContext context = contextHolderStrategy.createEmptyContext();
+        context.setAuthentication(authentication);
+        contextHolderStrategy.setContext(context);
+        securityContextRepository.saveContext(context, httpRequest, httpResponse);
+
+        return SessionUser.from(refreshed);
     }
 
     /**

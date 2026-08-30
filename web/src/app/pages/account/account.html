@@ -4,6 +4,52 @@
     <p class="mt-1 text-sm text-muted">{{ user()?.displayName }} · {{ user()?.email }}</p>
   </header>
 
+  <section class="card mb-6 p-6">
+    <h2 class="text-base font-semibold">Your name</h2>
+    <p class="mt-1 mb-5 text-sm text-muted">
+      What everybody else on a trip sees. Your email address is how you're added
+      to a trip, so it can't be changed here.
+    </p>
+
+    <form class="grid gap-4" (ngSubmit)="saveName()">
+      <label class="label">
+        Display name
+        <input
+          class="field"
+          type="text"
+          name="displayName"
+          autocomplete="name"
+          maxlength="80"
+          required
+          [ngModel]="displayName()"
+          (ngModelChange)="displayName.set($event)"
+        />
+      </label>
+
+      @if (nameError()) {
+        <p class="rounded-control bg-danger-soft px-3 py-2 text-sm text-danger" role="alert">
+          {{ nameError() }}
+        </p>
+      }
+
+      @if (nameSaved()) {
+        <p class="rounded-control bg-surface-2 px-3 py-2 text-sm text-muted" role="status">
+          Name saved.
+        </p>
+      }
+
+      <div>
+        <button type="submit" class="btn-primary" [disabled]="!canSaveName()">
+          @if (savingName()) {
+            Saving…
+          } @else {
+            Save name
+          }
+        </button>
+      </div>
+    </form>
+  </section>
+
   <section class="card p-6">
     <h2 class="text-base font-semibold">Change password</h2>
     <!-- Said plainly, because it is the reason this page matters: there is no
