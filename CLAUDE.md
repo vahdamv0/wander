@@ -868,6 +868,29 @@ alongside everything else.
   and it **pulls** rather than having the server push, because a compromised
   machine cannot reach a destination it holds no credentials for.
 
+## Shipping the image
+
+CI builds **one image for linux/amd64 and linux/arm64**, because the runners are
+x86 and the deployment target is an Ampere box: an amd64-only image pulls
+perfectly onto arm64 and then dies with `exec format error`, on the server, at
+`docker compose up`. It is nearly free here only because the build stage carries
+`--platform=$BUILDPLATFORM` — the jar it produces is bytecode and static files,
+identical on either architecture, so only the runtime stage is emulated. Drop
+that flag and buildx runs Gradle and npm under QEMU to produce a byte-identical
+artifact.
+
+**The image carries its own deployment bundle**: `docker run --rm <image> bundle
+| tar x` writes out `compose.yaml`, the `Caddyfile`, `backup/backup.sh`,
+`.env.example`, `DEPLOY.md` and `update.sh`. They are `COPY`d from the repository
+at build time, so the compose file a server runs is the one committed beside the
+image it runs. The alternative — a deployment repository holding its own copy —
+drifts the first time somebody edits one and not the other, and drift here starts
+a stack that is subtly wrong rather than failing. `deploy/entrypoint.sh` is the
+whole mechanism: `bundle` writes a tar, anything else is the application. The CI
+job extracts the bundle from the pushed image and checks the files are there, so
+a broken `bundle` is a red pipeline rather than something found on a machine with
+no source to fall back on.
+
 ## Scope discipline
 
 Milestone 0 (accounts, trips, the contract loop, one container) is done, and so
