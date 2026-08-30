@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- wander's mark, redrawn for a 16px tab: a route bending from a point to an
+       arrow. The header's BrandMark uses a hairline circle and a dashed path,
+       and both turn to mush at this size — so the tile is solid, the path is
+       continuous, and the whole mark is inset from the edges. Same idea, much
+       thicker pen.
+
+       Geometry matches favicon.ico exactly; that file is the fallback for
+       browsers that will not take an SVG icon (Safari before 16).
+
+       An SVG favicon can carry a media query, so the tab icon follows the
+       reader's browser chrome the way the app follows their OS. The two pairs
+       are the accent tokens from styles.css. -->
+  <style>
+    .tile { fill: #0f766e }
+    .mark { fill: #ffffff; stroke: #ffffff }
+    @media (prefers-color-scheme: dark) {
+      .tile { fill: #2dd4bf }
+      .mark { fill: #04211d; stroke: #04211d }
+    }
+  </style>
+  <rect class="tile" width="32" height="32" rx="7" />
+  <path class="mark" d="M9.84 21.28Q15.56 12.66 22.16 12.04" fill="none" stroke-width="2.6"
+        stroke-linecap="round" />
+  <circle class="mark" cx="9.84" cy="21.28" r="3.2" />
+  <path class="mark" d="M25.06 11.42 22.81 14.24 21.86 9.77Z" />
+</svg>

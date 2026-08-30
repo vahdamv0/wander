@@ -557,6 +557,24 @@ test('the map worker is served, not swallowed by the SPA fallback', async ({ pag
  * after the pointer has moved a few pixels, and the drop position depends on
  * where the pointer is when the button comes up, so the steps matter.
  */
+test('the tab icon is served, not swallowed by the SPA fallback', async ({ page }) => {
+  // Same failure as the map worker: a missing file under a client-side routing
+  // fallback comes back 200 with index.html in it, so "the request succeeded"
+  // proves nothing. Only the content type does — and a favicon that quietly
+  // fails leaves a generic page icon that nobody thinks to report.
+  for (const [path, type] of [
+    ['/favicon.svg', 'image/svg+xml'],
+    ['/favicon.ico', 'image/x-icon'],
+  ]) {
+    const response = await page.request.get(path);
+    expect(response.status(), path).toBe(200);
+    expect(response.headers()['content-type'], path).toContain(type);
+  }
+
+  await page.goto('/login');
+  await expect(page.locator('link[rel=icon][type="image/svg+xml"]')).toHaveCount(1);
+});
+
 test('drag a place within a day and into the next one', async ({ page }) => {
   const consoleErrors: string[] = [];
   page.on('console', (message) => {
