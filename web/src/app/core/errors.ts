@@ -54,7 +54,22 @@ export function messageOf(err: unknown, fallback = 'That did not work. Try again
   if (err instanceof OfflineError) {
     return err.message;
   }
-  const body = (err as { error?: { message?: string } } | null)?.error;
+  const body = (err as { error?: { message?: string; fields?: Record<string, string> } } | null)
+    ?.error;
+
+  // A validation failure's own `message` is the envelope's "Validation failed",
+  // which tells the person typing nothing at all — the reason is in `fields`,
+  // one entry per field that was refused. Prefer that. It matters most for the
+  // password rules, where "Validation failed" would leave somebody guessing at
+  // what is wrong with a password the form let them type.
+  const fields = body?.fields;
+  if (fields) {
+    const first = Object.values(fields).find((value) => typeof value === 'string' && value);
+    if (first) {
+      return first;
+    }
+  }
+
   if (typeof body?.message === 'string' && body.message) {
     return body.message;
   }

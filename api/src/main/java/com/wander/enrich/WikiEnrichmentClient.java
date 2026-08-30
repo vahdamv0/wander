@@ -1,6 +1,7 @@
 package com.wander.enrich;
 
 import java.net.URI;
+import java.net.http.HttpClient;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -64,8 +65,18 @@ public class WikiEnrichmentClient implements EnrichmentClient {
         this.commons = client(config.commonsUrl());
     }
 
+    /**
+     * One client per upstream host, all with the same timeouts and the same
+     * refusal to follow a redirect — see NominatimClient for why both halves of
+     * the timeout are set and why the redirect policy is written down rather
+     * than inherited from the JDK.
+     */
     private RestClient client(String baseUrl) {
-        JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory();
+        HttpClient http = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(3))
+                .followRedirects(HttpClient.Redirect.NEVER)
+                .build();
+        JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(http);
         factory.setReadTimeout(Duration.ofSeconds(6));
         return RestClient.builder()
                 .baseUrl(baseUrl)

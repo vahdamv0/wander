@@ -22,11 +22,38 @@
 	# X-Forwarded-Proto is set automatically, and the app already trusts it
 	# (`server.forward-headers-strategy: framework`), so it knows the request
 	# arrived over HTTPS even though it is served plain HTTP inside the network.
-	reverse_proxy wander:8080
+	reverse_proxy wander:8080 {
+		# Overwrite rather than append, and this line is load-bearing.
+		#
+		# Caddy's default is to *add* the real client to whatever
+		# X-Forwarded-For arrived, so a request sent here with a forged
+		# `X-Forwarded-For: 1.2.3.4` reaches the app as `1.2.3.4, <real
+		# client>`. The app runs with `server.forward-headers-strategy:
+		# framework`, whose ForwardedHeaderFilter takes the *first* entry —
+		# so without this, getRemoteAddr() is whatever the caller says it
+		# is, and LoginThrottle's per-address counter can be evaded by
+		# rotating a header. Binding 8080 to loopback does not help: that
+		# stops somebody going around this proxy, and this goes through it.
+		header_up X-Forwarded-For {remote_host}
+	}
 
 	# The jar serves pre-compressed assets, but the JSON API is not compressed
 	# and an itinerary is mostly text.
 	encode zstd gzip
+
+	# An invitation token travels in the URL path (/api/invites/<token>), and an
+	# access log records paths. The token is the credential — anybody holding it
+	# can join the trip — so logging it writes a working key to a file that
+	# outlives the link, gets shipped wherever logs are shipped, and is readable
+	# by anyone who can read the box. The database deliberately stores only a
+	# SHA-256 of it for exactly this reason; leaving it in the log would undo that
+	# in the one place nobody thinks to look.
+	#
+	# The cost is that these requests are invisible in the access log. That is the
+	# right way round: the application still logs what it did with an invitation,
+	# without the token.
+	@invites path /api/invites/*
+	log_skip @invites
 
 	log {
 		output stderr
