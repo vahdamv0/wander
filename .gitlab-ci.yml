@@ -100,11 +100,37 @@ container-image:
     # $CI_REGISTRY_* are injected by GitLab; the password is a job-scoped token
     # that expires with the job, so there is no secret to store here.
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
-    # Two tags on one build: the sha is what a deployment pins to, `latest` is
-    # what `docker compose pull` follows. Tagging is free — the image is built
-    # once and both names point at it.
-    - docker build -t "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA" -t "$CI_REGISTRY_IMAGE:latest" .
-    - docker push "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA"
-    - docker push "$CI_REGISTRY_IMAGE:latest"
+    # Two architectures, because the runners are x86 and the machine this is
+    # deployed to is an Ampere box. An amd64-only image pulls perfectly onto
+    # arm64 and then dies with `exec format error` — the failure arrives at
+    # `docker compose up`, on the server, not here.
+    #
+    # It costs almost nothing: the Dockerfile's build stage is pinned to
+    # $BUILDPLATFORM and produces an architecture-neutral jar, so only the tiny
+    # runtime stage (a user, a few COPYs) is emulated per architecture.
+    - docker run --privileged --rm tonistiigi/binfmt --install arm64
+    # The default "docker" driver cannot build multi-platform; a container
+    # builder can.
+    - docker buildx create --name wander --driver docker-container --use
+    - docker buildx inspect --bootstrap
+    # One build, both tags, pushed as a single manifest list. The sha is what a
+    # deployment pins to; `latest` is what `docker compose pull` follows.
+    - |
+      docker buildx build \
+        --platform linux/amd64,linux/arm64 \
+        -t "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA" \
+        -t "$CI_REGISTRY_IMAGE:latest" \
+        --push .
+    # The image carries its own deployment bundle. Proving it here means a
+    # broken `bundle` is a red pipeline rather than a discovery made on a server
+    # with no source checkout to fall back on.
+    - docker pull "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA"
+    - mkdir -p /tmp/bundle
+    - docker run --rm "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA" bundle | tar x -C /tmp/bundle
+    - test -f /tmp/bundle/compose.yaml
+    - test -f /tmp/bundle/Caddyfile
+    - test -f /tmp/bundle/.env.example
+    - test -x /tmp/bundle/update.sh
+    - test -f /tmp/bundle/backup/backup.sh
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

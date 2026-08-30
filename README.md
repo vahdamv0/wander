@@ -95,6 +95,37 @@ account and per client address and refused with a 429 past ten and forty of them
 in a quarter of an hour, and any success clears both counts. It is not a lockout,
 deliberately — see point 3 for why one would be unrecoverable.
 
+## Deploy it from the registry
+
+A server needs no source checkout and no JDK. CI publishes the image for
+**linux/amd64 and linux/arm64** — so an Ampere or Graviton free-tier box pulls
+the same tag as an x86 one — and **the image carries its own deployment bundle**:
+
+```bash
+docker login registry.gitlab.com -u <deploy-token-username>   # scope: read_registry
+mkdir -p /opt/wander && cd /opt/wander
+docker run --rm registry.gitlab.com/vm83043/wander:latest bundle | tar x
+
+cp .env.example .env && $EDITOR .env    # WANDER_IMAGE, POSTGRES_PASSWORD, the site address
+docker compose pull
+docker compose up -d --no-build
+```
+
+The bundle is `compose.yaml`, the `Caddyfile`, the backup script, `.env.example`
+and a `DEPLOY.md` — the same files this repository tests, copied into the image
+at build time rather than kept as a second copy in a deployment repository. That
+is the point: a compose file maintained separately from the image drifts, and the
+symptom of drift is a stack that starts and is quietly wrong.
+
+Updating later is `./update.sh` from that directory: pull, restart, prune. Pin a
+version by pointing `WANDER_IMAGE` at the commit tag CI pushes alongside
+`latest`, and note that a rollback of the image does not roll back a migration
+Flyway has already applied.
+
+Use a **deploy token** with `read_registry`, not a personal access token — this
+credential lives on an internet-facing machine, and a deploy token can be revoked
+without disturbing your own access.
+
 ## Develop
 
 Needs **JDK 21** and **Node ≥ 22.22.3** (Angular 22's CLI refuses older). The
