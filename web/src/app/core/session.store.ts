@@ -100,9 +100,21 @@ export class SessionStore {
     await this.remember(await this.api.invoke(login, { body: { email, password } }));
   }
 
-  async register(email: string, displayName: string, password: string): Promise<void> {
+  /**
+   * A new account. `inviteToken` is what gets somebody in on an instance with
+   * self-signup switched off — it is checked, not spent, so the invitation is
+   * still there to be accepted a moment later.
+   */
+  async register(
+    email: string,
+    displayName: string,
+    password: string,
+    inviteToken?: string | null,
+  ): Promise<void> {
     await this.remember(
-      await this.api.invoke(register, { body: { email, displayName, password } }),
+      await this.api.invoke(register, {
+        body: { email, displayName, password, inviteToken: inviteToken ?? undefined },
+      }),
     );
   }
 
