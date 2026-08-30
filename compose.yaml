@@ -43,6 +43,24 @@ services:
       # Off by default. An invitation link still admits its holder, so this is a
       # closed instance rather than a sealed one — see .env.example.
       WANDER_REGISTRATION_ENABLED: ${WANDER_REGISTRATION_ENABLED:-false}
+      # Guessing a password, and creating accounts. These were documented in
+      # .env.example before they were passed through here, so setting them had
+      # no effect on the container — the application's own defaults are the same
+      # numbers, which is why nothing looked wrong.
+      WANDER_LOGIN_MAX_FAILURES: ${WANDER_LOGIN_MAX_FAILURES:-10}
+      WANDER_LOGIN_MAX_FAILURES_PER_ADDRESS: ${WANDER_LOGIN_MAX_FAILURES_PER_ADDRESS:-40}
+      WANDER_LOGIN_WINDOW_MINUTES: ${WANDER_LOGIN_WINDOW_MINUTES:-15}
+      WANDER_REGISTRATION_MAX_PER_ADDRESS: ${WANDER_REGISTRATION_MAX_PER_ADDRESS:-20}
+      # How much of this instance's upstream budget one signed-in person may
+      # spend. See .env.example.
+      WANDER_QUOTA_SEARCHES: ${WANDER_QUOTA_SEARCHES:-120}
+      WANDER_QUOTA_ENRICHMENTS: ${WANDER_QUOTA_ENRICHMENTS:-60}
+      WANDER_QUOTA_FORECASTS: ${WANDER_QUOTA_FORECASTS:-60}
+      WANDER_QUOTA_WINDOW_MINUTES: ${WANDER_QUOTA_WINDOW_MINUTES:-5}
+      # The Content-Security-Policy, built from the map settings below.
+      WANDER_CSP_ENABLED: ${WANDER_CSP_ENABLED:-true}
+      WANDER_CSP_REPORT_ONLY: ${WANDER_CSP_REPORT_ONLY:-false}
+      WANDER_CSP_EXTRA_SOURCES: ${WANDER_CSP_EXTRA_SOURCES:-}
       WANDER_GEOCODING_ENABLED: ${WANDER_GEOCODING_ENABLED:-true}
       WANDER_GEOCODING_URL: ${WANDER_GEOCODING_URL:-https://nominatim.openstreetmap.org}
       WANDER_GEOCODING_CONTACT: ${WANDER_GEOCODING_CONTACT:-}

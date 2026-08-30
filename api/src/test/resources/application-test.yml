@@ -11,3 +11,24 @@
 # test of the closed instance rather than of this line.
 wander:
   registration-enabled: true
+  login:
+    # Every account in the suite is created by registering, and every test in it
+    # arrives from 127.0.0.1 — so the shipped per-address registration limit
+    # would stop the twenty-first test rather than an attacker. Raised here
+    # rather than switched off, because RegistrationThrottleIntegrationTest sets
+    # it low again with @TestPropertySource and needs the setting to be real.
+    max-registrations-per-address: 100000
+
+# One connection pool per application context, and the suite deliberately runs
+# several: every test that needs different configuration from the shared one
+# (the closed instance, the throttles, the quota, the policy) gets a context of
+# its own. At Hikari's default of ten connections each, enough of those and the
+# container answers "sorry, too many clients already" — which surfaces as a
+# context that failed to load, on whichever test happened to ask for one next
+# rather than on the one that added a context.
+#
+# Four is plenty: these tests are sequential and one request deep.
+spring:
+  datasource:
+    hikari:
+      maximum-pool-size: 4

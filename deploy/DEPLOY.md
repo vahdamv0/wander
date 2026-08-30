@@ -76,10 +76,28 @@ caveat above about migrations, which do not roll back with the image.
 
 | Service | What it is |
 |---|---|
-| `proxy` | Caddy. Terminates TLS, proxies to the app, passes WebSocket upgrades through untouched. |
+| `proxy` | Caddy. Terminates TLS, proxies to the app, passes WebSocket upgrades through untouched, and overwrites `X-Forwarded-For`. |
 | `wander` | The application: Spring Boot with the Angular build inside the jar. Bound to loopback, reached over the compose network. |
 | `db` | Postgres 17. No published port — it is not on the network at all. |
 | `backup` | A dump into `./backups` daily, read back with `pg_restore --list` before it is published, newest thirty kept. |
+
+## If you put your own proxy in front
+
+The bundled `Caddyfile` sets `header_up X-Forwarded-For {remote_host}`, and
+anything you replace it with has to do the equivalent.
+
+Caddy's default — and nginx's, and most others' — is to **append** the real
+client to whatever `X-Forwarded-For` arrived rather than replacing it. The
+application reads the first entry, so with a proxy that appends, a caller who
+sends `X-Forwarded-For: 1.2.3.4` *is* 1.2.3.4 as far as wander is concerned. Both
+per-address limits — failed sign-ins and accounts created — are then evaded by
+rotating a header, which is free.
+
+Binding the app to loopback does not cover this. That stops somebody reaching
+wander *around* the proxy; this goes straight through it.
+
+Nothing fails visibly when it is wrong. The limits still exist, still return
+429s, and still never fire for the one caller they were meant for.
 
 ## Two things this does not do for you
 

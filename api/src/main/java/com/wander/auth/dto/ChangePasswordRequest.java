@@ -1,5 +1,7 @@
 package com.wander.auth.dto;
 
+import com.wander.auth.GuessablePassword;
+
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
@@ -15,7 +17,9 @@ import jakarta.validation.constraints.Size;
 public record ChangePasswordRequest(
         @NotBlank String currentPassword,
 
-        // The same bound as registration, and for the same reason: length is
-        // the only policy that earns its keep at this size.
-        @NotBlank @Size(min = 10, max = 200) String newPassword) {
+        // The same rules as registration, and for the same reason: a password
+        // set here protects exactly what a password set there does, so a policy
+        // that applied to one and not the other would just be the door people
+        // walked through to get a weak one.
+        @NotBlank @Size(min = 10, max = 200) @GuessablePassword String newPassword) {
 }

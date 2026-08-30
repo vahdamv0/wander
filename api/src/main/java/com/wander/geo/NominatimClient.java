@@ -1,6 +1,7 @@
 package com.wander.geo;
 
 import java.net.URI;
+import java.net.http.HttpClient;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -58,8 +59,26 @@ public class NominatimClient implements GeocoderClient {
                 .build();
     }
 
+    /**
+     * Timeouts on this client only: a slow upstream must not sit on a request
+     * thread, and a global RestClientCustomizer would have changed every other
+     * RestClient in the application too.
+     *
+     * **Both halves matter.** A read timeout alone leaves a host that accepts
+     * the connection and then says nothing holding a thread until the OS gives
+     * up, which on some networks is minutes.
+     *
+     * Redirects are refused rather than followed, and stated rather than
+     * inherited: the JDK's default happens to be NEVER, but "happens to be" is
+     * how an upgrade quietly turns three outbound clients into things that
+     * follow a Location header to wherever it points.
+     */
     private static JdkClientHttpRequestFactory timeouts() {
-        JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory();
+        HttpClient client = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(3))
+                .followRedirects(HttpClient.Redirect.NEVER)
+                .build();
+        JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(client);
         factory.setReadTimeout(Duration.ofSeconds(6));
         return factory;
     }

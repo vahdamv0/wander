@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.wander.common.UpstreamQuota;
 import com.wander.config.WanderProperties;
 import com.wander.enrich.dto.PlaceEnrichmentView;
 import com.wander.enrich.dto.SetPhotoRequest;
@@ -32,10 +33,12 @@ public class EnrichmentController {
 
     private final EnrichmentService enrichment;
     private final WanderProperties properties;
+    private final UpstreamQuota quota;
 
-    public EnrichmentController(EnrichmentService enrichment, WanderProperties properties) {
+    public EnrichmentController(EnrichmentService enrichment, WanderProperties properties, UpstreamQuota quota) {
         this.enrichment = enrichment;
         this.properties = properties;
+        this.quota = quota;
     }
 
     @GetMapping("/enrichment")
@@ -44,6 +47,10 @@ public class EnrichmentController {
             @PathVariable Long placeId,
             @Parameter(hidden = true) @RequestHeader(value = "Accept-Language", required = false)
             String acceptLanguage) {
+        // First sight of a place walks OpenStreetMap, Wikidata, Wikipedia and
+        // Commons in turn, so this is the most expensive read in the
+        // application for somebody else's servers. Metered per caller.
+        quota.enrichment(principal.id());
         return enrichment.forPlace(principal.id(), tripId, placeId, language(acceptLanguage));
     }
 
