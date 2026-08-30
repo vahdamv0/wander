@@ -36,70 +36,89 @@
             <p class="mt-0.5 truncate text-sm text-muted">{{ account.email }}</p>
           </div>
 
-          <div class="flex flex-wrap items-center gap-2">
-            <!-- Not offered on a disabled account, because the server refuses to
-                 mint one: a link that cannot work is a worse answer than not
-                 offering it, and a button that always fails is worse than both.
-                 Enabling first is a decision, and it should be made on purpose. -->
-            @if (!account.disabled) {
-              <button
-                type="button"
-                class="btn-ghost text-sm"
-                [disabled]="saving()"
-                (click)="createReset(account.id)"
-              >
-                Reset password
-              </button>
-            }
-            <button
-              type="button"
-              class="btn-ghost text-sm"
-              [disabled]="saving()"
-              (click)="toggleResets(account.id)"
-            >
-              {{ openFor() === account.id ? 'Hide links' : 'Links' }}
-            </button>
+          <!-- Fixed-width slots, and every slot is rendered even when its
+               control does not apply.
 
-            @if (account.id === me()) {
-              <!-- Said rather than left as a button that would fail: disabling
-                   your own account would end this session mid-request and, on an
-                   instance with one administrator, leave nobody able to undo it. -->
-              <span class="text-xs text-muted">This is you</span>
-            } @else if (account.disabled) {
+               Two things were wrong before. The middle button said "Links" or
+               "Hide links", so clicking it changed its own width and shifted
+               everything beside it out from under the pointer — the label now
+               never changes, and the panel appearing below is the feedback that
+               it worked. And because each row sized its own buttons to its own
+               labels, no two rows lined up: a list is read down a column, so the
+               widths have to come from the longest label rather than from
+               whatever this row happens to say. -->
+          <div class="flex shrink-0 items-center gap-1">
+            @if (confirmingDisable() === account.id) {
+              <!-- Replaces the whole cluster rather than squeezing in beside it,
+                   which is what the place row does too. Inline where the buttons
+                   were, so there is no backdrop to dismiss by accident, and it
+                   names what happens rather than asking "are you sure". -->
+              <span class="text-sm text-muted">Sign them out and block sign-in?</span>
               <button
                 type="button"
-                class="btn-ghost text-sm"
+                class="btn-danger ml-2 text-sm"
                 [disabled]="saving()"
-                (click)="setDisabled(account.id, false)"
-              >
-                Enable
-              </button>
-            } @else if (confirmingDisable() === account.id) {
-              <!-- Inline where the button was, like removing a place: no backdrop
-                   to dismiss by accident, and it names what happens. -->
-              <span class="flex flex-wrap items-center gap-2 text-sm">
-                <span class="text-muted">Sign them out and block sign-in?</span>
-                <button
-                  type="button"
-                  class="btn-danger text-sm"
-                  [disabled]="saving()"
-                  (click)="setDisabled(account.id, true)"
-                >
-                  Disable
-                </button>
-                <button type="button" class="btn-ghost text-sm" (click)="cancelDisable()">
-                  Cancel
-                </button>
-              </span>
-            } @else {
-              <button
-                type="button"
-                class="btn-ghost text-sm text-danger"
-                [disabled]="saving()"
-                (click)="askDisable(account.id)"
+                (click)="setDisabled(account.id, true)"
               >
                 Disable
               </button>
+              <button type="button" class="btn-ghost text-sm" (click)="cancelDisable()">
+                Cancel
+              </button>
+            } @else {
+              <!-- Not offered on a disabled account, because the server refuses
+                   to mint one: a link that cannot work is a worse answer than
+                   not offering it, and a button that always fails is worse than
+                   both. Enabling first is a decision, made on purpose. The slot
+                   stays, or the two buttons after it slide left. -->
+              @if (account.disabled) {
+                <span class="w-36" aria-hidden="true"></span>
+              } @else {
+                <button
+                  type="button"
+                  class="btn-ghost w-36 text-sm"
+                  [disabled]="saving()"
+                  (click)="createReset(account.id)"
+                >
+                  Reset password
+                </button>
+              }
+
+              <button
+                type="button"
+                class="btn-ghost w-20 text-sm"
+                [attr.aria-expanded]="openFor() === account.id"
+                [disabled]="saving()"
+                (click)="toggleResets(account.id)"
+              >
+                Links
+              </button>
+
+              @if (account.id === me()) {
+                <!-- Said rather than left as a button that would fail: disabling
+                     your own account would end this session mid-request and, on
+                     an instance with one administrator, leave nobody able to
+                     turn it back on. -->
+                <span class="w-24 text-center text-xs text-muted">This is you</span>
+              } @else if (account.disabled) {
+                <button
+                  type="button"
+                  class="btn-ghost w-24 text-sm"
+                  [disabled]="saving()"
+                  (click)="setDisabled(account.id, false)"
+                >
+                  Enable
+                </button>
+              } @else {
+                <button
+                  type="button"
+                  class="btn-ghost w-24 text-sm text-danger"
+                  [disabled]="saving()"
+                  (click)="askDisable(account.id)"
+                >
+                  Disable
+                </button>
+              }
             }
           </div>
         </div>
