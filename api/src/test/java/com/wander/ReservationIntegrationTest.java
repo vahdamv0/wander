@@ -94,6 +94,40 @@ class ReservationIntegrationTest extends IntegrationTestBase {
     }
 
     @Test
+    void aPhoneNumberSurvivesAsTyped() {
+        Session owner = register("owner");
+        Object tripId = tripFor(owner);
+
+        // Stored exactly as entered, spaces, hyphens, parenthetical and all. The
+        // number that gets somebody a room at midnight is often a direct line with
+        // an instruction attached, and a formatter would be free to mangle it.
+        var created = post(owner, "/api/trips/" + tripId + "/reservations", """
+                {"kind":"HOTEL","title":"Grand Hyatt Tokyo",
+                 "phone":"+81 3-4333-1234 (front desk)",
+                 "startsAtLocal":"2027-07-13T15:00:00","startZone":"Asia/Tokyo"}
+                """);
+
+        assertThat(created.getStatusCode().value()).isEqualTo(201);
+        assertThat(asMap(created.getBody()))
+                .containsEntry("phone", "+81 3-4333-1234 (front desk)");
+    }
+
+    @Test
+    void aBlankPhoneNumberIsNoPhoneNumber() {
+        Session owner = register("owner");
+        Object tripId = tripFor(owner);
+
+        // Same bargain as a day note and a confirmation code: the absence of a
+        // number is one thing, not two, so an emptied field is null rather than "".
+        var created = post(owner, "/api/trips/" + tripId + "/reservations", """
+                {"kind":"RESTAURANT","title":"Kikunoi","phone":"   ",
+                 "startsAtLocal":"2027-07-14T19:00:00","startZone":"Asia/Tokyo"}
+                """);
+
+        assertThat(asMap(created.getBody()).get("phone")).isNull();
+    }
+
+    @Test
     void theOrderIsByInstantNotByWallClock() {
         Session owner = register("owner");
         Object tripId = tripFor(owner);

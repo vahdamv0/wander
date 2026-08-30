@@ -23,6 +23,7 @@ public record ReservationView(
         @NotNull ReservationKind kind,
         @NotNull String title,
         String confirmation,
+        String phone,
         String notes,
         @NotNull Instant startsAt,
         @NotNull LocalDateTime startsAtLocal,
@@ -33,7 +34,7 @@ public record ReservationView(
 
     public static ReservationView of(Reservation reservation) {
         return new ReservationView(reservation.getId(), reservation.getKind(), reservation.getTitle(),
-                reservation.getConfirmation(), reservation.getNotes(),
+                reservation.getConfirmation(), reservation.getPhone(), reservation.getNotes(),
                 reservation.getStartsAt(), reservation.localStart(), reservation.getStartZone(),
                 reservation.getEndsAt(), reservation.localEnd(), reservation.getEndZone());
     }

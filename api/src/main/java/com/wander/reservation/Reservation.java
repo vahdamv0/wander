@@ -54,6 +54,15 @@ public class Reservation {
     @Column
     private String notes;
 
+    /**
+     * A number to ring, as typed. Never parsed or reformatted: what makes a
+     * number dialable differs by country, and a booking's useful number is often
+     * a direct line with an extension rather than anything a validator would
+     * recognise.
+     */
+    @Column(length = 40)
+    private String phone;
+
     @Column(name = "starts_at", nullable = false)
     private Instant startsAt;
 
@@ -145,6 +154,14 @@ public class Reservation {
 
     public void setNotes(String notes) {
         this.notes = notes;
+    }
+
+    public String getPhone() {
+        return phone;
+    }
+
+    public void setPhone(String phone) {
+        this.phone = phone;
     }
 
     public Instant getStartsAt() {

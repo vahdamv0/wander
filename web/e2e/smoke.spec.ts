@@ -1475,6 +1475,7 @@ test('bookings show each time in its own zone, ordered by when they really happe
     startDate: string;
     startTime: string;
     startZone: string;
+    phone?: string;
     endDate?: string;
     endTime?: string;
     endZone?: string;
@@ -1482,6 +1483,9 @@ test('bookings show each time in its own zone, ordered by when they really happe
     await page.getByRole('button', { name: 'Add a booking' }).click();
     await page.locator('select[name=kind]').selectOption(fields.kind);
     await page.locator('input[name=title]').fill(fields.title);
+    if (fields.phone) {
+      await page.locator('input[name=phone]').fill(fields.phone);
+    }
     await page.locator('input[name=startDate]').fill(fields.startDate);
     await page.locator('input[name=startTime]').fill(fields.startTime);
     await page.locator('select[name=startZone]').selectOption(fields.startZone);
@@ -1497,6 +1501,7 @@ test('bookings show each time in its own zone, ordered by when they really happe
   await addBooking({
     kind: 'TRAIN', title: 'Late train in Tokyo',
     startDate: '2027-07-12', startTime: '23:00', startZone: 'Asia/Tokyo',
+    phone: '+81 3-4333-1234 (front desk)',
   });
   await addBooking({
     kind: 'FLIGHT', title: 'BA512 to Osaka',
@@ -1517,6 +1522,15 @@ test('bookings show each time in its own zone, ordered by when they really happe
 
   // A time somewhere else is labelled even when it is the only time on the row.
   await expect(rows.filter({ hasText: 'Late train' })).toContainText('GMT+9');
+
+  // The number is shown exactly as it was typed, remark and all — but the link
+  // behind it is what a dialler will take, which is not the same string. The
+  // bracketed note is dropped rather than turned into digits, and nothing is
+  // added: a bare local number stays local, because guessing a country code is
+  // how you ring a stranger at 1am.
+  const phone = rows.filter({ hasText: 'Late train' }).getByRole('link');
+  await expect(phone).toHaveText('+81 3-4333-1234 (front desk)');
+  await expect(phone).toHaveAttribute('href', 'tel:+81343331234');
 
   expect(consoleErrors, 'unexpected console errors').toEqual([]);
   await context.close();
@@ -1995,6 +2009,7 @@ test('the itinerary prints as a document, with its bookings on the right days', 
   await page.locator('input[name=startTime]').fill('15:00');
   await page.locator('select[name=startZone]').selectOption('Asia/Tokyo');
   await page.locator('input[name=confirmation]').fill('XK29PQ');
+  await page.locator('input[name=phone]').fill('+81 3-3582-0111');
   await page.getByRole('button', { name: 'Save booking' }).click();
   await expect(page.getByText('Hotel Okura', { exact: true })).toBeVisible();
 
@@ -2007,8 +2022,10 @@ test('the itinerary prints as a document, with its bookings on the right days', 
   await expect(page.getByText('Go early, before the crowds.')).toBeVisible();
   const daySections = page.locator('section.print-block');
   await expect(daySections.filter({ hasText: 'Hotel Okura' })).toContainText('Day 2');
-  // The reference is the reason to carry paper at all.
+  // The reference is the reason to carry paper at all, and the number beside it
+  // is the other: on paper there is nothing to tap, so it has to be readable.
   await expect(page.getByText('XK29PQ')).toBeVisible();
+  await expect(page.getByText('+81 3-3582-0111')).toBeVisible();
   // Every time on paper carries its zone, unlike on screen where it is shown
   // only when it differs from the reader's. Asserted as "a zone label is there"
   // rather than as an exact string: the clock is rendered by Intl in the
@@ -2020,6 +2037,7 @@ test('the itinerary prints as a document, with its bookings on the right days', 
   await page.emulateMedia({ media: 'print' });
   await expect(page.getByText('Senso-ji')).toBeVisible();
   await expect(page.getByText('XK29PQ')).toBeVisible();
+  await expect(page.getByText('+81 3-3582-0111')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Print or save as PDF' })).toBeHidden();
   await expect(page.getByRole('link', { name: 'Back to the trip' })).toBeHidden();
   // The app shell's header would otherwise land across the top of every copy.

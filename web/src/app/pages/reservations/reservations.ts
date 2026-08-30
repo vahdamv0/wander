@@ -57,6 +57,7 @@ export class ReservationsPage {
   protected readonly draftKind = signal<Kind>('FLIGHT');
   protected readonly draftTitle = signal('');
   protected readonly draftConfirmation = signal('');
+  protected readonly draftPhone = signal('');
   protected readonly draftNotes = signal('');
   protected readonly draftStartDate = signal('');
   protected readonly draftStartTime = signal('');
@@ -137,6 +138,7 @@ export class ReservationsPage {
     this.draftKind.set('FLIGHT');
     this.draftTitle.set('');
     this.draftConfirmation.set('');
+    this.draftPhone.set('');
     this.draftNotes.set('');
     this.draftStartDate.set(this.trip()?.startDate ?? '');
     this.draftStartTime.set('09:00');
@@ -147,11 +149,29 @@ export class ReservationsPage {
     this.editing.set('new');
   }
 
+  /**
+   * The number as something a dialler will accept.
+   *
+   * The stored string is whatever somebody typed — "+81 3-4333-1234 (front
+   * desk)" is a realistic and useful thing to have written down — and RFC 3966
+   * wants none of that. So the displayed text stays as typed and only the href
+   * is reduced: everything from the first bracket is dropped, because it is a
+   * remark rather than digits, and what is left keeps a leading plus and its
+   * numbers. Nothing is inferred — no country code is added to a bare local
+   * number, because guessing which country somebody meant is exactly the way to
+   * dial a stranger at 1am.
+   */
+  protected telHref(phone: string): string {
+    const dialable = phone.split('(')[0].replace(/[^\d+]/g, '');
+    return 'tel:' + dialable;
+  }
+
   protected openEdit(booking: ReservationView): void {
     this.error.set(null);
     this.draftKind.set(booking.kind);
     this.draftTitle.set(booking.title);
     this.draftConfirmation.set(booking.confirmation ?? '');
+    this.draftPhone.set(booking.phone ?? '');
     this.draftNotes.set(booking.notes ?? '');
     // The local wall time comes from the server precisely so this puts back what
     // was typed, rather than reconstructing it from an instant and a zone.
@@ -176,6 +196,7 @@ export class ReservationsPage {
       kind: this.draftKind(),
       title: this.draftTitle().trim(),
       confirmation: this.draftConfirmation().trim() || undefined,
+      phone: this.draftPhone().trim() || undefined,
       notes: this.draftNotes().trim() || undefined,
       startsAtLocal: `${this.draftStartDate()}T${this.draftStartTime()}:00`,
       startZone: this.draftStartZone(),

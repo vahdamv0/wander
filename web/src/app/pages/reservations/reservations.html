@@ -99,6 +99,23 @@
                     · ref <span class="font-medium text-fg">{{ booking.confirmation }}</span>
                   }
                 </p>
+                <!-- On its own line rather than tacked onto the one above: it is a
+                     target to tap, and a link buried in a run of grey text broken
+                     up by middots is a small one. -->
+                @if (booking.phone) {
+                  <p class="mt-0.5">
+                    <a [href]="telHref(booking.phone)"
+                       class="inline-flex items-center gap-1.5 text-xs font-medium text-fg
+                              underline underline-offset-2">
+                      <svg class="size-3.5 shrink-0 text-muted" viewBox="0 0 24 24" fill="none"
+                           stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                           stroke-linejoin="round" aria-hidden="true">
+                        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.2 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92Z" />
+                      </svg>
+                      {{ booking.phone }}
+                    </a>
+                  </p>
+                }
               </div>
               @if (canEdit()) {
                 <div class="flex shrink-0 items-center gap-2">
@@ -166,6 +183,15 @@
         Title
         <input class="field" type="text" name="title" required placeholder="BA512 to Osaka"
                [ngModel]="draftTitle()" (ngModelChange)="draftTitle.set($event)" />
+      </label>
+      <!-- `type="tel"` for the keypad on a phone, and nothing more: no pattern and
+           no formatting, because what a number has to look like to be dialable
+           differs by country and the useful one is often a direct line with an
+           instruction beside it. -->
+      <label class="label min-w-0">
+        <span>Phone <span class="font-normal">(optional)</span></span>
+        <input class="field" type="tel" name="phone" placeholder="+81 3-4333-1234"
+               [ngModel]="draftPhone()" (ngModelChange)="draftPhone.set($event)" />
       </label>
     </div>
 
