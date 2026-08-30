@@ -80,12 +80,14 @@ Four things, and none of them is a code change:
 2. `WANDER_SITE_ADDRESS` is your hostname and `WANDER_COOKIE_SECURE=true`. They
    move together; see the note in `.env.example` for what happens if only one of
    them does.
-3. **There is no password reset, and nothing here sends mail.** Somebody who
-   forgets their password cannot recover it themselves — the only way back is you,
-   editing `users.password_hash` in the database. That is tolerable for a
-   household or a few invited friends, and it is a real blocker for anything
-   wider. Sign-ups being off by default keeps the two facts in step: the people
-   with accounts are people you can reach.
+3. **There is no password *reset*, and nothing here sends mail.** Somebody who
+   is signed in can change their own password (Account, from the avatar in the
+   header) — but somebody who has *forgotten* it cannot recover it themselves,
+   because a reset link would need email. The only way back is you, editing
+   `users.password_hash` in the database. That is tolerable for a household or a
+   few invited friends, and it is a real blocker for anything wider. Sign-ups
+   being off by default keeps the two facts in step: the people with accounts are
+   people you can reach.
 4. The backups are on the same disk as the database. They survive a bad
    migration, a wrong `DELETE` and a corrupted table; they do not survive losing
    the machine. Copy them off it — see below.

@@ -76,4 +76,16 @@ public class User {
     public Instant getCreatedAt() {
         return createdAt;
     }
+
+    /**
+     * Replace the stored hash. Takes an already-encoded value rather than a raw
+     * password on purpose: the encoder is a Spring bean and this is an entity,
+     * so a method taking plaintext here would either need one injected or would
+     * be an invitation to store one by mistake. Encoding stays in
+     * {@code UserAccountService}, which is also where the current password is
+     * verified.
+     */
+    public void changePassword(String encodedPasswordHash) {
+        this.passwordHash = encodedPasswordHash;
+    }
 }

@@ -18,6 +18,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Map;
+
+import org.springframework.session.FindByIndexNameSessionRepository;
+import org.springframework.session.Session;
+
+import com.wander.auth.dto.ChangePasswordRequest;
 import com.wander.auth.dto.LoginRequest;
 import com.wander.auth.dto.RegisterRequest;
 import com.wander.auth.dto.SessionUser;
@@ -40,14 +46,16 @@ public class AuthController {
             .getContextHolderStrategy();
     private final UserAccountService accounts;
     private final LoginThrottle throttle;
+    private final FindByIndexNameSessionRepository<? extends Session> sessions;
 
     public AuthController(AuthenticationManager authenticationManager,
             SecurityContextRepository securityContextRepository, UserAccountService accounts,
-            LoginThrottle throttle) {
+            LoginThrottle throttle, FindByIndexNameSessionRepository<? extends Session> sessions) {
         this.authenticationManager = authenticationManager;
         this.securityContextRepository = securityContextRepository;
         this.accounts = accounts;
         this.throttle = throttle;
+        this.sessions = sessions;
     }
 
     @PublicEndpoint
@@ -105,6 +113,62 @@ public class AuthController {
         }
     }
 
+    /**
+     * Change your own password. Authenticated like everything else, and the only
+     * way a password moves on this instance — there is no reset, because nothing
+     * here sends mail.
+     *
+     * Three things are deliberate.
+     *
+     * The **current password is required**, which is the entire point: a session
+     * cookie somebody else has got hold of must not be enough to take the account
+     * for good. Knowing the password is what separates the owner from a borrowed
+     * browser.
+     *
+     * It goes through the **same throttle as signing in**. Verifying a password
+     * is verifying a password, whichever endpoint does it, and a second door with
+     * no counter on it would be the one an attacker with a stolen session walks
+     * through. It also means a bcrypt round is not spent per guess, which is the
+     * denial-of-service half of the same argument.
+     *
+     * A success **ends every other session** for this account. Somebody changing
+     * their password because they think it leaked expects exactly that, and
+     * leaving the other sessions alive would make the change worth much less than
+     * it appears — the stolen cookie would still work. This session survives, so
+     * the person doing it is not signed out of the page they are looking at.
+     */
+    @PostMapping("/password")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void changePassword(@Valid @RequestBody ChangePasswordRequest request,
+            @AuthenticationPrincipal WanderUser principal, HttpServletRequest httpRequest) {
+        String address = clientAddress(httpRequest);
+        throttle.check(principal.email(), address);
+        try {
+            accounts.changePassword(principal.id(), request.currentPassword(), request.newPassword());
+        } catch (IncorrectPasswordException ex) {
+            throttle.failed(principal.email(), address);
+            throw ex;
+        }
+        throttle.succeeded(principal.email(), address);
+        endOtherSessions(principal.email(), httpRequest);
+    }
+
+    /**
+     * Every session for this account except the one making the request.
+     *
+     * Spring Session indexes sessions by principal name, so this is a lookup
+     * rather than a scan. The current session is skipped by id: the alternative —
+     * clearing the lot — signs the user out of the page they just used, which
+     * reads as the change having failed.
+     */
+    private void endOtherSessions(String email, HttpServletRequest httpRequest) {
+        String current = httpRequest.getSession(false) == null ? null : httpRequest.getSession(false).getId();
+        Map<String, ? extends Session> found = sessions.findByPrincipalName(email);
+        found.keySet().stream()
+                .filter(id -> !id.equals(current))
+                .forEach(sessions::deleteById);
+    }
+
     @GetMapping("/me")
     public SessionUser me(@AuthenticationPrincipal WanderUser principal) {
         return SessionUser.from(principal);
@@ -156,6 +220,21 @@ public class AuthController {
     @org.springframework.web.bind.annotation.ExceptionHandler(RegistrationDisabledException.class)
     public ResponseEntity<ApiError> registrationDisabled(RegistrationDisabledException ex) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiError.of(403, "Forbidden", ex.getMessage()));
+    }
+
+    /**
+     * 400, not 401. A 401 is how the client is told its session has gone, so
+     * answering one here would clear the cached identity and bounce somebody to
+     * the login page over a mistyped current password.
+     */
+    @org.springframework.web.bind.annotation.ExceptionHandler(IncorrectPasswordException.class)
+    public ResponseEntity<ApiError> incorrectPassword(IncorrectPasswordException ex) {
+        return ResponseEntity.badRequest().body(ApiError.of(400, "Bad Request", ex.getMessage()));
+    }
+
+    @org.springframework.web.bind.annotation.ExceptionHandler(SamePasswordException.class)
+    public ResponseEntity<ApiError> samePassword(SamePasswordException ex) {
+        return ResponseEntity.badRequest().body(ApiError.of(400, "Bad Request", ex.getMessage()));
     }
 
     @org.springframework.web.bind.annotation.ExceptionHandler(EmailAlreadyUsedException.class)

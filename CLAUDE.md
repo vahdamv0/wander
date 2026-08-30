@@ -164,6 +164,22 @@ Java record → springdoc → `api/build/openapi.json` (written by
   it. Its integration test gets its own context on purpose — one bean, one map,
   and every test in the suite arrives from 127.0.0.1, so exhausting a counter in
   the shared context would take everybody else's sign-in down with it.
+- **A password can be changed, never reset.** `POST /api/auth/password` takes the
+  current password as well as the new one, and that is the whole point: a session
+  cookie somebody else has got hold of must not be enough to take the account for
+  good. It goes through the *same* `LoginThrottle` as signing in — verifying a
+  password is verifying a password, and a second door with no counter on it is
+  the one an attacker with a stolen session walks through. A wrong current
+  password is **400, not 401**: the client reads a 401 as "your session is gone"
+  and would sign somebody out over a typo, clearing the offline cache with it.
+  Reusing the current password is refused too, because answering "done" to it
+  would leave the user believing something changed. On success every *other*
+  session for that account is deleted (`FindByIndexNameSessionRepository`,
+  indexed by principal name, so a lookup rather than a scan) while the caller's
+  own survives — somebody changing a password they think leaked expects exactly
+  that, and signing them out of the page they are looking at would read as
+  failure. There is still no reset, and there will not be one while nothing here
+  sends mail.
 - **Flyway owns the schema**, Hibernate runs `ddl-auto: validate`. Schema changes
   are a new `V<n>__*.sql`; never edit an applied migration. That includes tables
   a library would happily create for itself: `V5` carries Spring Session's own

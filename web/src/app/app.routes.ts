@@ -53,6 +53,13 @@ export const routes: Routes = [
         loadComponent: () => import('./pages/invite/invite').then((m) => m.InvitePage),
       },
       {
+        // Your own account, inside the shell like everything else. A page and
+        // not a dialog: it is reached from the header on every screen, and a
+        // password manager fills a real form far better than a modal.
+        path: 'account',
+        loadComponent: () => import('./pages/account/account').then((m) => m.AccountPage),
+      },
+      {
         path: 'trips/:tripId/reservations',
         loadComponent: () =>
           import('./pages/reservations/reservations').then((m) => m.ReservationsPage),

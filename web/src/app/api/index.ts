@@ -8,6 +8,7 @@ export { Api } from './api';
 
 export type { AcceptedInviteView } from './models/accepted-invite-view';
 export type { AddMemberRequest } from './models/add-member-request';
+export type { ChangePasswordRequest } from './models/change-password-request';
 export type { ChangeRoleRequest } from './models/change-role-request';
 export type { CreatedInviteView } from './models/created-invite-view';
 export type { CreateInviteRequest } from './models/create-invite-request';
@@ -129,6 +130,8 @@ export type { RevokeInvite$Params as RevokeInvite$Params } from './fn/trip-invit
 export { revokeInvite as revokeInvite } from './fn/trip-invite-controller/revoke-invite';
 export type { Register$Params as Register$Params } from './fn/auth-controller/register';
 export { register as register } from './fn/auth-controller/register';
+export type { ChangePassword$Params as ChangePassword$Params } from './fn/auth-controller/change-password';
+export { changePassword as changePassword } from './fn/auth-controller/change-password';
 export type { Logout$Params as Logout$Params } from './fn/auth-controller/logout';
 export { logout as logout } from './fn/auth-controller/logout';
 export type { Login$Params as Login$Params } from './fn/auth-controller/login';
