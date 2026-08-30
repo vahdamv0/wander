@@ -658,8 +658,8 @@ application's problem.
 most of this project's life: the first-boot account was labelled an administrator
 and had precisely the authority of everybody else. This is what the label means.
 
-- **Two powers, and the narrowness is the design.** List the accounts, and take
-  one out of service. Not their trips — `TripAccessService` answers an admin a
+- **Three powers, and the narrowness is the design.** List the accounts, take one
+  out of service, and make somebody else an administrator. Not their trips — `TripAccessService` answers an admin a
   404 on a trip they are not a member of, exactly as it does anybody, and
   `anAdministratorIsNotAMemberOfEverybodysTrips` pins that. Administering the
   instance is authority over accounts, not a way into other people's holidays.
@@ -689,6 +689,29 @@ and had precisely the authority of everybody else. This is what the label means.
   it. The recovery would be psql, which is the situation this whole feature exists
   to end. Disabling *another* admin leaves somebody holding the keys, so it is
   allowed.
+- **Administrators are a set, not a role one person holds.** `PUT
+  .../accounts/{id}/role` promotes and demotes, and without it `ADMIN` could only
+  ever belong to the account first boot created — every rule written about
+  *other* administrators described a state nothing could reach. Two things make
+  it work. **Both directions end that account's sessions**, because the principal
+  is serialised into the session and read back on every request: somebody demoted
+  would otherwise keep `ROLE_ADMIN` until their session expired, authority
+  removed in the database and still held in fact. And **the last administrator
+  who can sign in cannot be demoted** — this *is* the "last owner" check
+  `TripMemberService` is pleased not to need, and the difference is that a trip's
+  ownership *moves* in one transaction while an instance's administrators are a
+  set with no equivalent atomic move. Disabled admins do not count towards it: an
+  account that cannot sign in cannot administer anything. Stepping down is
+  otherwise allowed, including on your own account, or an instance could never
+  change hands. `setDisabled` deliberately has **no** such check, and that is not
+  an omission — the caller is an enabled admin who cannot be the target, so one
+  always survives; the note in the code says so, because the absence of a guard
+  is the kind of thing somebody later adds "just in case".
+- **The count is pinned by a unit test, not an integration one.**
+  `AdminServiceTest` mocks the repository, because the count is instance-wide and
+  the integration suite shares one database that every other test adds
+  administrators to — over HTTP the "last" administrator can only be arranged by
+  accident.
 - **`@PreAuthorize` on the controller class, not a matcher in `SecurityConfig`.**
   Both work; this one travels with the code. `EndpointAuthRatchetTest` cannot
   catch a missing rule here, because it only asks whether an *anonymous* caller

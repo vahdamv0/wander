@@ -119,6 +119,20 @@ public class User {
     }
 
     /**
+     * Promote or demote.
+     *
+     * The role was fixed at construction until multiple administrators became a
+     * thing an instance could actually have. Note what this does *not* do: the
+     * principal is serialised into the session and read back on every request,
+     * so changing the row alone leaves somebody demoted still holding admin
+     * authority for the life of their session. Ending those sessions is
+     * {@code AdminService.setRole}'s job, and it is not optional.
+     */
+    public void changeRole(GlobalRole role) {
+        this.role = role;
+    }
+
+    /**
      * Replace the stored hash. Takes an already-encoded value rather than a raw
      * password on purpose: the encoder is a Spring bean and this is an entity,
      * so a method taking plaintext here would either need one injected or would

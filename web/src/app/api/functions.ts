@@ -75,6 +75,8 @@ export type { Login$Params as Login$Params } from './fn/auth-controller/login';
 export { login as login } from './fn/auth-controller/login';
 export type { Me$Params as Me$Params } from './fn/auth-controller/me';
 export { me as me } from './fn/auth-controller/me';
+export type { SetAccountRole$Params as SetAccountRole$Params } from './fn/admin-controller/set-account-role';
+export { setAccountRole as setAccountRole } from './fn/admin-controller/set-account-role';
 export type { SetAccountDisabled$Params as SetAccountDisabled$Params } from './fn/admin-controller/set-account-disabled';
 export { setAccountDisabled as setAccountDisabled } from './fn/admin-controller/set-account-disabled';
 export type { ListResets$Params as ListResets$Params } from './fn/admin-controller/list-resets';

@@ -1,4 +1,6 @@
 import { Component, computed, inject, signal } from '@angular/core';
+import { Router } from '@angular/router';
+import { AdminUserView } from '../../api';
 import { messageOf } from '../../core/errors';
 import { SessionStore } from '../../core/session.store';
 import { AdminRepo } from '../../repo/admin.repo';
@@ -10,10 +12,11 @@ import { AdminRepo } from '../../repo/admin.repo';
  * keeps the route shut and `AdminController` refuses the requests regardless,
  * because a guard is a courtesy to the user and not a security control.
  *
- * Deliberately small. It lists accounts, takes one out of service, and mints a
- * password reset link. It is not a window into anybody's trips: an administrator
- * of this instance has authority over accounts, and trip access still goes
- * through the same membership check it does for everybody.
+ * Deliberately small. It lists accounts, takes one out of service, makes
+ * somebody else an administrator, and mints a password reset link. It is not a
+ * window into anybody's trips: an administrator of this instance has authority
+ * over accounts, and trip access still goes through the same membership check it
+ * does for everybody.
  */
 @Component({
   selector: 'app-admin',
@@ -22,6 +25,7 @@ import { AdminRepo } from '../../repo/admin.repo';
 export class AdminPage {
   private readonly admin = inject(AdminRepo);
   private readonly session = inject(SessionStore);
+  private readonly router = inject(Router);
 
   protected readonly accounts = this.admin.accounts;
   protected readonly resets = this.admin.resets;
@@ -35,6 +39,8 @@ export class AdminPage {
   protected readonly openFor = signal<number | null>(null);
   /** Which account is being asked about before it is disabled. */
   protected readonly confirmingDisable = signal<number | null>(null);
+  /** And before its role changes. Separate, so one row cannot be asked two questions. */
+  protected readonly confirmingRole = signal<number | null>(null);
 
   protected readonly me = computed(() => this.session.user()?.id ?? null);
 
@@ -92,6 +98,57 @@ export class AdminPage {
 
   protected async revokeReset(userId: number, resetId: number): Promise<void> {
     await this.guard(() => this.admin.revokeReset(userId, resetId));
+  }
+
+  /**
+   * Promoting and demoting both ask first, unlike enabling.
+   *
+   * Not caution for its own sake: either direction ends that person's sessions,
+   * so somebody working in another window is signed out by a click made here.
+   * And stepping down signs *you* out, which is worth being asked about once.
+   */
+  protected askRole(userId: number): void {
+    this.confirmingRole.set(userId);
+  }
+
+  protected cancelRole(): void {
+    this.confirmingRole.set(null);
+  }
+
+  protected roleQuestion(account: AdminUserView): string {
+    if (account.id === this.me()) {
+      return 'Step down and sign yourself out?';
+    }
+    return account.role === 'ADMIN'
+      ? 'Remove admin and sign them out?'
+      : 'Make admin and sign them out?';
+  }
+
+  protected roleAction(account: AdminUserView): string {
+    if (account.id === this.me()) {
+      return 'Step down';
+    }
+    return account.role === 'ADMIN' ? 'Remove admin' : 'Make admin';
+  }
+
+  protected async setRole(account: AdminUserView): Promise<void> {
+    const next = account.role === 'ADMIN' ? 'USER' : 'ADMIN';
+    // Stepping down ends the session making the request, so the list must not
+    // be re-read afterwards and the client must stop believing it is signed in.
+    const steppingDown = account.id === this.me() && next === 'USER';
+    this.confirmingRole.set(null);
+    await this.guard(async () => {
+      await this.admin.setRole(account.id, next, !steppingDown);
+      if (steppingDown) {
+        // The POST *will* fail with a 401, because the server has already ended
+        // this session — that is the whole point of the call that just
+        // succeeded. `logout` clears the local identity and the cached trips in
+        // its `finally` and then rethrows, so the failure has to be swallowed
+        // here or a successful step-down reports an error and never redirects.
+        await this.session.logout().catch(() => undefined);
+        await this.router.navigate(['/login']);
+      }
+    });
   }
 
   /**

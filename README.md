@@ -16,9 +16,10 @@ container, one Postgres.
   default and an invitation link admits its holder anyway, so a closed instance
   is still one people can be let into; guessing a password is throttled
 - Administering the instance: an admin sees the accounts on it, can take one out
-  of service (which signs it out everywhere, at once), and can send somebody a
-  single-use link to set a new password — the recovery for a forgotten one, on an
-  instance that sends no email
+  of service (which signs it out everywhere, at once), can make somebody else an
+  administrator or step down themselves, and can send somebody a single-use link
+  to set a new password — the recovery for a forgotten one, on an instance that
+  sends no email
 - Create, rename and reschedule trips, scoped to the people who are members of them
 - A trip's days are derived from its date range, never stored — and moving the
   dates carries the itinerary with it rather than stranding it
@@ -91,10 +92,11 @@ Four things, and none of them is a code change:
    while this instance sends no email. What there is instead is you: from
    Accounts in the same menu, an admin mints a single-use link and delivers it
    however they already talk to that person, exactly as an invitation link
-   works. Nobody has to edit `users.password_hash` by hand any more. The limit
-   that remains is that recovery goes through a human, so sign-ups being off by
-   default keeps the two facts in step: the people with accounts are people you
-   can reach.
+   works. Nobody has to edit `users.password_hash` by hand any more, and an
+   instance can have more than one administrator, so losing one account's
+   password is not losing the instance. The limit that remains is that recovery
+   goes through a human, so sign-ups being off by default keeps the two facts in
+   step: the people with accounts are people you can reach.
 4. The backups are on the same disk as the database. They survive a bad
    migration, a wrong `DELETE` and a corrupted table; they do not survive losing
    the machine. Copy them off it — see below.

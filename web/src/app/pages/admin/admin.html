@@ -1,4 +1,4 @@
-<main class="mx-auto max-w-3xl px-4 py-8">
+<main class="mx-auto max-w-4xl px-4 py-8">
   <header class="mb-6">
     <h1 class="text-xl font-semibold tracking-tight">Accounts</h1>
     <p class="mt-1 text-sm text-muted">
@@ -48,7 +48,23 @@
                widths have to come from the longest label rather than from
                whatever this row happens to say. -->
           <div class="flex shrink-0 items-center gap-1">
-            @if (confirmingDisable() === account.id) {
+            @if (confirmingRole() === account.id) {
+              <!-- Either direction ends that person's sessions, so a click here
+                   signs somebody out of a window they may be working in — and
+                   stepping down signs *you* out. Worth asking once. -->
+              <span class="text-sm text-muted">{{ roleQuestion(account) }}</span>
+              <button
+                type="button"
+                class="btn-danger ml-2 text-sm"
+                [disabled]="saving()"
+                (click)="setRole(account)"
+              >
+                {{ roleAction(account) }}
+              </button>
+              <button type="button" class="btn-ghost text-sm" (click)="cancelRole()">
+                Cancel
+              </button>
+            } @else if (confirmingDisable() === account.id) {
               <!-- Replaces the whole cluster rather than squeezing in beside it,
                    which is what the place row does too. Inline where the buttons
                    were, so there is no backdrop to dismiss by accident, and it
@@ -92,6 +108,21 @@
                 (click)="toggleResets(account.id)"
               >
                 Links
+              </button>
+
+              <!-- Promote, demote, or step down. Without this the role could
+                   only ever be held by the account first boot created, and every
+                   rule about *other* administrators described a state nothing
+                   could reach. Offered on a disabled account too, because the
+                   server allows it: a disabled admin does not count towards
+                   "somebody is still in charge", so demoting one is legitimate. -->
+              <button
+                type="button"
+                class="btn-ghost w-36 whitespace-nowrap text-sm"
+                [disabled]="saving()"
+                (click)="askRole(account.id)"
+              >
+                {{ roleAction(account) }}
               </button>
 
               @if (account.id === me()) {
