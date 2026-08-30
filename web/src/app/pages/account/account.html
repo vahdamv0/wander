@@ -1,0 +1,86 @@
+<main class="mx-auto max-w-xl px-4 py-8">
+  <header class="mb-6">
+    <h1 class="text-xl font-semibold tracking-tight">Account</h1>
+    <p class="mt-1 text-sm text-muted">{{ user()?.displayName }} · {{ user()?.email }}</p>
+  </header>
+
+  <section class="card p-6">
+    <h2 class="text-base font-semibold">Change password</h2>
+    <!-- Said plainly, because it is the reason this page matters: there is no
+         reset on this instance, so a forgotten password is somebody else's
+         afternoon with psql. -->
+    <p class="mt-1 mb-5 text-sm text-muted">
+      There's no password reset here — nothing on this instance sends email — so
+      keep the new one somewhere safe.
+    </p>
+
+    <form class="grid gap-4" (ngSubmit)="submit()">
+      <label class="label">
+        Current password
+        <input
+          class="field"
+          type="password"
+          name="currentPassword"
+          autocomplete="current-password"
+          required
+          [ngModel]="currentPassword()"
+          (ngModelChange)="currentPassword.set($event)"
+        />
+      </label>
+
+      <label class="label">
+        New password
+        <input
+          class="field"
+          type="password"
+          name="newPassword"
+          autocomplete="new-password"
+          required
+          [ngModel]="newPassword()"
+          (ngModelChange)="newPassword.set($event)"
+        />
+        <span class="text-xs font-normal text-muted">At least 10 characters.</span>
+      </label>
+
+      <label class="label">
+        <span>Confirm new password</span>
+        <input
+          class="field"
+          type="password"
+          name="confirmPassword"
+          autocomplete="new-password"
+          required
+          [ngModel]="confirmPassword()"
+          (ngModelChange)="confirmPassword.set($event)"
+        />
+        @if (mismatch()) {
+          <span class="text-xs font-normal text-danger">These don't match.</span>
+        }
+      </label>
+
+      @if (error()) {
+        <p class="rounded-control bg-danger-soft px-3 py-2 text-sm text-danger" role="alert">
+          {{ error() }}
+        </p>
+      }
+
+      @if (done()) {
+        <!-- Says what else happened, because signing every other device out is
+             a surprise if it is not announced, and a relief if it is. -->
+        <p class="rounded-control bg-surface-2 px-3 py-2 text-sm text-muted" role="status">
+          Password changed. Anywhere else you were signed in has been signed out.
+        </p>
+      }
+
+      <div>
+        <button type="submit" class="btn-primary" [disabled]="!canSubmit()">
+          @if (busy()) {
+            Working…
+          } @else {
+            Change password
+          }
+        </button>
+      </div>
+    </form>
+  </section>
+</main>

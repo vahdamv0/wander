@@ -3,6 +3,7 @@
 
 export type { AcceptedInviteView } from './models/accepted-invite-view';
 export type { AddMemberRequest } from './models/add-member-request';
+export type { ChangePasswordRequest } from './models/change-password-request';
 export type { ChangeRoleRequest } from './models/change-role-request';
 export type { CreatedInviteView } from './models/created-invite-view';
 export type { CreateInviteRequest } from './models/create-invite-request';

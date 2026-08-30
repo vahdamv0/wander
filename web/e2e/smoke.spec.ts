@@ -80,6 +80,68 @@ test('register, create a trip, and see it listed', async ({ page }) => {
   expect(consoleErrors, 'unexpected console errors').toEqual([]);
 });
 
+test('change your own password, and the old one stops working', async ({ page }) => {
+  const consoleErrors: string[] = [];
+  page.on('console', (message) => {
+    // The 401 from the startup session check, and the 400 the deliberate wrong
+    // password produces. Filtered by what they are rather than by being errors
+    // at all, so any *other* console error still fails this test.
+    if (
+      message.type() === 'error' &&
+      !message.text().includes('401') &&
+      !message.text().includes('400')
+    ) {
+      consoleErrors.push(message.text());
+    }
+  });
+  page.on('pageerror', (error) => consoleErrors.push(error.message));
+
+  const email = `e2e-pw-${Date.now()}@example.com`;
+  const original = 'correct-horse-battery';
+  const replacement = 'a-quite-different-passphrase';
+
+  await page.goto('/login');
+  await page.getByText('Create one').click();
+  await page.locator('input[name=email]').fill(email);
+  await page.locator('input[name=displayName]').fill('Password Tester');
+  await page.locator('input[name=password]').fill(original);
+  await page.locator('button[type=submit]').click();
+  await expect(page).toHaveURL(/\/trips$/);
+
+  // The avatar in the header is the way in; it is a link, not decoration.
+  await page.getByRole('link', { name: /Account settings/ }).click();
+  await expect(page).toHaveURL(/\/account$/);
+
+  // A wrong current password is refused, and — the part worth asserting — the
+  // page stays put. A 401 here would have signed the user out over a typo.
+  await page.locator('input[name=currentPassword]').fill('not-the-password');
+  await page.locator('input[name=newPassword]').fill(replacement);
+  await page.locator('input[name=confirmPassword]').fill(replacement);
+  await page.getByRole('button', { name: 'Change password' }).click();
+  await expect(page.locator('[role=alert]')).toBeVisible();
+  await expect(page).toHaveURL(/\/account$/);
+
+  await page.locator('input[name=currentPassword]').fill(original);
+  await page.locator('input[name=newPassword]').fill(replacement);
+  await page.locator('input[name=confirmPassword]').fill(replacement);
+  await page.getByRole('button', { name: 'Change password' }).click();
+  await expect(page.getByText(/Password changed/)).toBeVisible();
+
+  await page.getByRole('button', { name: 'Sign out' }).click();
+  await expect(page).toHaveURL(/\/login/);
+
+  await page.locator('input[name=email]').fill(email);
+  await page.locator('input[name=password]').fill(original);
+  await page.locator('button[type=submit]').click();
+  await expect(page.locator('[role=alert]')).toBeVisible();
+
+  await page.locator('input[name=password]').fill(replacement);
+  await page.locator('button[type=submit]').click();
+  await expect(page).toHaveURL(/\/trips$/);
+
+  expect(consoleErrors, 'unexpected console errors').toEqual([]);
+});
+
 test('a signed-out visitor is sent to the login page, and back afterwards', async ({ page }) => {
   await page.goto('/trips');
   await expect(page).toHaveURL(/\/login\?returnUrl=%2Ftrips$/);

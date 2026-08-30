@@ -65,6 +65,37 @@ public class UserAccountService {
         return users.save(new User(email, displayName, passwordEncoder.encode(rawPassword), role));
     }
 
+    /**
+     * Change a signed-in user's own password.
+     *
+     * There is no reset on this instance and there never will be while nothing
+     * here sends mail, so this is the only way a password moves without somebody
+     * editing {@code users.password_hash} by hand. That makes the current
+     * password non-negotiable: it is the one thing a stolen session does not
+     * carry, and without it a borrowed browser could lock the owner out of their
+     * own account permanently.
+     *
+     * The stored hash is read from the database rather than taken from the
+     * principal, which is a copy made when the session began and would still
+     * hold the old hash after a change made elsewhere.
+     */
+    @Transactional
+    public User changePassword(Long userId, String currentPassword, String newPassword) {
+        User user = users.findById(userId).orElseThrow(IncorrectPasswordException::new);
+        if (!passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
+            throw new IncorrectPasswordException();
+        }
+        if (passwordEncoder.matches(newPassword, user.getPasswordHash())) {
+            // Refused rather than accepted as a no-op: somebody typing their old
+            // password into both boxes has misunderstood what they are doing,
+            // and answering "done" would leave them believing the password
+            // changed.
+            throw new SamePasswordException();
+        }
+        user.changePassword(passwordEncoder.encode(newPassword));
+        return user;
+    }
+
     public boolean hasAnyUser() {
         return users.count() > 0;
     }

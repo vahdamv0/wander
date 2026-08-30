@@ -1,5 +1,5 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { Api, SessionUser, login, logout, me, register } from '../api';
+import { Api, SessionUser, changePassword, login, logout, me, register } from '../api';
 import { Connectivity } from './connectivity';
 import { isNetworkError, isUnauthorized } from './errors';
 import { OfflineCache, cacheKeys } from './offline-cache';
@@ -116,6 +116,18 @@ export class SessionStore {
         body: { email, displayName, password, inviteToken: inviteToken ?? undefined },
       }),
     );
+  }
+
+  /**
+   * Change the signed-in user's own password.
+   *
+   * Nothing local changes: the identity is the same person and the session
+   * cookie survives, because the server ends every session for this account
+   * *except* the one that made the call. So there is no signal to update and
+   * nothing to re-read — which is why this returns void and touches no state.
+   */
+  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    await this.api.invoke(changePassword, { body: { currentPassword, newPassword } });
   }
 
   async logout(): Promise<void> {

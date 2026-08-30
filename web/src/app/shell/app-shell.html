@@ -35,13 +35,19 @@
 
         <div class="mx-1 h-6 w-px bg-border"></div>
 
-        <span
+        <!-- The avatar is the way to the account page. aria-label rather than an
+             sr-only span, for the reason the place rows learned: an sr-only span
+             would put the name into the header's text a second time. -->
+        <a
+          routerLink="/account"
+          routerLinkActive="ring-2 ring-accent"
           class="grid size-8 place-items-center rounded-full bg-accent-soft text-xs
-                 font-semibold text-accent"
+                 font-semibold text-accent transition-shadow hover:ring-2 hover:ring-accent"
           [title]="user()?.email"
+          [attr.aria-label]="'Account settings for ' + (user()?.displayName ?? '')"
         >
           {{ initials(user()?.displayName) }}
-        </span>
+        </a>
         <button type="button" class="btn-ghost text-[0.8125rem]" (click)="signOut()">
           Sign out
         </button>
