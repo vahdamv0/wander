@@ -14,13 +14,6 @@ build, two modules:
   TypeScript. Built by the Gradle node plugin and packaged **inside** the boot
   jar as `META-INF/resources`, so a deployment is one container.
 
-Not a port of TREK (`/media/veracrypt1/TREK`, a TypeScript monorepo). TREK is a
-reference for patterns only; do not copy its code. wander is now AGPL-3.0-or-later
-itself, so the licences no longer differ — but that is not a licence to paste from
-it. Copied code would carry TREK's copyright and its authors' attribution into
-this repository, which is a separate matter from the terms, and "not a port" is
-the claim this project makes about itself.
-
 **The licence is AGPL-3.0-or-later** (`LICENSE`, and see README's Licence
 section). One thing follows for the code: section 13 means a modified instance
 offered to others over a network owes those users its source, which in practice is

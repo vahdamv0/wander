@@ -432,11 +432,6 @@ and run it for others over a network, and those users are entitled to the source
 of what they are actually using. Self-hosting is the whole point of this project,
 so the licence that protects the people doing the hosting is the right one.
 
-It also keeps a clear line around **TREK**, the AGPL-licensed project read as a
-reference for patterns while building this. No code was copied and wander is not
-a port of it, but sharing its licence removes any question of the distinction
-mattering.
-
 Two consequences worth being clear about, since they are the parts people get
 wrong:
 
