@@ -128,8 +128,11 @@ wander:
     # users' browsers did not talk to openstreetmap.org — and keep the
     # attribution in step with whatever you point it at.
     enabled: ${WANDER_MAP_ENABLED:true}
+    style-url: ${WANDER_MAP_STYLE_URL:https://tiles.openfreemap.org/styles/liberty}
+    dark-style-url: ${WANDER_MAP_DARK_STYLE_URL:https://tiles.openfreemap.org/styles/dark}
+    # The raster fallback, used only when style-url is blank.
     tile-url: ${WANDER_MAP_TILE_URL:https://tile.openstreetmap.org/{z}/{x}/{y}.png}
-    attribution: ${WANDER_MAP_ATTRIBUTION:© OpenStreetMap contributors}
+    attribution: ${WANDER_MAP_ATTRIBUTION:OpenFreeMap · OpenMapTiles · © OpenStreetMap contributors}
   admin:
     email: ${WANDER_ADMIN_EMAIL:}
     password: ${WANDER_ADMIN_PASSWORD:}

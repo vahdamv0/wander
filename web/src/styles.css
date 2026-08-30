@@ -298,7 +298,11 @@
 /* Raster tiles are drawn for light backgrounds. Rather than invert them — which
    turns land green-on-black and reads as a bug — take the glare off so they sit
    beside a dark UI. Declared twice, once per way of choosing dark, exactly like
-   the colour tokens above. */
+   the colour tokens above.
+
+   This is the raster fallback only: `.leaflet-tile` matches tile images, and the
+   vector basemap is a canvas that loads a dark *style* instead — which is the
+   better answer, and the reason this one is a compromise. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .leaflet-tile {
     filter: brightness(0.72) saturate(0.8) contrast(1.08);

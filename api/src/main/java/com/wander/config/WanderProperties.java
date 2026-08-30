@@ -131,19 +131,44 @@ public record WanderProperties(
     }
 
     /**
-     * The tile layer the browser draws the map from. Not compiled into the
-     * client: an operator running their own tile server, or one who would rather
-     * their users' browsers not talk to openstreetmap.org at all, changes this
-     * and every client follows — which is also why the attribution travels with
-     * the URL rather than being hardcoded next to the map.
+     * What the browser draws the map from. Not compiled into the client: an
+     * operator running their own tiles, or one who would rather their users'
+     * browsers not talk to a third party at all, changes this and every client
+     * follows — which is also why the attribution travels with the URL rather
+     * than being hardcoded next to the map.
      *
-     * The default is the OpenStreetMap tile service, whose policy requires the
-     * attribution below to stay visible and asks that heavy users run their own.
+     * **Two kinds of source, and `styleUrl` wins when it is set.**
+     *
+     * A *vector* style (the default) is a MapLibre style document. It is what
+     * makes labels readable on a trip abroad: raster tiles are pre-rendered
+     * pictures with the local name burned into them — 東京都, never Tokyo, no
+     * matter what the browser asks for — whereas vector tiles carry `name`,
+     * `name:latin` and `name:xx` as data and the client picks. wander draws both,
+     * so a place reads in your language *and* as it appears on the signs.
+     *
+     * The default is OpenFreeMap, which needs no API key, no account and states
+     * no request limit, and serves the fonts and sprites as well as the tiles.
+     * It is one person's project funded by donations — so if that is too thin a
+     * thread for your instance, it publishes weekly planet dumps to self-host,
+     * and this setting is how you point somewhere else.
+     *
+     * A *raster* `tileUrl` is still fully supported and is what you get by
+     * setting `styleUrl` to blank: an instance with its own raster tile server
+     * loses nothing by this change but the language.
      */
     public record MapTiles(
             @DefaultValue("true") boolean enabled,
+            @DefaultValue("https://tiles.openfreemap.org/styles/liberty") String styleUrl,
+            /*
+             * Used when the reader's theme is dark. A dark *style* rather than a
+             * CSS filter over a light one, which is what the raster path has to
+             * do — and which turns land green-on-black if you let it invert.
+             */
+            @DefaultValue("https://tiles.openfreemap.org/styles/dark") String darkStyleUrl,
+            /* The raster fallback, used only when styleUrl is blank. */
             @DefaultValue("https://tile.openstreetmap.org/{z}/{x}/{y}.png") String tileUrl,
-            @DefaultValue("© OpenStreetMap contributors") String attribution,
+            @DefaultValue("OpenFreeMap · OpenMapTiles · © OpenStreetMap contributors")
+            String attribution,
             @DefaultValue("19") int maxZoom) {
     }
 }

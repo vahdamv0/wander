@@ -1,4 +1,29 @@
-import { expect, test } from '@playwright/test';
+import { Page, expect, test } from '@playwright/test';
+
+/**
+ * Keeps a test run off the basemap servers.
+ *
+ * The map is drawn from MapLibre vector tiles now, which means a style document,
+ * glyphs, sprites and a tile per screenful — considerably more traffic than the
+ * raster tiles this used to block, and aimed at a service run by one person on
+ * donations. So every page that might render a map gets an *empty but valid*
+ * style: MapLibre draws a blank basemap, asks for nothing further, and logs no
+ * error — which matters, because these tests assert on console errors.
+ *
+ * The markers, tooltips and framing are Leaflet's and are unaffected, so
+ * everything worth asserting about the map still is.
+ */
+const EMPTY_STYLE = JSON.stringify({ version: 8, sources: {}, layers: [] });
+
+async function stubBasemap(page: Page): Promise<void> {
+  await page.route('**tiles.openfreemap.org/**', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: EMPTY_STYLE }),
+  );
+}
+
+test.beforeEach(async ({ page }) => {
+  await stubBasemap(page);
+});
 
 /**
  * The loop no server-side test can see.
@@ -347,6 +372,34 @@ test('places with a location get a pin on the map', async ({ page }) => {
 });
 
 /**
+ * The one file the bundler never sees.
+ *
+ * MapLibre parses vector tiles in a web worker that it loads by URL at runtime,
+ * so nothing imports it and no bundler emits it — `angular.json` copies it out
+ * of the package instead, along with the shared chunk it imports beside itself.
+ * Get that wrong and the request falls through to the SPA fallback, which
+ * answers `index.html`: the worker dies on its first line with nothing logged,
+ * no MapLibre error event and no failed request, and the only symptom is a
+ * basemap that never draws while the style, the sprites and the markers all
+ * load perfectly.
+ *
+ * Nothing else here would catch it — the suite stubs the basemap with an empty
+ * style precisely so a test run stays off a donation-funded tile service, and an
+ * empty style asks for no vector tiles and so needs no worker.
+ */
+test('the map worker is served, not swallowed by the SPA fallback', async ({ page }) => {
+  await page.goto('/login');
+
+  for (const file of ['maplibre-gl-worker.mjs', 'maplibre-gl-shared.mjs']) {
+    const response = await page.request.get(new URL(file, page.url()).href);
+    expect(response.status(), file).toBe(200);
+    // A module worker is refused outright unless the type is a JavaScript one,
+    // and `index.html` would arrive as text/html with a 200 beside it.
+    expect(response.headers()['content-type'], file).toMatch(/javascript|ecmascript/);
+  }
+});
+
+/**
  * Dragging a place, within a day and then into the next one.
  *
  * Driven with raw mouse events rather than `dragTo`: the CDK starts a drag only
@@ -501,6 +554,7 @@ test('share a trip with somebody, who then sees it read-only', async ({ browser 
   const guestContext = await browser.newContext();
   const owner = await ownerContext.newPage();
   const guest = await guestContext.newPage();
+  await Promise.all([stubBasemap(owner), stubBasemap(guest)]);
 
   const consoleErrors: string[] = [];
   for (const page of [owner, guest]) {
@@ -600,6 +654,7 @@ test('one person edits, the other sees it without reloading', async ({ browser }
   const editorContext = await browser.newContext();
   const owner = await ownerContext.newPage();
   const editor = await editorContext.newPage();
+  await Promise.all([stubBasemap(owner), stubBasemap(editor)]);
 
   const consoleErrors: string[] = [];
   for (const page of [owner, editor]) {
@@ -744,6 +799,7 @@ test('a dropped connection catches up when it comes back', async ({ browser }) =
   const viewerContext = await browser.newContext();
   const owner = await ownerContext.newPage();
   const viewer = await viewerContext.newPage();
+  await Promise.all([stubBasemap(owner), stubBasemap(viewer)]);
 
   const consoleErrors: string[] = [];
   for (const page of [owner, viewer]) {
@@ -903,6 +959,7 @@ test('an expense splits unevenly, adds up, and reaches the other browser', async
   const editorContext = await browser.newContext();
   const owner = await ownerContext.newPage();
   const editor = await editorContext.newPage();
+  await Promise.all([stubBasemap(owner), stubBasemap(editor)]);
 
   const consoleErrors: string[] = [];
   for (const page of [owner, editor]) {
@@ -1033,6 +1090,7 @@ test('recording a payment settles the balance and can be undone', async ({ brows
   const friendContext = await browser.newContext();
   const owner = await ownerContext.newPage();
   const friend = await friendContext.newPage();
+  await Promise.all([stubBasemap(owner), stubBasemap(friend)]);
 
   const consoleErrors: string[] = [];
   for (const page of [owner, friend]) {
@@ -1280,6 +1338,7 @@ test('packing items land in the right section and tick across browsers', async (
   const friendContext = await browser.newContext();
   const owner = await ownerContext.newPage();
   const friend = await friendContext.newPage();
+  await Promise.all([stubBasemap(owner), stubBasemap(friend)]);
 
   const consoleErrors: string[] = [];
   for (const page of [owner, friend]) {
@@ -1380,6 +1439,7 @@ test('bookings show each time in its own zone, ordered by when they really happe
 }) => {
   const context = await browser.newContext({ timezoneId: 'Europe/London' });
   const page = await context.newPage();
+  await stubBasemap(page);
 
   const consoleErrors: string[] = [];
   page.on('console', (message) => {
@@ -1480,6 +1540,7 @@ test('with no connection, a trip you have opened is still readable', async ({ br
   // is the thing under test, so this context opts back in.
   const context = await browser.newContext({ serviceWorkers: 'allow' });
   const page = await context.newPage();
+  await stubBasemap(page);
 
   const pageErrors: string[] = [];
   page.on('pageerror', (error) => pageErrors.push(error.message));
@@ -1809,7 +1870,9 @@ test('an invitation link admits one new account and is then spent', async ({ bro
   const strangerContext = await browser.newContext();
   const owner = await ownerContext.newPage();
   const guest = await guestContext.newPage();
+  await Promise.all([stubBasemap(owner), stubBasemap(guest)]);
   const stranger = await strangerContext.newPage();
+  await stubBasemap(stranger);
 
   const consoleErrors: string[] = [];
   for (const page of [owner, guest, stranger]) {
