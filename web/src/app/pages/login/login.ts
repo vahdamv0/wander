@@ -73,6 +73,18 @@ export class LoginPage {
    */
   protected readonly registrationEnabled = signal<boolean | null>(null);
 
+  /**
+   * Where this instance's source lives. Empty until the config answers, and
+   * empty when the operator cleared it — both draw nothing.
+   *
+   * This page carries the link as well as the account menu, and the licence is
+   * the reason rather than symmetry: AGPL-3.0 section 13 owes source to everyone
+   * *interacting with the instance over a network*, and on a public one most of
+   * those people get exactly this far and no further. A link that only existed
+   * behind sign-in would miss the audience the clause is written for.
+   */
+  protected readonly sourceUrl = signal('');
+
   protected readonly mode = signal<'login' | 'register'>('login');
   protected readonly email = signal('');
   protected readonly displayName = signal('');
@@ -90,6 +102,7 @@ export class LoginPage {
     try {
       const config = await this.api.invoke(getSignInConfig);
       this.registrationEnabled.set(config.registrationEnabled);
+      this.sourceUrl.set(config.sourceUrl);
     } catch {
       // Unreachable config is not a reason to strand somebody who has an
       // account: the form still works, and the server refuses a sign-up anyway

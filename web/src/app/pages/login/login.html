@@ -102,5 +102,25 @@
         </button>
       </p>
     }
+
+    <!-- The licence's link. AGPL-3.0 section 13: an instance offered to others
+         over a network owes its users the source of the version it is running,
+         and on a public instance most of those users never get past this page.
+         It is the operator's URL, not a constant — a modified instance owes its
+         own source, so a hardcoded link to upstream would name code this server
+         is not running. Cleared by the operator means nothing is drawn, rather
+         than a link that goes nowhere. -->
+    @if (sourceUrl()) {
+      <p class="mt-8 text-center text-xs text-muted">
+        <a
+          [href]="sourceUrl()"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="underline-offset-4 hover:text-ink hover:underline"
+        >
+          Source
+        </a>
+      </p>
+    }
   </main>
 </div>

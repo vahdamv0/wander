@@ -7,6 +7,7 @@ export interface InstanceConfig {
   defaultCurrency: string;
   map: MapConfig;
   searchEnabled: boolean;
+  sourceUrl: string;
   version: string;
   weatherEnabled: boolean;
 }

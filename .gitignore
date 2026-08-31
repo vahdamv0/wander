@@ -22,6 +22,11 @@ web/blob-report/
 .env
 *.local
 
+# Claude Code's working directory. Not just noise: it holds git worktrees — whole
+# copies of this repository — so a stray `git add -A` would commit the project
+# inside itself.
+.claude/
+
 # IDEs
 .idea/
 .vscode/*

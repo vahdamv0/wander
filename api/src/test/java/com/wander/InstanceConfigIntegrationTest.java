@@ -44,6 +44,27 @@ class InstanceConfigIntegrationTest extends IntegrationTestBase {
         assertThat(asMap(response.getBody())).containsEntry("registrationEnabled", true);
     }
 
+    /**
+     * The source link, on both endpoints, and it is the licence that makes this
+     * worth a test rather than the feature.
+     *
+     * wander is AGPL-3.0-or-later and section 13 owes source to everybody
+     * offered the instance over a network. The *anonymous* half is the half that
+     * matters: on a public instance most people reach the sign-in page and stop,
+     * so a link that existed only behind authentication would miss the audience
+     * the clause is written for. Nothing else in the suite would notice it going
+     * missing — the app works perfectly without it.
+     */
+    @Test
+    void theSourceIsOfferedToAnybodyTheInstanceIsOfferedTo() {
+        var anonymous = http().get().uri("/api/config/sign-in").retrieve().toEntity(String.class);
+        assertThat((String) asMap(anonymous.getBody()).get("sourceUrl")).startsWith("http");
+
+        Session user = register("linus");
+        assertThat((String) asMap(get(user, "/api/config").getBody()).get("sourceUrl"))
+                .startsWith("http");
+    }
+
     @Test
     void configIsNotReadableAnonymously() {
         var response = http().get().uri("/api/config").retrieve().toEntity(String.class);

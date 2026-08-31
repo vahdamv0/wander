@@ -91,15 +91,39 @@ import { SessionStore } from '../core/session.store';
           Sign out
         </button>
 
-        <!-- What is running. Not a menu item — it is not actionable, so it must
+        <!-- What is running, and where to read it. The two belong together:
+             "which version am I on" and "where is that version" are the same
+             question asked twice, and a self-hoster cannot answer either
+             without SSH otherwise.
+
+             The version is NOT a menu item — it is not actionable, so it must
              not be in the keyboard order or announced as something to choose.
-             Drawn only once the config has answered, so nothing flickers. -->
-        @if (versionLabel()) {
-          <p class="border-t border-border px-3 py-2 text-center text-xs text-muted">
-            <span class="rounded-full bg-surface-2 px-2 py-0.5">
-              wander {{ versionLabel() }}
-            </span>
-          </p>
+             The source link is, so it is a real anchor with a role. Each is
+             drawn only once there is something to draw, so an instance with the
+             link cleared shows no dead control and nothing flickers. -->
+        @if (versionLabel() || sourceUrl()) {
+          <div
+            class="flex items-center justify-center gap-2 border-t border-border px-3 py-2
+                   text-center text-xs text-muted"
+          >
+            @if (versionLabel()) {
+              <span class="rounded-full bg-surface-2 px-2 py-0.5">
+                wander {{ versionLabel() }}
+              </span>
+            }
+            @if (sourceUrl()) {
+              <a
+                role="menuitem"
+                [href]="sourceUrl()"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="font-medium text-accent underline-offset-4 hover:underline"
+                (click)="close()"
+              >
+                Source
+              </a>
+            }
+          </div>
         }
       </div>
     }
@@ -112,7 +136,15 @@ export class UserMenu {
 
   protected readonly user = this.session.user;
   protected readonly isAdmin = computed(() => this.session.user()?.role === 'ADMIN');
-  protected readonly versionLabel = inject(InstanceConfigStore).versionLabel;
+  private readonly config = inject(InstanceConfigStore);
+  protected readonly versionLabel = this.config.versionLabel;
+  /**
+   * The licence's link, not a nicety: AGPL-3.0 section 13 owes source to anybody
+   * offered this instance over a network. It is the operator's URL rather than a
+   * constant, because a modified instance owes *its* source — see
+   * {@code WanderProperties.sourceUrl}.
+   */
+  protected readonly sourceUrl = this.config.sourceUrl;
   protected readonly open = signal(false);
 
   protected toggle(): void {
