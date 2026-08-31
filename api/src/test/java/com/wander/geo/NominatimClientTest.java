@@ -27,6 +27,7 @@ class NominatimClientTest {
 
     private static WanderProperties properties() {
         return new WanderProperties("test", "", "", true, "EUR", new WanderProperties.Admin("", ""),
+                new WanderProperties.Demo(false, "", ""),
                 new WanderProperties.Login(10, 40, 20, 15, 10000),
                 new WanderProperties.Quota(120, 60, 60, 5, 10000),
                 new WanderProperties.Csp(true, false, ""),

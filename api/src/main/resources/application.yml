@@ -87,6 +87,16 @@ wander:
   # modify wander, point this at your fork — a link to upstream would name code
   # your instance is not running.
   source-url: ${WANDER_SOURCE_URL:https://gitlab.com/vm83043/wander}
+  # A worked example trip and a read-only account to look at it with. Off by
+  # default because it writes rows — this is for a public demo box, not for
+  # somebody's real instance. It re-seeds on every boot (only within its own
+  # trips), which is what keeps the dates inside the forecast horizon and what
+  # tidies up after visitors. The password is meant to be published: the
+  # sign-in page prints it, and the account is a viewer on that one trip.
+  demo:
+    enabled: ${WANDER_DEMO_ENABLED:false}
+    email: ${WANDER_DEMO_EMAIL:demo@wander.local}
+    password: ${WANDER_DEMO_PASSWORD:demo-traveller}
   # Self-signup, off by default: the default has to be the safe answer for an
   # instance on a public hostname, where an open sign-up form hands this
   # machine's Nominatim, Commons and Open-Meteo budget to whoever finds it.

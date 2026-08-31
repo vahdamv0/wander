@@ -44,7 +44,10 @@ public class InstanceConfigController {
     @GetMapping("/sign-in")
     @PublicEndpoint
     public SignInConfig getSignInConfig() {
-        return new SignInConfig(properties.registrationEnabled(), properties.sourceUrl());
+        WanderProperties.Demo demo = properties.demo();
+        return new SignInConfig(properties.registrationEnabled(), properties.sourceUrl(),
+                demo.enabled() ? demo.email() : "",
+                demo.enabled() ? demo.password() : "");
     }
 
     @GetMapping

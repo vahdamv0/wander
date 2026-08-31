@@ -92,6 +92,28 @@ More: [the trip list](docs/screenshots/trips.png) ·
 - Light / dark / follow-the-OS theming, all driven by design tokens
 - The Angular app and the API ship as a single jar
 
+## Try it without installing anything
+
+Turn on the demo and wander seeds a worked example trip — an itinerary with
+photographs and a map, two people splitting expenses unevenly, a packing list,
+and a flight that lands in another timezone — plus a **read-only** account to
+look at it with. The sign-in page then offers it, credentials and all.
+
+```bash
+WANDER_DEMO_ENABLED=true docker compose up -d
+```
+
+The published account is a *viewer* on that trip, which the server enforces the
+same way it would for anybody else — the READ ONLY badge you will meet is the
+real thing, not a demo mode. It re-seeds on every boot, so restarting the
+container resets the demo and re-dates the trip; it needs that, because a
+forecast only exists about sixteen days out.
+
+![The sign-in page of a demo instance, offering the read-only account](docs/screenshots/login-demo.png)
+
+Off by default: it writes rows, so it is for a demo box rather than your real
+instance. See `WANDER_DEMO_*` in `.env.example`.
+
 ## Run it
 
 ```bash

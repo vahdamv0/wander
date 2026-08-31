@@ -22,6 +22,10 @@ web/blob-report/
 .env
 *.local
 
+# Scratch handoff notes: this-machine, this-moment state, and the file says so
+# itself. Kept on disk, out of the repository.
+HANDOFF.md
+
 # Claude Code's working directory. Not just noise: it holds git worktrees — whole
 # copies of this repository — so a stray `git add -A` would commit the project
 # inside itself.

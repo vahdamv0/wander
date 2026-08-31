@@ -85,6 +85,20 @@ export class LoginPage {
    */
   protected readonly sourceUrl = signal('');
 
+  /**
+   * The published demo credentials, or empty on an instance without a demo.
+   *
+   * Shown rather than hidden behind a "sign in as demo" button that posts them
+   * invisibly: somebody evaluating a self-hosted project is entitled to see what
+   * they are signing in as, and a visible email is also the thing that explains
+   * the READ ONLY badge they are about to meet.
+   */
+  protected readonly demoEmail = signal('');
+  protected readonly demoPassword = signal('');
+  protected readonly demoOffered = computed(
+    () => this.demoEmail() !== '' && this.demoPassword() !== '',
+  );
+
   protected readonly mode = signal<'login' | 'register'>('login');
   protected readonly email = signal('');
   protected readonly displayName = signal('');
@@ -103,12 +117,26 @@ export class LoginPage {
       const config = await this.api.invoke(getSignInConfig);
       this.registrationEnabled.set(config.registrationEnabled);
       this.sourceUrl.set(config.sourceUrl);
+      this.demoEmail.set(config.demoEmail);
+      this.demoPassword.set(config.demoPassword);
     } catch {
       // Unreachable config is not a reason to strand somebody who has an
       // account: the form still works, and the server refuses a sign-up anyway
       // if it is switched off.
       this.registrationEnabled.set(false);
     }
+  }
+
+  /**
+   * Fills the form with the demo credentials and signs in. It fills rather than
+   * posting straight past the form so the visitor can see what they are using,
+   * and so a failure lands on the same error line as any other sign-in.
+   */
+  protected async useDemo(): Promise<void> {
+    this.mode.set('login');
+    this.email.set(this.demoEmail());
+    this.password.set(this.demoPassword());
+    await this.submit();
   }
 
   protected async submit(): Promise<void> {
