@@ -103,6 +103,32 @@
       </p>
     }
 
+    <!-- A demo instance publishes an account to look round with. It is a
+         *viewer* on the seeded trip, which is why the banner says so: the READ
+         ONLY badge is about to appear and it should not be a surprise. Drawn
+         only when the server offered both halves, so an ordinary instance shows
+         nothing here at all. -->
+    @if (demoOffered() && mode() === 'login') {
+      <div class="card mt-4 p-4 text-sm">
+        <p class="font-medium">Just looking?</p>
+        <p class="mt-1 text-muted">
+          Sign in to a read-only example trip — an itinerary, a map, expenses split
+          between two people, a packing list and the bookings.
+        </p>
+        <p class="mt-2 font-mono text-xs text-muted">
+          {{ demoEmail() }} · {{ demoPassword() }}
+        </p>
+        <button
+          type="button"
+          class="btn-ghost mt-3 w-full border border-border hover:border-accent"
+          [disabled]="busy()"
+          (click)="useDemo()"
+        >
+          Open the demo trip
+        </button>
+      </div>
+    }
+
     <!-- The licence's link. AGPL-3.0 section 13: an instance offered to others
          over a network owes its users the source of the version it is running,
          and on a public instance most of those users never get past this page.

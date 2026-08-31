@@ -70,6 +70,8 @@ public record WanderProperties(
 
         @DefaultValue Admin admin,
 
+        @DefaultValue Demo demo,
+
         @DefaultValue Login login,
 
         @DefaultValue Quota quota,
@@ -89,6 +91,25 @@ public record WanderProperties(
      * generated password printed once to the log — the operator never has to
      * hand-edit the database to get in.
      */
+
+    /**
+     * A worked example trip, and a read-only account to look at it with.
+     *
+     * **Off by default**, because this writes rows: it is for a public demo
+     * instance, not for somebody's real one. When it is on, the seeder owns
+     * everything it creates and touches nothing else — see {@code DemoSeeder}.
+     *
+     * The password is *meant* to be published; the login page prints it. That is
+     * only defensible because the account is a **viewer** on the demo trip and
+     * nothing else, so the worst a visitor can do is read a trip that exists to
+     * be read.
+     */
+    public record Demo(
+            @DefaultValue("false") boolean enabled,
+            @DefaultValue("demo@wander.local") String email,
+            @DefaultValue("demo-traveller") String password) {
+    }
+
     public record Admin(@DefaultValue("") String email, @DefaultValue("") String password) {
     }
 

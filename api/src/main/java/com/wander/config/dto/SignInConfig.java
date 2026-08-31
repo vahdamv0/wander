@@ -25,5 +25,20 @@ import jakarta.validation.constraints.NotNull;
 public record SignInConfig(
         @NotNull boolean registrationEnabled,
         /** Empty when the operator has cleared it; the client then draws nothing. */
-        @NotNull String sourceUrl) {
+        @NotNull String sourceUrl,
+        /**
+         * The published demo account, or empty on an instance without one.
+         *
+         * A password on a public endpoint reads like a mistake, so it is worth
+         * saying why it is not: this credential is *meant* to be published — it
+         * is printed on the sign-in page so a visitor can get in — and it belongs
+         * to an account that is a **viewer** on one seeded trip. There is nothing
+         * to keep back. What makes it safe is not secrecy but the role, which
+         * {@code TripAccessService} enforces like anybody else's.
+         *
+         * Both are empty unless {@code wander.demo.enabled} is on, so an ordinary
+         * instance publishes nothing at all here.
+         */
+        @NotNull String demoEmail,
+        @NotNull String demoPassword) {
 }

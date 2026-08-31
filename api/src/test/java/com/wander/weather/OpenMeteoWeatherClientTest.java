@@ -22,7 +22,7 @@ import tools.jackson.databind.json.JsonMapper;
 class OpenMeteoWeatherClientTest {
 
     private final OpenMeteoWeatherClient client = new OpenMeteoWeatherClient(
-            new WanderProperties("test", "", "", true, "EUR", null, null, null, null, null, null,
+            new WanderProperties("test", "", "", true, "EUR", null, null, null, null, null, null, null,
                     new WanderProperties.Weather(true, "http://localhost:1", 16, 180,
                             "Weather data by Open-Meteo.com (CC BY 4.0)",
                             "https://open-meteo.com/", 0, 1000),

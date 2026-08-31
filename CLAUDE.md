@@ -17,8 +17,13 @@ build, two modules:
 **The licence is AGPL-3.0-or-later** (`LICENSE`, and see README's Licence
 section). One thing follows for the code: section 13 means a modified instance
 offered to others over a network owes those users its source, which in practice is
-a "Source" link in the interface. wander does not ship one, because the repository
-is private; if it is ever made public, that link is the piece to add.
+a "Source" link in the interface. wander ships one — `wander.source-url`, drawn by
+`user-menu.ts` beside the build chip **and** on the sign-in page, because most
+people interacting with a public instance never get past that page. It is a
+setting rather than a constant so a fork can point it at itself: a link aimed at
+upstream names code the instance is not running, which looks like compliance and
+is not. Blank hides it, which is right for a private box and wrong for a public
+one.
 
 ## Commands
 
@@ -770,6 +775,61 @@ and a cached list would show a disabled account as active and a revoked link as
 outstanding, which is backwards for controls whose purpose is taking access away.
 `/reset/:token` is the one route outside both the shell and `authGuard`;
 `adminGuard` is a courtesy on `/admin`, since the server refuses regardless.
+
+## The demo trip
+
+A worked example trip and a read-only account to look at it with, for a public
+instance. `wander.demo.enabled` is **off by default** because this writes rows:
+it belongs on a demo box, not on somebody's real one.
+
+- **The visitor is a VIEWER, and that is the whole design.** The content belongs
+  to two accounts nobody can sign in as — their passwords are random and never
+  printed — and the published account is added to the trip as a viewer. So
+  read-only is `TripAccessService` answering 403 exactly as it would anybody
+  else, not a client that hides its buttons, and the READ ONLY badge becomes part
+  of the demonstration rather than an apology. `DemoSeedIntegrationTest` pins it,
+  because nothing else would notice the seeder handing out `EDITOR` one day: every
+  write would simply start succeeding.
+- **The password is published on purpose.** `/api/config/sign-in` carries
+  `demoEmail` and `demoPassword`, and the login page prints them. A credential on
+  a public endpoint reads like a mistake, so the reasoning has to be explicit:
+  what makes it safe is the *role*, not secrecy, and there is nothing to keep
+  back about an account whose only purpose is to read one seeded trip. Both
+  fields are empty unless the demo is on, so an ordinary instance publishes
+  nothing.
+- **It re-seeds on every boot, scoped to the demo owner's own trips.** Dates are
+  the reason: a forecast exists for about sixteen days, so a trip with fixed
+  dates would quietly lose the best half of its day cards and then become a trip
+  in the past — the exact rot the weather feature's "absence is designed for"
+  rule makes invisible. Restarting the container is therefore also how a demo
+  instance is tidied up after visitors. Scoping the delete to
+  `findAllForUser(owner)` is what makes switching the flag on by mistake cost
+  nothing.
+- **The accounts are made once and never rewritten**, unlike the trip. Otherwise
+  the published password would change under whoever was reading the login page.
+- **`DemoContent` is a table of constants, not something fetched at boot.**
+  Seeding has to work with no outbound network, must not spend Nominatim's and
+  Commons' donated capacity every time a container restarts, and must produce the
+  same trip every time so the screenshots in README stay true. The `osm_ref`s are
+  real, so enrichment works on a demo place exactly as on a searched one — and
+  the photo credits are the ones Commons actually returned, because `setPhoto`
+  refuses a URL without its author and licence and an invented author would be a
+  licence breach dressed up as sample data.
+- **It writes through the entities, not the services.** A service call would
+  publish `TripChanges` events to sockets that cannot exist yet, and would check
+  permissions on behalf of a caller that is not a request. `ExpenseSplitter` is
+  still used for the equal splits, so the remainder lands where it really lands
+  rather than where a seeder guessed.
+- The content is chosen to have the *shapes* worth showing: an exact split that
+  is not half and half, an equal split of an **odd** amount (¥3,121 for the Nara
+  trains, so the spare minor unit visibly lands on the lowest user id — every
+  other amount here halves cleanly, and without one of these the rule that a
+  split always sums to its total cannot be seen), a payment (so a balance is
+  partly settled), a shared packing pile beside assigned items, days with no
+  places at all, and a flight whose arrival zone differs from its departure.
+- What it does **not** solve: the demo account can still create trips of its own
+  and shares one `UpstreamQuota` budget with everybody using it. The re-seed on
+  boot is the tidy-up, and the quota is the protection.
 
 ## Packing lists
 
