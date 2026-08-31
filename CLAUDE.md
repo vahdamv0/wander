@@ -218,7 +218,13 @@ Java record → springdoc → `api/build/openapi.json` (written by
   built themselves by writing style attributes, which no nonce can reach — but
   `script-src` gets no such exemption, and that is the half that stops an
   injection. The tile URL is parsed with a regex rather than as a URI because
-  `{z}/{x}/{y}` is not legal in one.
+  `{z}/{x}/{y}` is not legal in one. **A cross-origin host the page only ever
+  names in an `<img>` still needs to be in `connect-src`**, which is why Commons
+  is in both: the service worker stands in front of every request and re-issues
+  it with `fetch()`, and a fetch is governed by `connect-src` whatever element
+  started it. Getting this wrong is invisible to whoever has the picture cached
+  — the person who chose a photo could see it and nobody else could, and ngsw
+  turned the refusal into a synthetic 504 that looks like an upstream outage.
 - **A validation failure's message is in `fields`, not in `message`.** The
   envelope's own `message` is the generic "Validation failed", so `messageOf`
   prefers the first field message — otherwise somebody refused for a weak
