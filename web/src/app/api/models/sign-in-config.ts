@@ -3,4 +3,5 @@
 
 export interface SignInConfig {
   registrationEnabled: boolean;
+  sourceUrl: string;
 }

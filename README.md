@@ -9,6 +9,38 @@ container, one Postgres.
 > than unfinished: an offline *write* queue, which would force the conflict
 > resolution live sync was deliberately designed not to need.
 
+## What it looks like
+
+The itinerary: derived days, places in the order you dragged them, what each day
+cost, the forecast when there is one, and a map beside it drawn from vector tiles
+so places abroad are labelled in your language *and* as they appear on the signs.
+
+![The trip itinerary, with day cards, day notes, per-day spend, the forecast and the map](docs/screenshots/itinerary.png)
+
+Open a place and wander asks OpenStreetMap, Wikidata, Wikipedia and Commons about
+it. Every photograph carries its photographer and its licence, because a Commons
+image is licensed *per image* — one without its credit is a picture this project
+has no right to draw.
+
+![A place panel showing a credited photograph, a Wikipedia description, a phone number and directions](docs/screenshots/place-detail.png)
+
+Money, where a rounding bug would be silent and permanent. Integer minor units
+everywhere, all the arithmetic server-side, and four figures kept apart so a
+balance never reads as a lie: what you paid, what your share was, and what has
+been paid back.
+
+![The expenses page, showing balances, a settle-up suggestion, an exact split and a recorded payment](docs/screenshots/expenses.png)
+
+Bookings are stored as an instant *plus* the zone they were booked in, so a
+flight keeps London time for its departure and Tokyo time for its arrival — and
+the list is ordered by when things really happen.
+
+![The bookings page, showing a flight that departs in BST and lands in GMT+9](docs/screenshots/bookings.png)
+
+More: [the trip list](docs/screenshots/trips.png) ·
+[packing](docs/screenshots/packing.png) ·
+[the printable itinerary](docs/screenshots/print.png)
+
 ## What works today
 
 - Register / sign in / sign out, session-cookie auth with CSRF, sessions stored in
@@ -211,6 +243,17 @@ cd web && npm run e2e                    # Playwright, against a running instanc
 cd web && npm run api:gen                # regenerate the typed client from that spec
 ./gradlew :web:apiGen                    # the same, using Gradle's pinned Node
 ```
+
+Tests need a Docker daemon: they run against a real Postgres via Testcontainers,
+never H2, because the migrations use Postgres-specific SQL.
+
+**Thinking of contributing?** [CONTRIBUTING.md](CONTRIBUTING.md) is the short
+version — what to install, what CI gates on, and the one rule people trip over
+(the API client under `web/src/app/api/` is generated and committed; never edit
+it by hand). [CLAUDE.md](CLAUDE.md) is the long version, and it is where the
+*reasons* live: why days have no rows, why money is integer minor units, why a
+popup was the wrong home for enrichment. It is the fastest way into this
+codebase.
 
 ## Backups, and restoring one
 
@@ -521,8 +564,17 @@ wrong:
 - **Using wander is unrestricted.** Run it, host it for your household, plan
   trips on it. The obligations attach to *distributing* a modified version or
   *offering a modified version to others over a network* — not to use.
-- **Section 13 wants a source offer in the running app.** If you modify wander
-  and let other people use your instance, they must be able to get your
-  Corresponding Source — in practice a "Source" link in the interface. Stock
-  wander does not ship one yet, because the repository it would point at is not
-  public.
+- **Section 13 wants a source offer in the running app**, and wander ships one.
+  There is a **Source** link on the sign-in page and in the account menu. It is
+  on the sign-in page as well as behind it on purpose: section 13 owes source to
+  everybody interacting with the instance over a network, and on a public one
+  most of those people never sign in.
+
+  ![The account menu, showing the build chip and the Source link beside it](docs/screenshots/account-menu.png)
+
+  It is a setting, `WANDER_SOURCE_URL`, not a compiled-in constant — **if you
+  modify wander, point it at your fork.** Leaving it aimed at upstream is worse
+  than removing it, because it looks like compliance while naming code your
+  instance is not running. Blanking it hides the link, which is meant for a
+  private box nobody else is offered; on a public instance that is most likely a
+  violation rather than a preference.

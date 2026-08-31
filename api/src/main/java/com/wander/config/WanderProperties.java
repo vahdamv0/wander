@@ -26,6 +26,26 @@ public record WanderProperties(
         @DefaultValue("") String buildRef,
 
         /**
+         * Where the source for *this* instance lives, linked from the sign-in
+         * page and the account menu.
+         *
+         * It is a setting rather than a constant, and the licence is the reason.
+         * wander is AGPL-3.0-or-later, and section 13 says an instance offered
+         * to others over a network owes **its users** the source of the version
+         * they are actually talking to. Compiling upstream's URL in would
+         * satisfy nobody: the first operator to change a line would be shipping
+         * a link to code their instance is not running, which is worse than no
+         * link at all because it looks like compliance. So: modify wander, point
+         * this at your fork.
+         *
+         * Blank hides the link, the same way a blank {@code buildRef} draws
+         * nothing. That is for a private instance nobody else is offered — on a
+         * public one, blanking it is most likely a licence violation rather than
+         * a preference, and README says so.
+         */
+        @DefaultValue("https://gitlab.com/vm83043/wander") String sourceUrl,
+
+        /**
          * Self-signup, and it is **off by default** because the default has to be
          * the safe answer for the deployment that is exposed to the internet: an
          * open instance hands this machine's Nominatim, Commons and Open-Meteo

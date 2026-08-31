@@ -34,11 +34,17 @@ public class InstanceConfigController {
      * "Create one" on an instance with registration switched off. Deliberately
      * the narrowest thing that fixes that: one boolean, not the operator's
      * configuration.
+     *
+     * It carries a second field now, and the bar it had to clear was not "is it
+     * harmless" but "does it *have* to be anonymous". The source link does:
+     * AGPL-3.0 section 13 owes source to everyone interacting with the instance
+     * over a network, and on a public instance most of them never get past this
+     * page. The rest of the operator's configuration stays authenticated.
      */
     @GetMapping("/sign-in")
     @PublicEndpoint
     public SignInConfig getSignInConfig() {
-        return new SignInConfig(properties.registrationEnabled());
+        return new SignInConfig(properties.registrationEnabled(), properties.sourceUrl());
     }
 
     @GetMapping
@@ -48,6 +54,6 @@ public class InstanceConfigController {
                 properties.weather().enabled(),
                 new MapConfig(map.enabled(), map.styleUrl(), map.darkStyleUrl(), map.tileUrl(),
                         map.attribution(), map.maxZoom()),
-                properties.version(), properties.buildRef());
+                properties.version(), properties.buildRef(), properties.sourceUrl());
     }
 }

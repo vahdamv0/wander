@@ -81,6 +81,12 @@ wander:
   version: ${WANDER_VERSION:dev}
   # The commit CI built. Empty anywhere else, and empty is shown as nothing.
   build-ref: ${WANDER_BUILD_REF:}
+  # Where the source for THIS instance lives, linked from the sign-in page and
+  # the account menu. AGPL-3.0 section 13: an instance offered to others over a
+  # network owes its users the source of the version it is running. If you
+  # modify wander, point this at your fork — a link to upstream would name code
+  # your instance is not running.
+  source-url: ${WANDER_SOURCE_URL:https://gitlab.com/vm83043/wander}
   # Self-signup, off by default: the default has to be the safe answer for an
   # instance on a public hostname, where an open sign-up form hands this
   # machine's Nominatim, Commons and Open-Meteo budget to whoever finds it.

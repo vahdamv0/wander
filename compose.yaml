@@ -43,6 +43,9 @@ services:
       # Off by default. An invitation link still admits its holder, so this is a
       # closed instance rather than a sealed one — see .env.example.
       WANDER_REGISTRATION_ENABLED: ${WANDER_REGISTRATION_ENABLED:-false}
+      # The source link the interface offers. Change it if you modify wander:
+      # AGPL-3.0 section 13 owes your users the source you are actually running.
+      WANDER_SOURCE_URL: ${WANDER_SOURCE_URL:-https://gitlab.com/vm83043/wander}
       # Guessing a password, and creating accounts. These were documented in
       # .env.example before they were passed through here, so setting them had
       # no effect on the container — the application's own defaults are the same

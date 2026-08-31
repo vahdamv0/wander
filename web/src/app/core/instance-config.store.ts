@@ -26,6 +26,12 @@ export class InstanceConfigStore {
    */
   private readonly _version = signal('');
   private readonly _buildRef = signal('');
+  /**
+   * Where this instance's source lives — the licence's link, not a nicety. Empty
+   * until answered and empty when the operator cleared it, and both draw
+   * nothing, so there is no state where a dead link is offered.
+   */
+  private readonly _sourceUrl = signal('');
 
   readonly map = this._map.asReadonly();
   readonly searchEnabled = this._searchEnabled.asReadonly();
@@ -33,6 +39,7 @@ export class InstanceConfigStore {
   readonly defaultCurrency = this._defaultCurrency.asReadonly();
   readonly loaded = this._loaded.asReadonly();
   readonly mapEnabled = computed(() => this._map()?.enabled === true);
+  readonly sourceUrl = this._sourceUrl.asReadonly();
 
   /**
    * "wander v1.2.0 · a1b2c3d", or the parts of it that exist. An image built
@@ -58,6 +65,7 @@ export class InstanceConfigStore {
       this._defaultCurrency.set(config.defaultCurrency);
       this._version.set(config.version);
       this._buildRef.set(config.buildRef);
+      this._sourceUrl.set(config.sourceUrl);
     } catch {
       // A signed-out visitor gets 401 here, which is not a failure — the
       // defaults stand, and the next sign-in loads it again.
@@ -65,6 +73,7 @@ export class InstanceConfigStore {
       this._searchEnabled.set(false);
       this._weatherEnabled.set(false);
       this._defaultCurrency.set(null);
+      this._sourceUrl.set('');
     } finally {
       this._loaded.set(true);
     }

@@ -35,5 +35,15 @@ public record InstanceConfig(
          * by CI. Empty is shown as nothing: a chip reading "unknown" is worse
          * than a chip that simply stops after the version.
          */
-        @NotNull String buildRef) {
+        @NotNull String buildRef,
+        /**
+         * Where this instance's source lives — see {@code WanderProperties}. It
+         * rides along here as well as on the public sign-in config because the
+         * account menu is where somebody already signed in goes looking, and it
+         * sits beside the version chip: "what am I running" and "where is it"
+         * are one question asked twice.
+         *
+         * Empty when the operator cleared it, and empty draws nothing.
+         */
+        @NotNull String sourceUrl) {
 }
