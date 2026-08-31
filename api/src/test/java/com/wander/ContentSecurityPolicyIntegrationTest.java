@@ -32,7 +32,8 @@ class ContentSecurityPolicyIntegrationTest extends IntegrationTestBase {
         String policy = shell().getHeaders().getFirst("Content-Security-Policy");
         assertThat(policy).isNotNull();
 
-        assertThat(policy).contains("connect-src 'self' https://tiles.example.org https://raster.example.net");
+        assertThat(policy).contains(
+                "connect-src 'self' https://upload.wikimedia.org https://tiles.example.org https://raster.example.net");
         // The raster URL's {z}/{x}/{y} is not a legal URI, which is why the
         // origin is taken with a regex rather than parsed — if that ever
         // regresses, this host goes missing and the map stops loading tiles.
@@ -54,12 +55,27 @@ class ContentSecurityPolicyIntegrationTest extends IntegrationTestBase {
         assertThat(policy).doesNotContain("script-src 'self' 'unsafe-inline'");
     }
 
+    /**
+     * Commons has to be named in `connect-src` as well as `img-src`, and the
+     * reason is the service worker rather than anything the template does. ngsw
+     * intercepts every request the page makes and re-issues it with `fetch()`,
+     * which `connect-src` governs whatever started it — so with Commons only in
+     * `img-src` a kept photograph is refused and ngsw turns that into a
+     * synthetic 504. It is invisible to anybody whose browser already has the
+     * picture cached, which is how it reached a deployed instance: the person
+     * who chose the photo could see it and nobody else could.
+     *
+     * Asserting on the two directives separately is the point. The earlier
+     * version of this test looked for the host anywhere in the policy and passed
+     * on `img-src` alone.
+     */
     @Test
     void theMapLibreWorkerAndCommonsPhotographsAreAllowedFor() {
         String policy = shell().getHeaders().getFirst("Content-Security-Policy");
 
         assertThat(policy).contains("worker-src 'self' blob:");
-        assertThat(policy).contains("https://upload.wikimedia.org");
+        assertThat(policy).contains("img-src 'self' data: blob: https://upload.wikimedia.org");
+        assertThat(policy).contains("connect-src 'self' https://upload.wikimedia.org");
     }
 
     /**

@@ -35,6 +35,11 @@ import com.wander.config.WanderProperties;
  *  - `img-src` allows `data:` and `blob:`. Map sprites and the marker canvases
  *    arrive that way.
  *
+ * A note on the service worker: it stands in front of every request the page
+ * makes and re-issues cross-origin ones with `fetch()`, so a host the page only
+ * ever names in an `<img>` still needs to be in `connect-src`. That is why
+ * Commons appears in both.
+ *
  * `script-src` gets neither, which is the half that actually stops an injection,
  * and `object-src 'none'` with `base-uri 'self'` closes the two classic ways
  * around a script directive.
@@ -113,9 +118,14 @@ public class ContentSecurityPolicy {
                 ("img-src 'self' data: blob: " + COMMONS_MEDIA + mapSources + extraSources).trim(),
                 ("font-src 'self' data:" + mapSources + extraSources).trim(),
                 // Place search, enrichment and the forecast are all proxied
-                // through this origin, so the only third party the browser
-                // itself talks to is the basemap.
-                ("connect-src 'self'" + mapSources + extraSources).trim(),
+                // through this origin, so the basemap and Commons are the only
+                // third parties the browser talks to. Commons is here as well as
+                // in `img-src` because of the service worker: ngsw intercepts
+                // every request the page makes and re-issues it with `fetch()`,
+                // and a fetch is governed by `connect-src` whatever the element
+                // that started it was. Leave it out and a kept photograph loads
+                // for whoever has it in cache and 504s for everybody else.
+                ("connect-src 'self' " + COMMONS_MEDIA + mapSources + extraSources).trim(),
                 // MapLibre's tile-parsing worker, copied to this origin by
                 // angular.json. blob: because the library may wrap it.
                 "worker-src 'self' blob:",
