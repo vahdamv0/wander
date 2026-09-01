@@ -26,6 +26,7 @@ import com.wander.auth.dto.SessionUser;
 import com.wander.auth.dto.UpdateProfileRequest;
 import com.wander.common.ApiError;
 import com.wander.common.PublicEndpoint;
+import com.wander.demo.DemoAccount;
 import com.wander.security.WanderUser;
 import com.wander.user.User;
 
@@ -44,15 +45,17 @@ public class AuthController {
     private final UserAccountService accounts;
     private final LoginThrottle throttle;
     private final AccountSessions sessions;
+    private final DemoAccount demoAccount;
 
     public AuthController(AuthenticationManager authenticationManager,
             SecurityContextRepository securityContextRepository, UserAccountService accounts,
-            LoginThrottle throttle, AccountSessions sessions) {
+            LoginThrottle throttle, AccountSessions sessions, DemoAccount demoAccount) {
         this.authenticationManager = authenticationManager;
         this.securityContextRepository = securityContextRepository;
         this.accounts = accounts;
         this.throttle = throttle;
         this.sessions = sessions;
+        this.demoAccount = demoAccount;
     }
 
     /**
@@ -78,7 +81,8 @@ public class AuthController {
         // Log the new account straight in — a register call that then makes the
         // client POST /login separately is two round trips for no gain.
         authenticate(created.getEmail(), request.password(), httpRequest, httpResponse);
-        return new SessionUser(created.getId(), created.getEmail(), created.getDisplayName(), created.getRole());
+        return new SessionUser(created.getId(), created.getEmail(), created.getDisplayName(),
+                created.getRole(), demoAccount.isPublishedVisitor(created.getEmail()));
     }
 
     /**
@@ -102,7 +106,8 @@ public class AuthController {
             Authentication authentication = authenticate(request.email(), request.password(), httpRequest,
                     httpResponse);
             throttle.succeeded(request.email(), address);
-            return SessionUser.from((WanderUser) authentication.getPrincipal());
+            WanderUser principal = (WanderUser) authentication.getPrincipal();
+            return SessionUser.from(principal, demoAccount.isPublishedVisitor(principal.email()));
         } catch (AuthenticationException ex) {
             throttle.failed(request.email(), address);
             // Rethrown untouched: ExceptionTranslationFilter turns it into the
@@ -148,7 +153,7 @@ public class AuthController {
         contextHolderStrategy.setContext(context);
         securityContextRepository.saveContext(context, httpRequest, httpResponse);
 
-        return SessionUser.from(refreshed);
+        return SessionUser.from(refreshed, demoAccount.isPublishedVisitor(refreshed.email()));
     }
 
     /**
@@ -206,7 +211,7 @@ public class AuthController {
 
     @GetMapping("/me")
     public SessionUser me(@AuthenticationPrincipal WanderUser principal) {
-        return SessionUser.from(principal);
+        return SessionUser.from(principal, demoAccount.isPublishedVisitor(principal.email()));
     }
 
     /**

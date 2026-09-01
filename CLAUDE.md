@@ -807,6 +807,22 @@ it belongs on a demo box, not on somebody's real one.
   nothing.
 - **The accounts are made once and never rewritten**, unlike the trip. Otherwise
   the published password would change under whoever was reading the login page.
+- **The published account may not leave the trip.** Leaving is the one write a
+  VIEWER is entitled to — any member may remove *themselves*, which is how you
+  leave a trip — and on a shared login it is an accident rather than a decision:
+  one visitor clicking it takes the demo trip away from every visitor after
+  them, and the only recovery is the re-seed on boot. `TripMemberService.remove`
+  refuses a self-removal by the published account with **409**, and it is
+  refused *there* rather than only in the client because a password printed on
+  the sign-in page is exactly the situation where a hidden button is not a rule.
+  An owner removing them is still allowed, which is how somebody who added the
+  demo account to a real trip gets it back off. `DemoAccount` answers "is this
+  the published visitor" from `wander.demo.email` — the same thing that makes
+  the account special everywhere else — and `SessionUser.demoAccount` carries it
+  to the client, which is what lets the trip page stop drawing the button. Note
+  that flag is derived per request and deliberately **not** on `WanderUser`:
+  that record is Java-serialised into the session table, so a new component
+  would fail every session written by the previous version.
 - **`DemoContent` is a table of constants, not something fetched at boot.**
   Seeding has to work with no outbound network, must not spend Nominatim's and
   Commons' donated capacity every time a container restarts, and must produce the
