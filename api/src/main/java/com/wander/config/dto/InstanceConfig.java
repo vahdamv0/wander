@@ -45,5 +45,18 @@ public record InstanceConfig(
          *
          * Empty when the operator cleared it, and empty draws nothing.
          */
-        @NotNull String sourceUrl) {
+        @NotNull String sourceUrl,
+        /**
+         * How often the shared demo account's own trips are swept, in minutes,
+         * or **0** on an instance with the demo off.
+         *
+         * Here because it is a setting, unlike {@code SessionUser.demoAccount},
+         * which is a fact about the account — the pair is what lets the trips
+         * page say "deleted every 45 minutes" to the one account it happens to
+         * and to nobody else. It has to travel rather than be a constant in the
+         * client for the usual reason: the interval is the operator's choice,
+         * and a page promising 45 minutes on an instance configured for 10 is
+         * worse than saying nothing, because somebody would believe it.
+         */
+        @NotNull int demoSweepMinutes) {
 }

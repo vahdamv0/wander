@@ -6,7 +6,10 @@ import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.TestPropertySource;
+
+import com.wander.demo.DemoSweeper;
 
 /**
  * The seeded demo trip, and the promise that the published account can only read
@@ -24,8 +27,12 @@ import org.springframework.test.context.TestPropertySource;
 @TestPropertySource(properties = {
         "wander.demo.enabled=true",
         "wander.demo.email=demo-seed-test@wander.local",
-        "wander.demo.password=demo-traveller" })
+        "wander.demo.password=demo-traveller",
+        "wander.demo.sweep-minutes=45" })
 class DemoSeedIntegrationTest extends IntegrationTestBase {
+
+    @Autowired
+    private DemoSweeper sweeper;
 
     private Session demo() {
         return login("demo-seed-test@wander.local", "demo-traveller");
@@ -123,10 +130,39 @@ class DemoSeedIntegrationTest extends IntegrationTestBase {
         assertThat(theTrip(demo())).containsEntry("myRole", "VIEWER");
     }
 
+    /**
+     * The two fields the trips page needs to tell a visitor their work will be
+     * deleted: the interval, which is a setting, and `demoAccount` below, which
+     * is who they are. Neither is any use without the other, and a page that
+     * said it to the wrong account or with the wrong number would be worse than
+     * one that said nothing.
+     */
+    @Test
+    void theSweepScheduleIsAnnouncedToTheClient() {
+        assertThat(asMap(get(demo(), "/api/config").getBody()))
+                .containsEntry("demoSweepMinutes", 45);
+    }
+
     /** What the client reads to know it should not offer the control at all. */
     @Test
     void thePublishedAccountIsFlaggedAsTheDemoAccount() {
         assertThat(asMap(get(demo(), "/api/auth/me").getBody()))
                 .containsEntry("demoAccount", true);
+    }
+
+    @Test
+    void theSweepRemovesWhatAVisitorMadeAndLeavesTheSeededTrip() {
+        Session demo = demo();
+        assertThat(post(demo, "/api/trips",
+                "{\"name\":\"Graffiti\",\"startDate\":\"2030-01-01\",\"endDate\":\"2030-01-03\"}")
+                .getStatusCode().value()).isEqualTo(201);
+        assertThat(asList(get(demo, "/api/trips").getBody())).hasSize(2);
+
+        assertThat(sweeper.sweep()).isEqualTo(1);
+
+        Map<String, Object> left = theTrip(demo);
+        assertThat(left).containsEntry("name", "Japan in Autumn");
+        assertThat(left).containsEntry("myRole", "VIEWER");
+        assertThat(sweeper.sweep()).isZero();
     }
 }

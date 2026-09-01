@@ -5,6 +5,7 @@ import { MapConfig } from '../models/map-config';
 export interface InstanceConfig {
   buildRef: string;
   defaultCurrency: string;
+  demoSweepMinutes: number;
   map: MapConfig;
   searchEnabled: boolean;
   sourceUrl: string;

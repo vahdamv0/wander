@@ -1,8 +1,9 @@
-import { Component, effect, inject, signal, untracked } from '@angular/core';
+import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { messageOf } from '../../core/errors';
 import { InstanceConfigStore } from '../../core/instance-config.store';
+import { SessionStore } from '../../core/session.store';
 import { TripRepo } from '../../repo/trip.repo';
 
 @Component({
@@ -13,9 +14,32 @@ import { TripRepo } from '../../repo/trip.repo';
 export class TripsPage {
   private readonly repo = inject(TripRepo);
   private readonly config = inject(InstanceConfigStore);
+  private readonly session = inject(SessionStore);
 
   protected readonly trips = this.repo.trips;
   protected readonly loading = this.repo.loading;
+
+  /**
+   * The notice for the shared demo account, or null for everybody else.
+   *
+   * `DemoSweeper` deletes the trips this account creates, and it is the one
+   * place in wander where somebody's work disappears without them asking. The
+   * project refuses to show stale data without labelling it; deleting data
+   * without saying so first is the same promise, so this says so on the page
+   * where a trip is created.
+   *
+   * Both halves have to be present: `demoAccount` is who you are and comes from
+   * the session, the interval is a setting and comes from the instance config.
+   * Zero minutes — an ordinary instance, or a config that has not answered yet —
+   * draws nothing rather than a sentence with a hole in it.
+   */
+  protected readonly demoNotice = computed(() => {
+    const minutes = this.config.demoSweepMinutes();
+    if (!this.session.user()?.demoAccount || minutes <= 0) {
+      return null;
+    }
+    return minutes === 1 ? 'every minute' : `every ${minutes} minutes`;
+  });
 
   /** Whether the create form is open. Closed once a trip lands. */
   protected readonly composing = signal(false);
