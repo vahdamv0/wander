@@ -51,6 +51,7 @@ services:
       WANDER_DEMO_ENABLED: ${WANDER_DEMO_ENABLED:-false}
       WANDER_DEMO_EMAIL: ${WANDER_DEMO_EMAIL:-demo@wander.local}
       WANDER_DEMO_PASSWORD: ${WANDER_DEMO_PASSWORD:-demo-traveller}
+      WANDER_DEMO_SWEEP_MINUTES: ${WANDER_DEMO_SWEEP_MINUTES:-45}
       # Guessing a password, and creating accounts. These were documented in
       # .env.example before they were passed through here, so setting them had
       # no effect on the container — the application's own defaults are the same

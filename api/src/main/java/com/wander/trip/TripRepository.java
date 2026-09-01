@@ -18,4 +18,12 @@ public interface TripRepository extends JpaRepository<Trip, Long> {
             order by t.startDate desc, t.id desc
             """)
     List<Trip> findAllForUser(@Param("userId") Long userId);
+
+    @Query("""
+            select t from Trip t
+            where exists (select 1 from TripMember m
+                          where m.trip = t and m.user.id = :userId and m.role = :role)
+            order by t.id asc
+            """)
+    List<Trip> findAllOwnedBy(@Param("userId") Long userId, @Param("role") TripRole role);
 }

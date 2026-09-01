@@ -97,6 +97,7 @@ wander:
     enabled: ${WANDER_DEMO_ENABLED:false}
     email: ${WANDER_DEMO_EMAIL:demo@wander.local}
     password: ${WANDER_DEMO_PASSWORD:demo-traveller}
+    sweep-minutes: ${WANDER_DEMO_SWEEP_MINUTES:45}
   # Self-signup, off by default: the default has to be the safe answer for an
   # instance on a public hostname, where an open sign-up form hands this
   # machine's Nominatim, Commons and Open-Meteo budget to whoever finds it.

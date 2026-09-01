@@ -57,6 +57,9 @@ public class InstanceConfigController {
                 properties.weather().enabled(),
                 new MapConfig(map.enabled(), map.styleUrl(), map.darkStyleUrl(), map.tileUrl(),
                         map.attribution(), map.maxZoom()),
-                properties.version(), properties.buildRef(), properties.sourceUrl());
+                properties.version(), properties.buildRef(), properties.sourceUrl(),
+                // Zero on an ordinary instance: there is no sweep, and nothing
+                // for the client to promise anybody.
+                properties.demo().enabled() ? properties.demo().sweepMinutes() : 0);
     }
 }
