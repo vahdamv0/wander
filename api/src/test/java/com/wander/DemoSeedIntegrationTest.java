@@ -110,4 +110,23 @@ class DemoSeedIntegrationTest extends IntegrationTestBase {
         assertThat((List<?>) asMap(get(demo, "/api/trips/" + id + "/expenses").getBody())
                 .get("expenses")).hasSize(8);
     }
+
+    @Test
+    void thePublishedAccountCannotLeaveTheTrip() {
+        Session demo = demo();
+        Object id = theTrip(demo).get("id");
+        Object me = asMap(get(demo, "/api/auth/me").getBody()).get("id");
+
+        assertThat(delete(demo, "/api/trips/" + id + "/members/" + me).getStatusCode().value())
+                .isEqualTo(409);
+        // Still there, and still a viewer: the refusal rolled nothing halfway.
+        assertThat(theTrip(demo())).containsEntry("myRole", "VIEWER");
+    }
+
+    /** What the client reads to know it should not offer the control at all. */
+    @Test
+    void thePublishedAccountIsFlaggedAsTheDemoAccount() {
+        assertThat(asMap(get(demo(), "/api/auth/me").getBody()))
+                .containsEntry("demoAccount", true);
+    }
 }
