@@ -3,17 +3,17 @@ package com.wander.config;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
-/**
+/*
  * Instance configuration. Every field is env-var settable so an operator can run
  * the container without editing a file — see compose.yaml.
  */
 @ConfigurationProperties("wander")
 public record WanderProperties(
 
-        /** Reported in the geocoder User-Agent, which is how a blocked instance gets identified. */
+        /* Reported in the geocoder User-Agent, which is how a blocked instance gets identified. */
         @DefaultValue("dev") String version,
 
-        /**
+        /*
          * The commit this image was built from, baked in by CI as a build
          * argument. Blank for a build made any other way, and blank is shown as
          * nothing rather than as "unknown".
@@ -25,7 +25,7 @@ public record WanderProperties(
          */
         @DefaultValue("") String buildRef,
 
-        /**
+        /*
          * Where the source for *this* instance lives, linked from the sign-in
          * page and the account menu.
          *
@@ -45,7 +45,7 @@ public record WanderProperties(
          */
         @DefaultValue("https://gitlab.com/vm83043/wander") String sourceUrl,
 
-        /**
+        /*
          * Self-signup, and it is **off by default** because the default has to be
          * the safe answer for the deployment that is exposed to the internet: an
          * open instance hands this machine's Nominatim, Commons and Open-Meteo
@@ -61,7 +61,7 @@ public record WanderProperties(
          */
         @DefaultValue("false") boolean registrationEnabled,
 
-        /**
+        /*
          * The currency a new trip gets when its creator does not choose one. An
          * operator setting rather than a compiled-in constant for the same reason
          * the tile URL is: this project has no idea where its instances are.
@@ -86,13 +86,13 @@ public record WanderProperties(
 
         @DefaultValue MapTiles map) {
 
-    /**
+    /*
      * First-boot admin. Both blank means the account is still created, with a
      * generated password printed once to the log — the operator never has to
      * hand-edit the database to get in.
      */
 
-    /**
+    /*
      * A worked example trip, and a read-only account to look at it with.
      *
      * **Off by default**, because this writes rows: it is for a public demo
@@ -104,16 +104,14 @@ public record WanderProperties(
      * nothing else, so the worst a visitor can do is read a trip that exists to
      * be read.
      */
-    public record Demo(
-            @DefaultValue("false") boolean enabled,
-            @DefaultValue("demo@wander.local") String email,
-            @DefaultValue("demo-traveller") String password) {
+    public record Demo(@DefaultValue("false") boolean enabled, @DefaultValue("demo@wander.local") String email,
+                       @DefaultValue("demo-traveller") String password, @DefaultValue("45") int sweepMinutes) {
     }
 
     public record Admin(@DefaultValue("") String email, @DefaultValue("") String password) {
     }
 
-    /**
+    /*
      * How hard a password may be guessed. See {@code LoginThrottle} for why there
      * are two limits rather than one.
      *
@@ -122,17 +120,16 @@ public record WanderProperties(
      * an hour is already a bad afternoon, and forty from one address is several
      * people all having one.
      */
-    public record Login(
-            @DefaultValue("10") int maxFailuresPerEmail,
-            /**
+    public record Login(@DefaultValue("10") int maxFailuresPerEmail,
+            /*
              * Looser than the per-email limit on purpose: a household, an office
              * or a mobile network arrives as one address, and several people
              * signing in from it must not add up to a lockout.
              */
-            @DefaultValue("40") int maxFailuresPerAddress,
-            /** How long a run of failures is remembered. Minutes, and it is not a lockout. */
-            @DefaultValue("15") int windowMinutes,
-            /**
+                        @DefaultValue("40") int maxFailuresPerAddress,
+            /* How long a run of failures is remembered. Minutes, and it is not a lockout. */
+                        @DefaultValue("15") int windowMinutes,
+            /*
              * How many accounts one address may create inside the window.
              *
              * Counted whether the registration succeeds or not, because both
@@ -145,12 +142,12 @@ public record WanderProperties(
              * `npm run e2e` at needs this raised — the same footnote that
              * already applies to `registration-enabled`.
              */
-            @DefaultValue("20") int maxRegistrationsPerAddress,
-            /** Cap on the counter map. The keys are attacker-supplied, so it is bounded. */
-            @DefaultValue("10000") int trackedKeys) {
+                        @DefaultValue("20") int maxRegistrationsPerAddress,
+            /* Cap on the counter map. The keys are attacker-supplied, so it is bounded. */
+                        @DefaultValue("10000") int trackedKeys) {
     }
 
-    /**
+    /*
      * How much of this instance's *upstream* budget one signed-in person may
      * spend — see {@code UpstreamQuota} for why this is per user id rather than
      * per address, and why {@code RateGate} is not a substitute.
@@ -160,17 +157,16 @@ public record WanderProperties(
      * the donated services this instance depends on.
      */
     public record Quota(
-            /** Typeahead, so the loosest: roughly one search every two seconds, sustained. */
+            /* Typeahead, so the loosest: roughly one search every two seconds, sustained. */
             @DefaultValue("120") int searchesPerWindow,
-            /** Opening a place, which on first sight may walk four services. */
+            /* Opening a place, which on first sight may walk four services. */
             @DefaultValue("60") int enrichmentsPerWindow,
-            /** One request covers a whole trip, so this is really per page view. */
-            @DefaultValue("60") int forecastsPerWindow,
-            @DefaultValue("5") int windowMinutes,
+            /* One request covers a whole trip, so this is really per page view. */
+            @DefaultValue("60") int forecastsPerWindow, @DefaultValue("5") int windowMinutes,
             @DefaultValue("10000") int trackedKeys) {
     }
 
-    /**
+    /*
      * The Content-Security-Policy header.
      *
      * Not a fixed string, because the hosts it has to allow are the operator's
@@ -179,9 +175,8 @@ public record WanderProperties(
      * for the first self-hoster to run their own tile server. It is assembled
      * from {@code MapTiles} at startup instead — see {@code ContentSecurityPolicy}.
      */
-    public record Csp(
-            @DefaultValue("true") boolean enabled,
-            /**
+    public record Csp(@DefaultValue("true") boolean enabled,
+            /*
              * Report rather than refuse. The escape hatch for an instance whose
              * map draws from somewhere this policy did not anticipate: turn it
              * on, load the page, read the console, and send the host that the
@@ -189,16 +184,16 @@ public record WanderProperties(
              * failure mode this exists to avoid — see the MapLibre worker note
              * in CLAUDE.md for how quiet that gets.
              */
-            @DefaultValue("false") boolean reportOnly,
-            /**
+                      @DefaultValue("false") boolean reportOnly,
+            /*
              * Extra sources appended to `connect-src`, `img-src` and `font-src`,
              * space-separated. For an instance whose tiles, fonts or photographs
              * live somewhere this does not work out on its own.
              */
-            @DefaultValue("") String extraSources) {
+                      @DefaultValue("") String extraSources) {
     }
 
-    /**
+    /*
      * Place search. Defaults point at the public Nominatim instance, whose usage
      * policy this project honours: an identifying User-Agent, at most one
      * request a second across the whole instance, and results cached so the same
@@ -208,28 +203,27 @@ public record WanderProperties(
      * Nominatim and raise the rate — or set {@code enabled: false}, which is the
      * right setting for an instance with no outbound network access.
      */
-    public record Geocoding(
-            @DefaultValue("true") boolean enabled,
-            @DefaultValue("https://nominatim.openstreetmap.org") String baseUrl,
-            /** Sent in the User-Agent so the operator is contactable before being blocked. */
-            @DefaultValue("") String contactEmail,
-            /**
+    public record Geocoding(@DefaultValue("true") boolean enabled,
+                            @DefaultValue("https://nominatim.openstreetmap.org") String baseUrl,
+            /* Sent in the User-Agent so the operator is contactable before being blocked. */
+                            @DefaultValue("") String contactEmail,
+            /*
              * Fallback for callers that send no Accept-Language. Not empty by
              * design: a geocoder with no language preference answers in the
              * place's own language, and this application's own UI is English.
              */
-            @DefaultValue("en") String language,
-            /** Minimum gap between two outbound searches, in milliseconds. */
-            @DefaultValue("1000") long minIntervalMillis,
-            /** How long a caller waits for the gate before getting a 429 instead. */
-            @DefaultValue("2000") long maxWaitMillis,
-            /** How long a result stays cached. */
-            @DefaultValue("600") long cacheSeconds,
-            /** How many distinct queries to remember. */
-            @DefaultValue("500") int cacheSize) {
+                            @DefaultValue("en") String language,
+            /* Minimum gap between two outbound searches, in milliseconds. */
+                            @DefaultValue("1000") long minIntervalMillis,
+            /* How long a caller waits for the gate before getting a 429 instead. */
+                            @DefaultValue("2000") long maxWaitMillis,
+            /* How long a result stays cached. */
+                            @DefaultValue("600") long cacheSeconds,
+            /* How many distinct queries to remember. */
+                            @DefaultValue("500") int cacheSize) {
     }
 
-    /**
+    /*
      * Descriptions, facts, hours and photos for a place, from OpenStreetMap,
      * Wikidata, Wikipedia and Wikimedia Commons.
      *
@@ -237,21 +231,19 @@ public record WanderProperties(
      * an instance with no outbound network gets. Everything fetched is stored, so
      * the rate here is about first sight of a place rather than steady traffic.
      */
-    public record Enrichment(
-            @DefaultValue("true") boolean enabled,
-            /** Wikipedia and Commons hosts. Language is chosen per request from the caller's. */
-            @DefaultValue("https://www.wikidata.org") String wikidataUrl,
-            @DefaultValue("https://commons.wikimedia.org") String commonsUrl,
-            /** How long a stored enrichment stands before it is fetched again. */
-            @DefaultValue("30") int cacheDays,
-            /** How many photo candidates to offer. More is a longer strip nobody scrolls. */
-            @DefaultValue("4") int photoCount,
-            /** Gap between outbound Wikimedia calls, and how long a caller waits for the gate. */
-            @DefaultValue("200") long minIntervalMillis,
-            @DefaultValue("4000") long maxWaitMillis) {
+    public record Enrichment(@DefaultValue("true") boolean enabled,
+            /* Wikipedia and Commons hosts. Language is chosen per request from the caller's. */
+                             @DefaultValue("https://www.wikidata.org") String wikidataUrl,
+                             @DefaultValue("https://commons.wikimedia.org") String commonsUrl,
+            /* How long a stored enrichment stands before it is fetched again. */
+                             @DefaultValue("30") int cacheDays,
+            /* How many photo candidates to offer. More is a longer strip nobody scrolls. */
+                             @DefaultValue("4") int photoCount,
+            /* Gap between outbound Wikimedia calls, and how long a caller waits for the gate. */
+                             @DefaultValue("200") long minIntervalMillis, @DefaultValue("4000") long maxWaitMillis) {
     }
 
-    /**
+    /*
      * The forecast on a day card.
      *
      * Open-Meteo by default, because it needs no API key: a self-hoster should
@@ -263,31 +255,29 @@ public record WanderProperties(
      * the attribution are both settings, and why the attribution travels to the
      * client with the data rather than being compiled into the Angular app.
      */
-    public record Weather(
-            @DefaultValue("true") boolean enabled,
-            @DefaultValue("https://api.open-meteo.com") String baseUrl,
-            /**
+    public record Weather(@DefaultValue("true") boolean enabled,
+                          @DefaultValue("https://api.open-meteo.com") String baseUrl,
+            /*
              * How far ahead a forecast exists. Sixteen is Open-Meteo's maximum;
              * days beyond it get no weather at all rather than a placeholder,
              * because for a trip in nine months there is genuinely nothing to
              * show.
              */
-            @DefaultValue("16") int horizonDays,
-            /**
+                          @DefaultValue("16") int horizonDays,
+            /*
              * How long a stored forecast stands. Minutes, not days: a forecast
              * changes through the day, which is the whole difference between this
              * cache and the enrichment one.
              */
-            @DefaultValue("180") int cacheMinutes,
-            /** Shown wherever a forecast is. CC BY 4.0 requires it. */
-            @DefaultValue("Weather data by Open-Meteo.com (CC BY 4.0)") String attribution,
-            @DefaultValue("https://open-meteo.com/") String attributionUrl,
-            /** Gap between outbound calls, and how long a caller waits for the gate. */
-            @DefaultValue("200") long minIntervalMillis,
-            @DefaultValue("4000") long maxWaitMillis) {
+                          @DefaultValue("180") int cacheMinutes,
+            /* Shown wherever a forecast is. CC BY 4.0 requires it. */
+                          @DefaultValue("Weather data by Open-Meteo.com (CC BY 4.0)") String attribution,
+                          @DefaultValue("https://open-meteo.com/") String attributionUrl,
+            /* Gap between outbound calls, and how long a caller waits for the gate. */
+                          @DefaultValue("200") long minIntervalMillis, @DefaultValue("4000") long maxWaitMillis) {
     }
 
-    /**
+    /*
      * What the browser draws the map from. Not compiled into the client: an
      * operator running their own tiles, or one who would rather their users'
      * browsers not talk to a third party at all, changes this and every client
@@ -313,19 +303,17 @@ public record WanderProperties(
      * setting `styleUrl` to blank: an instance with its own raster tile server
      * loses nothing by this change but the language.
      */
-    public record MapTiles(
-            @DefaultValue("true") boolean enabled,
-            @DefaultValue("https://tiles.openfreemap.org/styles/liberty") String styleUrl,
+    public record MapTiles(@DefaultValue("true") boolean enabled,
+                           @DefaultValue("https://tiles.openfreemap.org/styles/liberty") String styleUrl,
             /*
              * Used when the reader's theme is dark. A dark *style* rather than a
              * CSS filter over a light one, which is what the raster path has to
              * do — and which turns land green-on-black if you let it invert.
              */
-            @DefaultValue("https://tiles.openfreemap.org/styles/dark") String darkStyleUrl,
+                           @DefaultValue("https://tiles.openfreemap.org/styles/dark") String darkStyleUrl,
             /* The raster fallback, used only when styleUrl is blank. */
-            @DefaultValue("https://tile.openstreetmap.org/{z}/{x}/{y}.png") String tileUrl,
-            @DefaultValue("OpenFreeMap · OpenMapTiles · © OpenStreetMap contributors")
-            String attribution,
-            @DefaultValue("19") int maxZoom) {
+                           @DefaultValue("https://tile.openstreetmap.org/{z}/{x}/{y}.png") String tileUrl,
+                           @DefaultValue("OpenFreeMap · OpenMapTiles · © OpenStreetMap contributors") String attribution,
+                           @DefaultValue("19") int maxZoom) {
     }
 }

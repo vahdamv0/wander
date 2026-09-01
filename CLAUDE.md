@@ -843,9 +843,45 @@ it belongs on a demo box, not on somebody's real one.
   split always sums to its total cannot be seen), a payment (so a balance is
   partly settled), a shared packing pile beside assigned items, days with no
   places at all, and a flight whose arrival zone differs from its departure.
+- **Trips the shared account makes for itself are swept on a schedule**, and
+  that is a second job rather than part of the re-seed because the re-seed
+  cannot do it: its delete is scoped to the demo *content* owner, which is what
+  makes switching the flag on by mistake cost nothing, and a trip the published
+  account owns is outside that scope. So it survives a restart, a rebuild and a
+  redeploy alike — the graffiti is rows, and only deleting rows removes it.
+  Without the sweep, whatever the last visitor typed is on the next visitor's
+  trip list, because they are the same account.
+  `DemoSweeper` deletes what that account **owns** — never what it can *see*,
+  which would take the seeded trip it is a viewer on and would look like it was
+  working — announces each deletion through `TripChanges` so somebody reading a
+  swept trip is navigated away rather than left on a page that now 404s, and
+  runs once at startup as well, a scheduled task's first pass being immediate.
+  `theSweepRemovesWhatAVisitorMadeAndLeavesTheSeededTrip` pins both halves.
+- **The visitor is told, on the page where they would create one.** A sweep is
+  the only place in wander where somebody's work disappears without them asking,
+  and the project's rule about stale data — show it, but label it — is the same
+  promise read the other way round, so the trips page carries a notice for that
+  one account: everyone shares it, anything you make is visible to them, and it
+  is deleted every N minutes. `SessionUser.demoAccount` says who, and
+  `InstanceConfig.demoSweepMinutes` says how often — a *setting*, so it travels
+  from the server rather than being a constant in the client, because a page
+  promising 45 minutes on an instance configured for 10 would be believed. Zero
+  means no sweep and no sentence, which is also what "not answered yet" looks
+  like, so there is no state in which the page invents a schedule.
+- **It is the project's first thing that runs on a clock**, and the exception is
+  argued rather than assumed: everywhere else state is derived from timestamps
+  precisely so nothing has to fire at the right moment (an invitation is never
+  written "expired"). A junk trip cannot be derived away — the trip list is the
+  ordinary one every account uses. The alternative was a cron restarting the
+  container to make the seeder run again, which drops every socket, hands every
+  reader an outage and re-dates the trip under them, all to achieve one delete.
+  `DemoSweeper` is declared by `DemoScheduling`, conditional on the demo flag, so
+  an ordinary instance has neither the bean nor a scheduler thread.
 - What it does **not** solve: the demo account can still create trips of its own
-  and shares one `UpstreamQuota` budget with everybody using it. The re-seed on
-  boot is the tidy-up, and the quota is the protection.
+  — the sweep clears them within the window rather than preventing them, which
+  is deliberate, since "can I actually make a trip" is most of what a visitor
+  came to find out — and it shares one `UpstreamQuota` budget with everybody
+  using it. The quota is the protection.
 
 ## Packing lists
 

@@ -1,4 +1,18 @@
 <div class="mx-auto max-w-5xl px-4 py-8">
+  @if (demoNotice(); as interval) {
+    <!-- The shared demo account. Its trips are deleted on a schedule, which is
+         the only place in wander where somebody's work goes without them asking
+         for it — so it is said before they start typing, not after. -->
+    <div class="mb-6 rounded-control border border-border bg-accent-soft px-4 py-3 text-sm"
+         role="status">
+      <p class="font-medium">You're signed in as the shared demo account</p>
+      <p class="mt-1 text-muted">
+        Everyone trying this instance signs in as this account, so any trip you
+        create here is visible to them too - and it's deleted automatically
+        {{ interval }}. The read-only example trip stays.
+      </p>
+    </div>
+  }
   <div class="mb-6 flex flex-wrap items-end justify-between gap-3">
     <div>
       <h1 class="text-xl font-semibold tracking-tight">Your trips</h1>
