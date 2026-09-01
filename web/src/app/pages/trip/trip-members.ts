@@ -51,6 +51,7 @@ export class TripMembers {
 
   protected readonly isOwner = computed(() => this.myRole() === 'OWNER');
   protected readonly myUserId = computed(() => this.session.user()?.id ?? null);
+  protected readonly isDemoAccount = computed(() => this.session.user()?.demoAccount === true);
 
   protected readonly draftEmail = signal('');
   protected readonly draftRole = signal<TripRole>('EDITOR');

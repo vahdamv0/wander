@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.wander.common.ConflictException;
 import com.wander.common.NotFoundException;
+import com.wander.demo.DemoAccount;
 import com.wander.sync.TripChanges;
 import com.wander.trip.dto.AddMemberRequest;
 import com.wander.trip.dto.ChangeRoleRequest;
@@ -37,13 +38,15 @@ public class TripMemberService {
     private final UserRepository users;
     private final TripAccessService access;
     private final TripChanges changes;
+    private final DemoAccount demoAccount;
 
     public TripMemberService(TripMemberRepository members, UserRepository users, TripAccessService access,
-            TripChanges changes) {
+            TripChanges changes, DemoAccount demoAccount) {
         this.members = members;
         this.users = users;
         this.access = access;
         this.changes = changes;
+        this.demoAccount = demoAccount;
     }
 
     /** Any member sees the whole list: you cannot collaborate with people you cannot see. */
@@ -114,7 +117,8 @@ public class TripMemberService {
      *
      * The gate is `requireMember` rather than `requireRole` because leaving is
      * something any member may do — the role check is on removing *somebody
-     * else*.
+     * else*. The one exception is the published demo account, which may not
+     * leave.
      */
     @Transactional
     public void remove(Long userId, Long tripId, Long targetUserId) {
@@ -123,6 +127,9 @@ public class TripMemberService {
         // anybody cannot use the 404 to find out who is on the trip.
         if (!targetUserId.equals(userId) && caller.getRole() != TripRole.OWNER) {
             throw new AccessDeniedException("Only the owner can remove other members");
+        }
+        if (targetUserId.equals(userId) && demoAccount.isPublishedVisitor(caller.getUser().getEmail())) {
+            throw new ConflictException("The demo account stays on the demo trip, so the next visitor can see it");
         }
 
         TripMember target = members.findByTripIdAndUserId(tripId, targetUserId)
