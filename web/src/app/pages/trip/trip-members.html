@@ -190,7 +190,7 @@
                                font-medium uppercase tracking-wide text-muted">
                     {{ roleLabel(member.role) }}
                   </span>
-                  @if (isMe(member) && member.role !== 'OWNER') {
+                  @if (isMe(member) && member.role !== 'OWNER' && !isDemoAccount()) {
                     <button type="button" class="btn-ghost text-xs" [disabled]="saving()"
                             (click)="leave()">
                       Leave trip
