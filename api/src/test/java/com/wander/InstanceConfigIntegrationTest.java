@@ -65,6 +65,17 @@ class InstanceConfigIntegrationTest extends IntegrationTestBase {
                 .startsWith("http");
     }
 
+    /**
+     * Zero on an instance with the demo off, which is what stops the trips page
+     * promising a deletion schedule to somebody whose trips nothing deletes.
+     * `DemoSeedIntegrationTest` has the other side, where it is a real interval.
+     */
+    @Test
+    void thereIsNoSweepScheduleToAnnounceWithoutTheDemo() {
+        assertThat(asMap(get(register("ada"), "/api/config").getBody()))
+                .containsEntry("demoSweepMinutes", 0);
+    }
+
     @Test
     void configIsNotReadableAnonymously() {
         var response = http().get().uri("/api/config").retrieve().toEntity(String.class);

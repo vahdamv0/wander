@@ -32,6 +32,13 @@ export class InstanceConfigStore {
    * nothing, so there is no state where a dead link is offered.
    */
   private readonly _sourceUrl = signal('');
+  /**
+   * How often the shared demo account's trips are swept, in minutes. Zero on
+   * every ordinary instance, and zero is what "not answered yet" looks like too
+   * — both draw nothing, so there is no state in which the page promises a
+   * deletion schedule it has not been told.
+   */
+  private readonly _demoSweepMinutes = signal(0);
 
   readonly map = this._map.asReadonly();
   readonly searchEnabled = this._searchEnabled.asReadonly();
@@ -40,6 +47,7 @@ export class InstanceConfigStore {
   readonly loaded = this._loaded.asReadonly();
   readonly mapEnabled = computed(() => this._map()?.enabled === true);
   readonly sourceUrl = this._sourceUrl.asReadonly();
+  readonly demoSweepMinutes = this._demoSweepMinutes.asReadonly();
 
   /**
    * "wander v1.2.0 · a1b2c3d", or the parts of it that exist. An image built
@@ -66,6 +74,7 @@ export class InstanceConfigStore {
       this._version.set(config.version);
       this._buildRef.set(config.buildRef);
       this._sourceUrl.set(config.sourceUrl);
+      this._demoSweepMinutes.set(config.demoSweepMinutes);
     } catch {
       // A signed-out visitor gets 401 here, which is not a failure — the
       // defaults stand, and the next sign-in loads it again.
@@ -74,6 +83,7 @@ export class InstanceConfigStore {
       this._weatherEnabled.set(false);
       this._defaultCurrency.set(null);
       this._sourceUrl.set('');
+      this._demoSweepMinutes.set(0);
     } finally {
       this._loaded.set(true);
     }
