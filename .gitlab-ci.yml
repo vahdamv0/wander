@@ -11,7 +11,6 @@ cache:
   key: "$CI_COMMIT_REF_SLUG"
   paths:
     - .gradle/wrapper
-    - .gradle/caches
     - web/node_modules
 
 test:
