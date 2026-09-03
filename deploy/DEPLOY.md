@@ -3,7 +3,7 @@
 Everything here came out of the image, so it matches the version you pulled:
 
 ```bash
-docker run --rm registry.gitlab.com/vm83043/wander:latest bundle | tar x
+docker run --rm registry.gitlab.com/vm83043-dev/wander:latest bundle | tar x
 ```
 
 You need Docker with the **Compose v2 plugin** (`docker compose`, two words) and
@@ -32,7 +32,7 @@ docker compose logs wander      # the generated admin password, printed once
 The four lines in `.env` that decide whether this works:
 
 ```
-WANDER_IMAGE=registry.gitlab.com/vm83043/wander:latest
+WANDER_IMAGE=registry.gitlab.com/vm83043-dev/wander:latest
 POSTGRES_PASSWORD=<not change-me>
 WANDER_SITE_ADDRESS=wander.example.com   # or :80 for plain HTTP
 WANDER_COOKIE_SECURE=true                # false with :80 — they move together
@@ -66,7 +66,7 @@ dump first if you want a way back (`update.sh` says how).
 pushes and change one line in `.env`:
 
 ```
-WANDER_IMAGE=registry.gitlab.com/vm83043/wander:a1b2c3d
+WANDER_IMAGE=registry.gitlab.com/vm83043-dev/wander:a1b2c3d
 ```
 
 Rolling back is then editing that line and running `./update.sh` — with the
