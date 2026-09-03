@@ -6,6 +6,7 @@ variables:
   # second pipeline much faster than the first.
   GRADLE_USER_HOME: "$CI_PROJECT_DIR/.gradle"
   GRADLE_OPTS: "-Dorg.gradle.daemon=false"
+  DS_DISABLED_RESOLUTION_JOBS: "gradle"
 
 cache:
   key: "$CI_COMMIT_REF_SLUG"
@@ -26,6 +27,7 @@ test:
     TESTCONTAINERS_HOST_OVERRIDE: "docker"
   script:
     - ./gradlew build
+    - ./gradlew dependencies > gradle.graph.txt
   artifacts:
     when: always
     reports:
