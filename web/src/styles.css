@@ -251,6 +251,7 @@
     background: var(--color-surface-2);
     /* Leaflet's default is a serif-ish stack that looks nothing like the app. */
     font: inherit;
+    z-index: 0;
   }
 
   /* The pin label. A tooltip, not a popup: the detail panel covers the map, so a

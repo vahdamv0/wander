@@ -42,8 +42,15 @@ public record WanderProperties(
          * nothing. That is for a private instance nobody else is offered — on a
          * public one, blanking it is most likely a licence violation rather than
          * a preference, and README says so.
+         *
+         * No {@code @DefaultValue} here, deliberately: {@code application.yml}
+         * always binds this key, so a literal in this annotation could never
+         * fire — it was a second copy of the URL that a rename would silently
+         * leave stale, with nothing failing to say so. The one copy lives in
+         * {@code application.yml}, beside the environment variable that
+         * overrides it.
          */
-        @DefaultValue("https://gitlab.com/vm83043/wander") String sourceUrl,
+        String sourceUrl,
 
         /*
          * Self-signup, and it is **off by default** because the default has to be
