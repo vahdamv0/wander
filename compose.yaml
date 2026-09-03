@@ -45,7 +45,15 @@ services:
       WANDER_REGISTRATION_ENABLED: ${WANDER_REGISTRATION_ENABLED:-false}
       # The source link the interface offers. Change it if you modify wander:
       # AGPL-3.0 section 13 owes your users the source you are actually running.
-      WANDER_SOURCE_URL: ${WANDER_SOURCE_URL:-https://gitlab.com/vm83043/wander}
+      #
+      # No default restated here. A null value is Compose's pass-through: the
+      # value is taken from .env or the shell if it is set there, and if it is
+      # not, the variable reaches the container *absent* rather than empty — so
+      # the application's own default in application.yml applies. Writing
+      # `${WANDER_SOURCE_URL:-}` instead would set it to an empty string, and
+      # Spring reads set-but-empty as a value, which would blank the licence
+      # link on every deployment that had not set one.
+      WANDER_SOURCE_URL:
       # A seeded example trip and a published read-only account. Off unless this
       # is a demo instance; see .env.example.
       WANDER_DEMO_ENABLED: ${WANDER_DEMO_ENABLED:-false}
