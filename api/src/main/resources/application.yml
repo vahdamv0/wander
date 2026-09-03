@@ -86,7 +86,7 @@ wander:
   # network owes its users the source of the version it is running. If you
   # modify wander, point this at your fork — a link to upstream would name code
   # your instance is not running.
-  source-url: ${WANDER_SOURCE_URL:https://gitlab.com/vm83043/wander}
+  source-url: ${WANDER_SOURCE_URL:https://gitlab.com/vm83043-dev/wander}
   # A worked example trip and a read-only account to look at it with. Off by
   # default because it writes rows — this is for a public demo box, not for
   # somebody's real instance. It re-seeds on every boot (only within its own

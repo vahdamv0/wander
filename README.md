@@ -194,7 +194,7 @@ the same tag as an x86 one — and **the image carries its own deployment bundle
 ```bash
 docker login registry.gitlab.com -u <deploy-token-username>   # scope: read_registry
 mkdir -p /opt/wander && cd /opt/wander
-docker run --rm registry.gitlab.com/vm83043/wander:latest bundle | tar x
+docker run --rm registry.gitlab.com/vm83043-dev/wander:latest bundle | tar x
 
 cp .env.example .env && $EDITOR .env    # WANDER_IMAGE, POSTGRES_PASSWORD, the site address
 docker compose pull
