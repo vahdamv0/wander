@@ -1,0 +1,71 @@
+<main class="mx-auto flex min-h-dvh max-w-md items-center px-4 py-10">
+  <div class="w-full">
+    <div class="flex justify-center"><app-brand-mark /></div>
+
+    <h1 class="mt-6 text-center text-xl font-semibold tracking-tight">Reset your password</h1>
+
+    @if (available() === false) {
+      <!-- No relay configured, so there is no self-service route and saying so
+           is the only useful thing this page can do. The administrator can still
+           mint a link by hand, which is what it points at. -->
+      <div class="card mt-4 p-6">
+        <p class="text-sm">This instance doesn't send email, so passwords can't be reset here.</p>
+        <p class="mt-2 text-sm text-muted">
+          Ask whoever runs it to send you a reset link.
+        </p>
+        <a routerLink="/login" class="btn-ghost mt-4 inline-flex">Back to sign in</a>
+      </div>
+    } @else if (sent()) {
+      <!-- Says "if", and means it. The server answers the same way for an
+           address it knows, one it doesn't, and one whose account is disabled,
+           so this page genuinely has not been told which happened. Claiming
+           delivery would leak exactly what the endpoint withholds. -->
+      <div class="card mt-4 p-6">
+        <p class="text-sm">
+          If that address has an account here, a reset link is on its way to it.
+        </p>
+        <p class="mt-2 text-sm text-muted">
+          The link works once and expires shortly. Check the spam folder if it doesn't arrive.
+        </p>
+        <a routerLink="/login" class="btn-ghost mt-4 inline-flex">Back to sign in</a>
+      </div>
+    } @else {
+      <p class="mt-1 text-center text-sm text-muted">
+        We'll email you a link to choose a new one.
+      </p>
+
+      <form class="card mt-4 grid gap-4 p-6" (ngSubmit)="submit()">
+        <label class="label">
+          <span>Email</span>
+          <input
+            class="field"
+            type="email"
+            name="email"
+            autocomplete="email"
+            required
+            [ngModel]="email()"
+            (ngModelChange)="email.set($event)"
+          />
+        </label>
+
+        @if (error(); as message) {
+          <p class="text-sm text-danger">{{ message }}</p>
+        }
+
+        <button type="submit" class="btn-primary" [disabled]="!canSubmit()">
+          @if (busy()) {
+            Working…
+          } @else {
+            Send a reset link
+          }
+        </button>
+      </form>
+
+      <p class="mt-4 text-center text-sm text-muted">
+        <a routerLink="/login" class="font-medium text-accent underline-offset-4 hover:underline">
+          Back to sign in
+        </a>
+      </p>
+    }
+  </div>
+</main>

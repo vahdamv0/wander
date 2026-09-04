@@ -30,13 +30,28 @@ COPY web web
 # No tests here: they need Postgres in a container, which an image build has no
 # business starting. CI runs them, and the generated API client is committed, so
 # this build needs nothing but source.
-RUN ./gradlew --no-daemon :api:bootJar
+#
+# thirdPartyNotices rides along in the same invocation rather than getting its
+# own RUN: it shares the resolved Gradle and npm caches with the build above, so
+# as a separate layer it would re-resolve both to produce one text file.
+RUN ./gradlew --no-daemon :api:bootJar thirdPartyNotices
 
 # --- runtime ---------------------------------------------------------------
 FROM eclipse-temurin:21-jre-alpine AS runtime
 RUN addgroup -S wander && adduser -S -G wander wander
 WORKDIR /app
 COPY --from=build /src/api/build/libs/*-SNAPSHOT.jar /app/wander.jar
+
+# The licences of everything redistributed inside that jar — the browser bundle
+# under META-INF/resources and the server's own jars under BOOT-INF/lib.
+#
+# It ships *in the image* because the image is the distribution: MIT, BSD, ISC
+# and Apache-2.0 all require the copyright notice to accompany a binary, and an
+# image is a binary. Generated at build time from the two dependency trees, so
+# it cannot fall behind them the way a committed copy would. wander's own
+# licence is separate and is not this file — see LICENSE in the repository, and
+# the Source link the running instance draws for AGPL section 13.
+COPY --from=build /src/build/THIRD-PARTY.txt /app/THIRD-PARTY.txt
 
 # What a server needs beside the image, carried inside it: `docker run --rm
 # <image> bundle | tar x` writes these out. They are copied from the repository

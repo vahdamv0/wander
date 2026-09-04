@@ -81,6 +81,8 @@ public record WanderProperties(
 
         @DefaultValue Login login,
 
+        @DefaultValue Mail mail,
+
         @DefaultValue Quota quota,
 
         @DefaultValue Csp csp,
@@ -163,6 +165,62 @@ public record WanderProperties(
      * invisible to somebody planning a trip and ruinous to a script pointed at
      * the donated services this instance depends on.
      */
+    /*
+     * Sending mail, which this application spent its whole life not doing.
+     *
+     * "Nothing here sends mail" was load-bearing for two features: invitations
+     * are links because a link needs no mail, and a password reset was an
+     * administrator minting one by hand. Neither is being taken away — a link is
+     * still the mechanism, and the admin can still mint one. What this adds is a
+     * *delivery* method for the one case where the person cannot be reached any
+     * other way, because they are by definition the person who cannot sign in.
+     *
+     * **Off by default**, like the demo trip and for the same reason: it needs
+     * an SMTP relay somebody has to sign up for, and the right default is the one
+     * that works on a laptop with no outbound network. With it off, the "Forgot
+     * password?" link is not offered and the endpoint is not there — the
+     * administrator's minted link remains the only route, exactly as before.
+     *
+     * The credentials themselves are Spring's own `spring.mail.*`, not repeated
+     * here: every provider speaks SMTP, so there is one shape to configure and no
+     * vendor in the code. See .env.example.
+     */
+    public record Mail(@DefaultValue("false") boolean enabled,
+            /*
+             * The envelope sender. Deliverability lives or dies on this matching
+             * a domain the relay is authorised for — mail claiming to be from a
+             * domain nobody signed for is what spam filters are built to catch,
+             * and a password reset in a spam folder is indistinguishable from one
+             * that was never sent.
+             */
+                       @DefaultValue("") String from,
+            /* The human name beside it. Blank sends the address alone. */
+                       @DefaultValue("wander") String fromName,
+            /*
+             * Where a reset link points. Blank derives it from the request, which
+             * is right behind a proxy that sets the forwarded headers — the same
+             * headers `LoginThrottle` already depends on. Set it explicitly if
+             * the links come out wrong: unlike a bad throttle, this one is
+             * visible, because the link in the mail simply does not work.
+             */
+                       @DefaultValue("") String baseUrl,
+            /*
+             * How long a self-requested link lives. Minutes rather than the
+             * admin path's days, and much shorter: an emailed link is acted on
+             * immediately or not at all, and it is sitting in a mailbox that may
+             * itself be the thing that was compromised.
+             */
+                       @DefaultValue("60") int resetExpiresMinutes,
+            /*
+             * How many links one address may ask for in a login window. Counted
+             * as *attempts*, like registration: each one sends mail on somebody
+             * else's relay and lands in somebody's inbox, so an unmetered version
+             * of this endpoint is a way to use this instance to post junk at a
+             * third party.
+             */
+                       @DefaultValue("5") int maxRequestsPerAddress) {
+    }
+
     public record Quota(
             /* Typeahead, so the loosest: roughly one search every two seconds, sustained. */
             @DefaultValue("120") int searchesPerWindow,

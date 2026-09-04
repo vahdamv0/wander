@@ -101,6 +101,8 @@ export type { PreviewReset$Params as PreviewReset$Params } from './fn/password-r
 export { previewReset as previewReset } from './fn/password-reset-controller/preview-reset';
 export type { RedeemReset$Params as RedeemReset$Params } from './fn/password-reset-controller/redeem-reset';
 export { redeemReset as redeemReset } from './fn/password-reset-controller/redeem-reset';
+export type { RequestReset$Params as RequestReset$Params } from './fn/password-reset-controller/request-reset';
+export { requestReset as requestReset } from './fn/password-reset-controller/request-reset';
 export type { GetTripWeather$Params as GetTripWeather$Params } from './fn/weather-controller/get-trip-weather';
 export { getTripWeather as getTripWeather } from './fn/weather-controller/get-trip-weather';
 export type { Health$Params as Health$Params } from './fn/health-controller/health';

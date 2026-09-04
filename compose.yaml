@@ -54,6 +54,23 @@ services:
       # Spring reads set-but-empty as a value, which would blank the licence
       # link on every deployment that had not set one.
       WANDER_SOURCE_URL:
+      # Sending mail — the self-service "Forgot password?" route. Off unless a
+      # relay is configured, and the whole block is pass-through rather than
+      # restated defaults: unset variables reach the container absent, so
+      # application.yml decides. Any provider that speaks SMTP works; there is
+      # deliberately no vendor named anywhere in this project.
+      WANDER_MAIL_ENABLED:
+      WANDER_MAIL_FROM:
+      WANDER_MAIL_FROM_NAME:
+      WANDER_MAIL_BASE_URL:
+      WANDER_MAIL_RESET_EXPIRES_MINUTES:
+      WANDER_MAIL_MAX_REQUESTS_PER_ADDRESS:
+      WANDER_SMTP_HOST:
+      WANDER_SMTP_PORT:
+      WANDER_SMTP_USER:
+      WANDER_SMTP_PASSWORD:
+      WANDER_SMTP_AUTH:
+      WANDER_SMTP_STARTTLS:
       # A seeded example trip and a published read-only account. Off unless this
       # is a demo instance; see .env.example.
       WANDER_DEMO_ENABLED: ${WANDER_DEMO_ENABLED:-false}
