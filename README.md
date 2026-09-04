@@ -278,32 +278,6 @@ cd web && npm run api:gen                # regenerate the typed client from that
 Tests need a Docker daemon: they run against a real Postgres via Testcontainers,
 never H2, because the migrations use Postgres-specific SQL.
 
-**Checking for secrets.** `scripts/scan-secrets.sh` runs
-[gitleaks](https://github.com/gitleaks/gitleaks) over this repository — pinned to
-a version, using a local install if you have one and Docker if you do not, so a
-fresh clone can run it with nothing installed.
-
-```bash
-scripts/scan-secrets.sh           # every branch's history — the important one
-scripts/scan-secrets.sh tree      # files on disk now, untracked ones included
-scripts/scan-secrets.sh staged    # what the next commit would carry
-```
-
-Run it before making a repository public and before pushing a branch that
-touched configuration — which now includes SMTP credentials, since a relay
-password is the first real secret this project asks an operator to hold. Three
-things about it are worth knowing rather than rediscovering. **History is the
-point**: a file deleted in a later commit is still in the repository, and
-publishing the repository publishes it, so the default mode scans every ref
-rather than the checked-out branch. **The report is written outside the
-repository**, into a temporary directory whose path is printed, because a
-findings file names where every secret lives and is the last thing you want
-committed into the tree it describes. And the exit status is 0 for clean, 1 for
-findings — so it gates a hook or a pipeline without anybody reading the output.
-`.gitleaks.toml` allowlists the downloaded Node toolchain, Gradle's caches and
-the generated test reports; nothing in it is a real finding waved away, only
-trees that are already in `.gitignore` and can never be committed.
-
 **Thinking of contributing?** [CONTRIBUTING.md](CONTRIBUTING.md) is the short
 version — what to install, what CI gates on, and the one rule people trip over
 (the API client under `web/src/app/api/` is generated and committed; never edit
