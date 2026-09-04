@@ -10,6 +10,7 @@ import {
   listResets,
   previewReset,
   redeemReset,
+  requestReset,
   revokeReset,
   setAccountDisabled,
   setAccountRole,
@@ -174,6 +175,22 @@ export class AdminRepo {
   /** Sets the password and burns the link. Does not sign anybody in. */
   redeemReset(token: string, newPassword: string): Promise<void> {
     return this.api.invoke(redeemReset, { token, body: { newPassword } });
+  }
+
+  /**
+   * Ask for a link as the person who has lost the password.
+   *
+   * Anonymous, like the two above, and here for the same reason they are: it is
+   * the far end of the same token, and splitting the three would put one
+   * feature's halves in two files.
+   *
+   * It resolves the same way whatever happened — found, not found, disabled —
+   * because the server answers 204 to all of them. A caller that tried to say
+   * anything more specific to the user would be inventing information it was
+   * deliberately not given.
+   */
+  requestReset(email: string): Promise<void> {
+    return this.api.invoke(requestReset, { body: { email } });
   }
 
   clear(): void {

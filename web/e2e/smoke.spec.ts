@@ -301,6 +301,65 @@ test('a reset link opens for somebody who cannot sign in', async ({ page }) => {
 });
 
 /**
+ * The other half of that journey: asking for the link rather than spending one.
+ *
+ * Two things are being pinned, and neither is visible from the server. `/forgot`
+ * is outside `authGuard` for exactly the reason `/reset/:token` is — its whole
+ * audience is people with no session — so the same silent drift would strand the
+ * same people. And an instance that cannot send must not *offer* the route: the
+ * one person who clicks "Forgot your password?" is already locked out, and a
+ * form that quietly does nothing is how they find out there is no way back.
+ *
+ * This suite drives an ordinary instance, where `wander.mail.enabled` is off by
+ * default, so what it can assert is the negative half — which is the half that
+ * every deployment gets. The positive half needs a relay and belongs to whoever
+ * configures one.
+ */
+test('the forgot-password route opens anonymously, and is not offered without a relay', async ({
+  page,
+}) => {
+  const consoleErrors: string[] = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error') {
+      consoleErrors.push(message.text());
+    }
+  });
+  page.on('pageerror', (error) => consoleErrors.push(error.message));
+
+  // The offer is drawn only once `/api/config/sign-in` has answered, so an
+  // absence asserted too early passes against a page that had simply not
+  // finished loading. Wait for the answer itself, and check what it said: an
+  // instance that *does* have a relay should fail this loudly here rather than
+  // confusingly two lines down.
+  const signInConfig = page.waitForResponse((r) => r.url().includes('/api/config/sign-in'));
+  await page.goto('/login');
+  const config = await (await signInConfig).json();
+  expect(config.passwordResetEnabled, 'this suite drives an instance with no relay').toBe(false);
+
+  await page.waitForLoadState('networkidle');
+  await expect(page.getByText('Sign in to your trips')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Forgot your password?' })).toHaveCount(0);
+
+  await page.goto('/forgot');
+
+  // Not bounced to /login, which is the entire point.
+  await expect(page).toHaveURL(/\/forgot$/);
+  await expect(page.getByRole('heading', { name: 'Reset your password' })).toBeVisible();
+  await expect(
+    page.getByText("This instance doesn't send email, so passwords can't be reset here."),
+  ).toBeVisible();
+  // No form to submit into a relay that is not there.
+  await expect(page.getByRole('button', { name: 'Send a reset link' })).toHaveCount(0);
+
+  // The 401 is `SessionStore.restore` finding no session, which is the state
+  // being tested. Filtered by status rather than switched off, as above.
+  expect(
+    consoleErrors.filter((text) => !text.includes('401')),
+    'unexpected console errors',
+  ).toEqual([]);
+});
+
+/**
  * The itinerary, end to end: derived days render, a place lands on the right
  * one, and reordering survives a round trip through the server (which owns
  * ranks and renumbers a whole day on every move).

@@ -18,6 +18,12 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/reset/reset').then((m) => m.ResetPage),
   },
   {
+    // The other half of that journey, and outside the guard for the same reason:
+    // asking for a link is something only somebody without a session ever does.
+    path: 'forgot',
+    loadComponent: () => import('./pages/forgot/forgot').then((m) => m.ForgotPage),
+  },
+  {
     // Everything signed-in renders inside the shell, so a page never draws the
     // header itself.
     path: '',

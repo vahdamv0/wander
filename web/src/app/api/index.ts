@@ -43,6 +43,7 @@ export type { PlaceSuggestion } from './models/place-suggestion';
 export type { PlaceView } from './models/place-view';
 export type { RedeemResetRequest } from './models/redeem-reset-request';
 export type { RegisterRequest } from './models/register-request';
+export type { RequestResetRequest } from './models/request-reset-request';
 export type { ReservationRequest } from './models/reservation-request';
 export type { ReservationView } from './models/reservation-view';
 export type { ResetPreview } from './models/reset-preview';
@@ -165,6 +166,8 @@ export type { PreviewReset$Params as PreviewReset$Params } from './fn/password-r
 export { previewReset as previewReset } from './fn/password-reset-controller/preview-reset';
 export type { RedeemReset$Params as RedeemReset$Params } from './fn/password-reset-controller/redeem-reset';
 export { redeemReset as redeemReset } from './fn/password-reset-controller/redeem-reset';
+export type { RequestReset$Params as RequestReset$Params } from './fn/password-reset-controller/request-reset';
+export { requestReset as requestReset } from './fn/password-reset-controller/request-reset';
 export type { GetTripWeather$Params as GetTripWeather$Params } from './fn/weather-controller/get-trip-weather';
 export { getTripWeather as getTripWeather } from './fn/weather-controller/get-trip-weather';
 export type { Health$Params as Health$Params } from './fn/health-controller/health';
