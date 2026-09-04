@@ -21,7 +21,7 @@ class LoginThrottleTest {
     private static final String ADDRESS = "203.0.113.7";
 
     private LoginThrottle throttle(int perEmail, int perAddress, Duration window) {
-        return new LoginThrottle(perEmail, perAddress, 100, window, 100);
+        return new LoginThrottle(perEmail, perAddress, 100, 100, window, 100);
     }
 
     @Test
@@ -105,7 +105,7 @@ class LoginThrottleTest {
 
     @Test
     void theMapDoesNotGrowWithoutBound() {
-        LoginThrottle throttle = new LoginThrottle(10, 10_000, 100, Duration.ofMinutes(15), 4);
+        LoginThrottle throttle = new LoginThrottle(10, 10_000, 100, 100, Duration.ofMinutes(15), 4);
 
         // The keys are attacker-supplied; this is the eviction that stops a
         // stream of invented addresses filling the heap.
@@ -124,7 +124,7 @@ class LoginThrottleTest {
      */
     @Test
     void countingEveryRegistrationRatherThanOnlyTheFailedOnes() {
-        LoginThrottle throttle = new LoginThrottle(100, 100, 3, Duration.ofMinutes(15), 100);
+        LoginThrottle throttle = new LoginThrottle(100, 100, 3, 100, Duration.ofMinutes(15), 100);
 
         for (int attempt = 0; attempt < 3; attempt++) {
             assertThatCode(() -> throttle.checkRegistration(ADDRESS)).doesNotThrowAnyException();
@@ -142,7 +142,7 @@ class LoginThrottleTest {
      */
     @Test
     void registrationAndSignInCountSeparately() {
-        LoginThrottle throttle = new LoginThrottle(2, 2, 2, Duration.ofMinutes(15), 100);
+        LoginThrottle throttle = new LoginThrottle(2, 2, 2, 100, Duration.ofMinutes(15), 100);
 
         throttle.failed("ana@example.com", ADDRESS);
         throttle.failed("ana@example.com", ADDRESS);

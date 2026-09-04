@@ -146,7 +146,8 @@ Java record → springdoc → `api/build/openapi.json` (written by
   refuses to create a second one, `removeMember` refuses to delete the only one,
   and setting a member's role to `OWNER` demotes the caller to `EDITOR` in the same
   transaction. There is therefore no "last owner" check to forget. Members are
-  added **by email and must already have an account** — nothing here sends mail.
+  added **by email and must already have an account** — the only thing this
+  application mails is a reset link, and only where an operator configured a relay.
   Only the owner manages members; any member may remove *themselves*, which is how
   you leave a trip. Authorisation is checked **before** the target is looked up, so
   a member who may not remove anyone cannot use the 404 to learn who is on the
@@ -249,9 +250,9 @@ Java record → springdoc → `api/build/openapi.json` (written by
   indexed by principal name, so a lookup rather than a scan) while the caller's
   own survives — somebody changing a password they think leaked expects exactly
   that, and signing them out of the page they are looking at would read as
-  failure. There is still no *self-service* reset and there will not be one while
-  nothing here sends mail; the recovery for a forgotten password is an
-  administrator minting a link — see "Administering accounts".
+  failure. The recovery for a forgotten password is an administrator
+  minting a link, and — on an instance that has been given an SMTP relay — the
+  person asking for one themselves. See "Administering accounts".
 - **Renaming yourself has to rewrite the session, not just the row.** The
   principal is serialised into the session at sign-in and read back on every
   request, so `PUT /api/auth/profile` rebuilds the `SecurityContext` with a fresh
@@ -616,9 +617,11 @@ rules are narrow on purpose.
 
 The last piece of sharing, and the way somebody with **no account** joins a trip.
 `TripMemberService.add` cannot reach them: it works by email address and nothing
-here sends mail. A link needs no mail — the owner delivers it themselves. That
-was always the way round the original blocker; delivery was never this
-application's problem.
+here mails an invitation. A link needs no mail — the owner delivers it
+themselves. That was always the way round the original blocker; delivery was
+never this application's problem, and it is still not: the SMTP relay a password
+reset can use is deliberately not wired to this, because an owner who has a
+stranger's address already has a way to send them something.
 
 - **The token is never stored.** `trip_invites.token_hash` is a SHA-256 digest and
   the token exists in exactly one response, once — `CreatedInviteView`, which the
@@ -641,7 +644,8 @@ application's problem.
 - **A live token is also a permit to sign up.** `TripInviteService.admits` is
   asked by registration, and it is the piece that keeps a closed instance from
   being a sealed one: accepting an invitation needs an account, self-signup is off
-  by default, and nothing here sends mail — so without it, switching sign-ups off
+  by default, and nothing here mails an invitation — so without it, switching
+  sign-ups off
   would silently mean nobody but the first-boot admin could ever join. The token
   is **checked, not spent**: `accept` still locks the row and re-checks
   everything, so a token that dies between the two steps costs an account rather
@@ -731,9 +735,11 @@ and had precisely the authority of everybody else. This is what the label means.
 
 ### The reset link
 
-The recovery for a forgotten password, and the same trick as an invitation:
-**a link needs no mail**, and the administrator already has a way to talk to the
-person. Everything about `trip_invites` applies — token never stored, SHA-256 and
+The recovery for a forgotten password, and originally the same trick as an
+invitation: **a link needs no mail**, and the administrator already has a way to
+talk to the person. That is still the default and still the whole mechanism —
+"Asking for one yourself" below adds a *delivery* method, not a second kind of
+link. Everything about `trip_invites` applies — token never stored, SHA-256 and
 not bcrypt (256 CSPRNG bits have nothing to slow down, and a per-row salt would
 make the lookup a scan), single use, expiring, revoked rather than deleted,
 status derived from timestamps, and a row lock on redeem so two requests cannot
@@ -773,8 +779,93 @@ Where it deliberately differs:
 for the same reasons sharpened — a minted token would be written to IndexedDB,
 and a cached list would show a disabled account as active and a revoked link as
 outstanding, which is backwards for controls whose purpose is taking access away.
-`/reset/:token` is the one route outside both the shell and `authGuard`;
-`adminGuard` is a courtesy on `/admin`, since the server refuses regardless.
+`/reset/:token` and `/forgot` are the two routes outside both the shell and
+`authGuard` — the halves of one journey, and both addressed to somebody with no
+session; `adminGuard` is a courtesy on `/admin`, since the server refuses
+regardless.
+
+### Asking for one yourself
+
+The same link, delivered by the machine instead of by the administrator, for the
+instance where recovery cannot go through a person — which is any instance
+strangers can sign up to. `wander.mail.enabled` is **off by default**, like the
+demo trip and for the same reason: it needs a relay somebody has to sign up for,
+and the default has to work on a laptop with no outbound network. Off, the
+endpoint 404s, `/api/config/sign-in` says so, the login page draws no "Forgot
+password?" link, and the administrator's minted link is the only route — exactly
+as before.
+
+- **`MailClient` is a seam, like every other outbound call.** `GeocoderClient`,
+  `EnrichmentClient`, `WeatherClient`, and now this: one interface, replaced with
+  `@MockitoBean`, which is what keeps the suite off the network and out of
+  somebody's inbox. `SmtpMailClient` is the only implementation and **there is no
+  provider in it** — Brevo, Gmail, Resend and a Postfix on the next rack all
+  speak SMTP, so the configuration is Spring's own `spring.mail.*` and changing
+  provider is four lines in `.env`. Same argument as the tiles and the geocoder
+  being settings: which service an instance leans on is the operator's decision.
+- **The bean exists whether or not mail is on**, which is why `JavaMailSender`
+  arrives as an `ObjectProvider`: with `spring.mail.host` unset there is no
+  sender bean, and injecting it directly would fail the context on every instance
+  that is not sending mail — which is most of them. One always-present bean also
+  means the tests have exactly one thing to replace.
+- **Nothing here throws upward**, the enrichment rule again. A relay having a bad
+  afternoon costs a message, not a 500 on a page whose job is to say "check your
+  mail" — and the caller must not be told the difference anyway, which is the
+  next bullet.
+- **Every outcome is 204.** Address found, address unknown, account disabled,
+  relay refused it: the response is identical, because any difference between
+  them answers "does this person have an account here", and on a trip planner
+  that is most of what an attacker wanted to know. The page says "if that address
+  has an account, a link is on its way" and means it literally — it has not been
+  told. The honest limit is written down in `PasswordResetService.requestReset`:
+  a missing account skips a mint and an SMTP round trip, so the two are
+  distinguishable by clock. Closing that would mean mailing nobody or sleeping a
+  random interval, and both are worse than the leak. This stops casual
+  enumeration, not a patient adversary with a stopwatch.
+- **`/api/auth/reset/request` is the third public endpoint**, after
+  `/api/config/sign-in` and redeem, and it needs no new argument — everybody who
+  needs it is by definition somebody who cannot sign in, which is what already
+  bought redeem its exemption.
+- **The tightest limit in `LoginThrottle`, and the only one metering an endpoint
+  that makes something leave the building.** Each call sends a message on a relay
+  somebody signed up for, to a mailbox belonging to a real person, so an
+  unmetered version is not just a way to spend this box's CPU — it is a way to
+  use this instance to post junk at a third party and get its sending domain
+  listed for it. Counted as *attempts* like registration, cleared by nothing but
+  the window, and keyed by **address alone**: the email would be the better key
+  and cannot be used, because keying on it would make the counter a record of
+  which addresses have been asked about. Its own `q:` namespace, separate from
+  redeem's `p:`, so asking too often does not also block a colleague at the same
+  office address finishing theirs.
+- **Minutes, not days.** `wander.mail.reset-expires-minutes` defaults to 60
+  against the admin path's days: an emailed link is acted on immediately or not
+  at all, and it is sitting in a mailbox that may itself be the thing that was
+  compromised.
+- **`createdBy` is the account itself.** Literally true — they asked for it — and
+  it is what lets the admin's list show who requested a link without a nullable
+  column or a migration.
+- **`selfServiceEnabled` is asked of the mail client, not of the property.**
+  "Switched on" is not "able to send": a blank from-address or an unconfigured
+  relay would offer a flow that cannot finish, and the one person who clicks that
+  link is already locked out.
+- **`passwordResetEnabled` follows `registrationEnabled`'s rule, not the rest of
+  the config's**: "not answered yet" reads as *un*available, or the link flickers
+  into existence as somebody reaches for it. `ForgotPage` treats a failed config
+  read the same way, and says the administrator can still mint one.
+- The message is **plain text**, three sentences and one URL. There is no
+  template engine in this project and this is not the feature that should
+  introduce one; an HTML version would be a second copy of the same words to keep
+  in step, and a short plain message from a new sending domain is also the shape
+  least likely to be filed as junk — which for this feature is the difference
+  between working and not. The log records the **subject only**, never the
+  recipient or the body: a reset link in a log file is the thing the whole
+  never-store-the-token design exists to avoid writing down.
+- **The link's base URL is derived from the request unless configured.** That is
+  correct only because `server.forward-headers-strategy: framework` reads the
+  proxy's `X-Forwarded-*` — the same headers `LoginThrottle` leans on. The
+  failure modes differ usefully, though: a wrong throttle is silent, while a
+  wrong base URL produces a link that visibly does not work. Hence deriving it is
+  an acceptable default and `wander.mail.base-url` exists for when it is not.
 
 ## The demo trip
 

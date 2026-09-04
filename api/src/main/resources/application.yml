@@ -2,6 +2,33 @@ spring:
   application:
     name: wander
 
+  # Credentials for whatever relay the operator chose. Spring's own properties
+  # rather than repeated under `wander`: every provider speaks SMTP, so there is
+  # one shape to configure and no vendor named anywhere in this project. Brevo,
+  # Gmail, Resend or a Postfix on the next rack are the same four lines in .env.
+  #
+  # host is blank by default, and that is load-bearing: with no host there is no
+  # JavaMailSender bean at all, which is why SmtpMailClient takes it as an
+  # ObjectProvider instead of injecting it. Injecting it directly would fail the
+  # context on every instance that does not send mail — which is most of them.
+  mail:
+    host: ${WANDER_SMTP_HOST:}
+    port: ${WANDER_SMTP_PORT:587}
+    username: ${WANDER_SMTP_USER:}
+    password: ${WANDER_SMTP_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${WANDER_SMTP_AUTH:true}
+          starttls:
+            enable: ${WANDER_SMTP_STARTTLS:true}
+          # A stalled relay must not hold a request thread open: the endpoint
+          # answers 204 whatever happens, so a slow send would become a slow page
+          # for somebody who is only being told to check their mail.
+          connectiontimeout: 10000
+          timeout: 10000
+          writetimeout: 10000
+
   datasource:
     url: ${WANDER_DB_URL:jdbc:postgresql://localhost:5432/wander}
     username: ${WANDER_DB_USER:wander}
@@ -87,6 +114,26 @@ wander:
   # modify wander, point this at your fork — a link to upstream would name code
   # your instance is not running.
   source-url: ${WANDER_SOURCE_URL:https://gitlab.com/vm83043-dev/wander}
+
+  # Sending mail. Off by default, and the default is the point: this is the only
+  # upstream in wander with no working public option — Nominatim, Open-Meteo and
+  # the tiles all have one — so an operator has to go and get an SMTP relay
+  # before it can do anything. With it off, "Forgot password?" is not offered and
+  # /api/auth/reset/request answers 404; an administrator minting a link by hand
+  # remains the recovery route, exactly as it was.
+  mail:
+    enabled: ${WANDER_MAIL_ENABLED:false}
+    # The envelope sender. It must be an address the relay is authorised to send
+    # for, or the message is signed by one domain while claiming to come from
+    # another — the pattern spam filters exist to catch, and a reset link in a
+    # junk folder is indistinguishable from one that was never sent.
+    from: ${WANDER_MAIL_FROM:}
+    from-name: ${WANDER_MAIL_FROM_NAME:wander}
+    # Blank derives the link from the request, which is right behind a proxy that
+    # sets the forwarded headers. Set it when the links come out wrong.
+    base-url: ${WANDER_MAIL_BASE_URL:}
+    reset-expires-minutes: ${WANDER_MAIL_RESET_EXPIRES_MINUTES:60}
+    max-requests-per-address: ${WANDER_MAIL_MAX_REQUESTS_PER_ADDRESS:5}
   # A worked example trip and a read-only account to look at it with. Off by
   # default because it writes rows — this is for a public demo box, not for
   # somebody's real instance. It re-seeds on every boot (only within its own

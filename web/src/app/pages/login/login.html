@@ -85,6 +85,16 @@
       </form>
     </div>
 
+    <!-- Only on an instance that can actually send it, and only on the sign-in
+         form: there is nothing to have forgotten on the register one. -->
+    @if (passwordResetEnabled() === true && mode() === 'login') {
+      <p class="mt-4 text-center text-sm text-muted">
+        <a routerLink="/forgot" class="font-medium text-accent underline-offset-4 hover:underline">
+          Forgot your password?
+        </a>
+      </p>
+    }
+
     <!-- Nothing to offer on an instance that does not accept sign-ups, and no
          way back from the register form either — so this whole line waits until
          the server has said which it is. An invitation link overrides that: its

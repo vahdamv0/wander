@@ -3,7 +3,10 @@ package com.wander.admin;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,6 +19,8 @@ import com.wander.auth.UserAccountService;
 import com.wander.common.ConflictException;
 import com.wander.common.NotFoundException;
 import com.wander.common.SecureToken;
+import com.wander.config.WanderProperties;
+import com.wander.mail.MailClient;
 import com.wander.user.User;
 import com.wander.user.UserRepository;
 
@@ -53,17 +58,114 @@ public class PasswordResetService {
     /** What an anonymous holder is told, whatever is wrong with their token. */
     private static final String NOT_VALID = "This reset link is not valid.";
 
+    private static final Logger log = LoggerFactory.getLogger(PasswordResetService.class);
+
     private final PasswordResetRepository resets;
     private final UserRepository users;
     private final UserAccountService accounts;
     private final AccountSessions sessions;
+    private final MailClient mail;
+    private final WanderProperties properties;
 
     public PasswordResetService(PasswordResetRepository resets, UserRepository users, UserAccountService accounts,
-            AccountSessions sessions) {
+            AccountSessions sessions, MailClient mail, WanderProperties properties) {
         this.resets = resets;
         this.users = users;
         this.accounts = accounts;
         this.sessions = sessions;
+        this.mail = mail;
+        this.properties = properties;
+    }
+
+    /** Whether this instance can offer the self-service route at all. */
+    public boolean selfServiceEnabled() {
+        return mail.enabled();
+    }
+
+    /**
+     * Somebody who cannot sign in, asking for a link themselves.
+     *
+     * <p><b>This method tells the caller nothing, and that is its entire
+     * design.</b> Unknown address, disabled account, a relay that refused the
+     * message — every path returns quietly, and the controller answers 204 to all
+     * of them, including the ones where nothing happened. An endpoint that
+     * answered "no such account" would be a way to test an address against this
+     * instance without holding anything, and on a trip planner the membership
+     * list is the private part: knowing that a particular person has an account
+     * here is most of what an attacker wanted to learn.
+     *
+     * <p>That is also why the timing is not worth defending beyond this. A
+     * missing account skips a token mint and an SMTP round trip, so a determined
+     * caller can distinguish the two by clock. Closing that would mean sending
+     * mail to nobody or sleeping a random interval, and both are worse than the
+     * leak: the honest limit is that this stops casual enumeration, not a
+     * patient adversary with a stopwatch.
+     *
+     * <p>The link is minted by the same {@code SecureToken} and stored the same
+     * hashed way as an administrator's, so everything the redeem path already
+     * checks — single use, expiry, revocation, the row lock — applies unchanged.
+     * Only two things differ: it lives for minutes rather than days, because a
+     * mailbox is a place a link sits around; and {@code createdBy} is the account
+     * itself rather than an administrator, which is literally true and is what
+     * lets the admin's list show who asked for a link without a nullable column
+     * or a migration.
+     */
+    @Transactional
+    public void requestReset(String email, String baseUrl) {
+        if (!mail.enabled()) {
+            // Should not be reachable — the controller 404s first — but a service
+            // that would silently mint an undeliverable token if that check ever
+            // moved is not one to leave lying around.
+            return;
+        }
+
+        Optional<User> found = users.findByEmailIgnoreCase(email == null ? "" : email.trim());
+        if (found.isEmpty()) {
+            log.debug("Reset requested for an address with no account");
+            return;
+        }
+        User user = found.get();
+        if (user.isDisabled()) {
+            // Deliberately silent, and it matches `create`, which refuses an
+            // administrator outright. A live link must never be a way back into
+            // an account somebody shut off on purpose — and saying so here would
+            // tell an anonymous caller that the account exists.
+            log.debug("Reset requested for a disabled account");
+            return;
+        }
+
+        String token = SecureToken.mint();
+        Instant expiresAt = Instant.now().plus(Duration.ofMinutes(properties.mail().resetExpiresMinutes()));
+        // createdBy is the user: they asked for it. See the note above.
+        resets.save(new PasswordReset(user, SecureToken.hash(token), user, expiresAt));
+
+        String link = baseUrl + "/reset/" + token;
+        mail.send(user.getEmail(), "Reset your wander password", body(user.getDisplayName(), link));
+    }
+
+    /**
+     * The message. Plain text, short, and it says what to do if it was not you.
+     *
+     * No marketing, no logo and exactly one link — partly because that is what
+     * this is, and partly because a short plain message from a new sending domain
+     * is the shape least likely to be filed as junk, which for this feature is
+     * the difference between working and not.
+     */
+    private String body(String displayName, String link) {
+        int minutes = properties.mail().resetExpiresMinutes();
+        return """
+                Hello %s,
+
+                Somebody asked to reset the password on your wander account. If it was
+                you, open this link and choose a new one:
+
+                %s
+
+                The link works once and expires in %d minutes.
+
+                If it was not you, you do not need to do anything: your password has not
+                changed, and the link cannot be used without this message.
+                """.formatted(displayName, link, minutes);
     }
 
     /**

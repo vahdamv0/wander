@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.wander.common.PublicEndpoint;
 import com.wander.config.dto.InstanceConfig;
 import com.wander.config.dto.MapConfig;
+import com.wander.admin.PasswordResetService;
 import com.wander.config.dto.SignInConfig;
 
 /**
@@ -21,9 +22,11 @@ import com.wander.config.dto.SignInConfig;
 public class InstanceConfigController {
 
     private final WanderProperties properties;
+    private final PasswordResetService resets;
 
-    public InstanceConfigController(WanderProperties properties) {
+    public InstanceConfigController(WanderProperties properties, PasswordResetService resets) {
         this.properties = properties;
+        this.resets = resets;
     }
 
     /**
@@ -47,7 +50,12 @@ public class InstanceConfigController {
         WanderProperties.Demo demo = properties.demo();
         return new SignInConfig(properties.registrationEnabled(), properties.sourceUrl(),
                 demo.enabled() ? demo.email() : "",
-                demo.enabled() ? demo.password() : "");
+                demo.enabled() ? demo.password() : "",
+                // Asked of the mail client rather than of the property, because
+                // "switched on" is not the same as "able to send": a blank
+                // from-address or an unconfigured relay would offer a flow that
+                // cannot finish. See SmtpMailClient.enabled().
+                resets.selfServiceEnabled());
     }
 
     @GetMapping

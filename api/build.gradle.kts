@@ -1,6 +1,31 @@
+import com.github.jk1.license.render.TextReportRenderer
+import com.github.jk1.license.filter.LicenseBundleNormalizer
+
 plugins {
     java
     id("org.springframework.boot")
+    id("com.github.jk1.dependency-license-report")
+}
+
+/*
+ * Third-party notices for everything that ships inside the boot jar's
+ * BOOT-INF/lib. MIT, BSD and ISC all require the copyright notice to travel
+ * with a *binary* distribution, and a container image is a binary distribution
+ * — so a jar with no notices is the one licence obligation this project was
+ * failing while insisting on its own (the AGPL section 13 source link).
+ *
+ * runtimeClasspath, not compileClasspath and not testRuntimeClasspath: the
+ * question is what gets distributed. A test-only dependency is never shipped,
+ * so it imposes nothing, exactly as the web build's `--omit=dev` argues.
+ */
+licenseReport {
+    configurations = arrayOf("runtimeClasspath")
+    renderers = arrayOf(TextReportRenderer("THIRD-PARTY-java.txt"))
+    // POMs spell the same licence a dozen ways ("Apache 2", "The Apache
+    // Software License, Version 2.0"). The normaliser maps them onto SPDX ids
+    // so the report can be read, and so a policy can be written against it.
+    filters = arrayOf(LicenseBundleNormalizer())
+    outputDir = layout.buildDirectory.dir("reports/licenses").get().asFile.absolutePath
 }
 
 val springBootVersion = "4.1.1"
@@ -18,6 +43,14 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("org.springframework.boot:spring-boot-starter-validation")
+    // Self-service password reset delivers a link by mail, and this is the only
+    // outbound dependency an *operator* has to configure — everything else
+    // upstream (Nominatim, Open-Meteo, the tiles) has a working public default.
+    // Off unless wander.mail.enabled, so an instance with no SMTP relay, or no
+    // outbound network at all, is unaffected. The starter brings the
+    // autoconfiguration plus angus-mail, which is the implementation behind
+    // jakarta.mail-api: the API alone would compile and then fail at runtime.
+    implementation("org.springframework.boot:spring-boot-starter-mail")
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:$springdocVersion")
     // Live sync. A plain WebSocket handler, not STOMP: the client sends nothing
     // and the payload is one small invalidation event, so a broker and a

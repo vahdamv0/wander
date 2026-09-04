@@ -50,8 +50,8 @@ More: [the trip list](docs/screenshots/trips.png) ·
 - Administering the instance: an admin sees the accounts on it, can take one out
   of service (which signs it out everywhere, at once), can make somebody else an
   administrator or step down themselves, and can send somebody a single-use link
-  to set a new password — the recovery for a forgotten one, on an instance that
-  sends no email
+  to set a new password — the recovery for a forgotten one; with SMTP configured,
+  people can also request that link themselves from the sign-in page
 - Create, rename and reschedule trips, scoped to the people who are members of them
 - A trip's days are derived from its date range, never stored — and moving the
   dates carries the itinerary with it rather than stranding it
@@ -139,18 +139,27 @@ Four things, and none of them is a code change:
 2. `WANDER_SITE_ADDRESS` is your hostname and `WANDER_COOKIE_SECURE=true`. They
    move together; see the note in `.env.example` for what happens if only one of
    them does.
-3. **There is no *self-service* password reset, because nothing here sends
-   mail.** Somebody signed in can change their own password (Account, from the
-   avatar in the header). Somebody who has *forgotten* it cannot recover it on
-   their own — there is no "forgot password" link, and there will not be one
-   while this instance sends no email. What there is instead is you: from
-   Accounts in the same menu, an admin mints a single-use link and delivers it
-   however they already talk to that person, exactly as an invitation link
-   works. Nobody has to edit `users.password_hash` by hand any more, and an
-   instance can have more than one administrator, so losing one account's
-   password is not losing the instance. The limit that remains is that recovery
-   goes through a human, so sign-ups being off by default keeps the two facts in
-   step: the people with accounts are people you can reach.
+3. **Decide how a forgotten password gets recovered.** Somebody signed in can
+   change their own (Account, from the avatar in the header). Somebody who has
+   *forgotten* it has two possible routes, and which ones exist is your choice.
+
+   By default there is one: **you**. From Accounts in the same menu, an admin
+   mints a single-use link and delivers it however they already talk to that
+   person, exactly as an invitation link works. Nobody edits
+   `users.password_hash` by hand, and an instance can have more than one
+   administrator, so losing one account's password is not losing the instance.
+   The limit is that recovery goes through a human — which pairs with sign-ups
+   being off by default, and keeps two facts in step: the people with accounts
+   are people you can reach.
+
+   Set `WANDER_MAIL_ENABLED=true` with an SMTP relay and there is a second: a
+   **"Forgot password?" link** that mails the same kind of link to the address
+   on the account. This is what makes self-signup survivable at any size, since
+   an instance strangers can join is one where recovery cannot go through you.
+   The endpoint answers identically for an address it knows and one it does not
+   — it will never confirm who has an account here — so the page can only say
+   "if that address has an account, a link is on its way". See `.env.example`
+   for which relay to pick; **there is no provider in the code**, only SMTP.
 4. The backups are on the same disk as the database. They survive a bad
    migration, a wrong `DELETE` and a corrupted table; they do not survive losing
    the machine. Copy them off it — see below.
@@ -269,6 +278,32 @@ cd web && npm run api:gen                # regenerate the typed client from that
 Tests need a Docker daemon: they run against a real Postgres via Testcontainers,
 never H2, because the migrations use Postgres-specific SQL.
 
+**Checking for secrets.** `scripts/scan-secrets.sh` runs
+[gitleaks](https://github.com/gitleaks/gitleaks) over this repository — pinned to
+a version, using a local install if you have one and Docker if you do not, so a
+fresh clone can run it with nothing installed.
+
+```bash
+scripts/scan-secrets.sh           # every branch's history — the important one
+scripts/scan-secrets.sh tree      # files on disk now, untracked ones included
+scripts/scan-secrets.sh staged    # what the next commit would carry
+```
+
+Run it before making a repository public and before pushing a branch that
+touched configuration — which now includes SMTP credentials, since a relay
+password is the first real secret this project asks an operator to hold. Three
+things about it are worth knowing rather than rediscovering. **History is the
+point**: a file deleted in a later commit is still in the repository, and
+publishing the repository publishes it, so the default mode scans every ref
+rather than the checked-out branch. **The report is written outside the
+repository**, into a temporary directory whose path is printed, because a
+findings file names where every secret lives and is the last thing you want
+committed into the tree it describes. And the exit status is 0 for clean, 1 for
+findings — so it gates a hook or a pipeline without anybody reading the output.
+`.gitleaks.toml` allowlists the downloaded Node toolchain, Gradle's caches and
+the generated test reports; nothing in it is a real finding waved away, only
+trees that are already in `.gitignore` and can never be committed.
+
 **Thinking of contributing?** [CONTRIBUTING.md](CONTRIBUTING.md) is the short
 version — what to install, what CI gates on, and the one rule people trip over
 (the API client under `web/src/app/api/` is generated and committed; never edit
@@ -375,7 +410,7 @@ because the default has to be the safe answer for the deployment that faces the
 internet — an open form there hands this machine's Nominatim, Wikimedia and
 Open-Meteo budget, donated capacity all of it, to whoever finds the hostname. Off
 would be useless if it also broke invitation links, though: accepting one requires
-an account, and nothing here sends mail to make one another way. So a live
+an account, and nothing here mails an invitation to make one another way. So a live
 invitation token is accepted by the sign-up form as authorisation in its own
 right. It is checked there and spent later, by the join — the failure worth having
 is an account with no trip, not an invitation burned on the way to a sign-up that
@@ -600,3 +635,21 @@ wrong:
   instance is not running. Blanking it hides the link, which is meant for a
   private box nobody else is offered; on a public instance that is most likely a
   violation rather than a preference.
+
+### Third-party notices
+
+wander redistributes other people's code — Angular, Leaflet, MapLibre and rxjs
+in the browser bundle, Spring and its dependencies in the jar. MIT, BSD, ISC and
+Apache-2.0 all require the copyright notice to travel with a **binary**
+distribution, and a container image is a binary distribution, so the image
+carries them:
+
+```bash
+docker run --rm --entrypoint sh registry.gitlab.com/vm83043-dev/wander:latest -c 'cat /app/THIRD-PARTY.txt'
+```
+
+It is **generated at build time**, never committed, for the same reason the API
+client is generated: a hand-maintained list goes stale the first time somebody
+adds a dependency without thinking about licences, which is the normal case and
+exactly when it most needs to be right. `./gradlew thirdPartyNotices` writes it
+to `build/THIRD-PARTY.txt` locally.
