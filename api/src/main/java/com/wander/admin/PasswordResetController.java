@@ -8,12 +8,15 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import com.wander.admin.dto.RedeemResetRequest;
+import com.wander.admin.dto.RequestResetRequest;
 import com.wander.admin.dto.ResetPreview;
 import com.wander.auth.LoginThrottle;
 import com.wander.common.NotFoundException;
 import com.wander.common.PublicEndpoint;
+import com.wander.config.WanderProperties;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -47,10 +50,71 @@ public class PasswordResetController {
 
     private final PasswordResetService resets;
     private final LoginThrottle throttle;
+    private final WanderProperties properties;
 
-    public PasswordResetController(PasswordResetService resets, LoginThrottle throttle) {
+    public PasswordResetController(PasswordResetService resets, LoginThrottle throttle,
+            WanderProperties properties) {
         this.resets = resets;
         this.throttle = throttle;
+        this.properties = properties;
+    }
+
+    /**
+     * Ask for a link, as the person who cannot sign in.
+     *
+     * <b>Always 204</b>, for every outcome: address found, address unknown,
+     * account disabled, relay refused the message. The response is the same
+     * because any difference between them is an answer to "does this person have
+     * an account on this instance", which is not a question an anonymous caller
+     * gets to ask. The page says "if that address has an account, a link is on
+     * its way" and means it literally.
+     *
+     * <b>404 when this instance does not send mail</b>, which is the default.
+     * That is not an enumeration leak — it is a fact about the instance, already
+     * published on {@code /api/config/sign-in} so the login page knows not to
+     * offer the link, and identical for every caller.
+     *
+     * Throttled by address before anything else happens, and counted as an
+     * attempt whatever the outcome: this is the one endpoint here that makes
+     * something leave the building. See {@code LoginThrottle.checkResetRequest}.
+     */
+    @PublicEndpoint
+    @PostMapping("/request")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void requestReset(@Valid @RequestBody RequestResetRequest request, HttpServletRequest httpRequest) {
+        if (!resets.selfServiceEnabled()) {
+            throw new NotFoundException("This instance does not send mail.");
+        }
+        String address = clientAddress(httpRequest);
+        throttle.checkResetRequest(address);
+        throttle.resetRequested(address);
+        resets.requestReset(request.email(), baseUrl(httpRequest));
+    }
+
+    /**
+     * Where the link in the mail points.
+     *
+     * Configured wins; otherwise it is rebuilt from the request, which is correct
+     * only because {@code server.forward-headers-strategy: framework} makes
+     * Spring read the proxy's {@code X-Forwarded-*} — the same headers
+     * {@code LoginThrottle} already leans on. The failure modes differ in one
+     * useful way, though: a wrong throttle is silent, while a wrong base URL
+     * produces a link that visibly does not work, which is why deriving it is an
+     * acceptable default and a setting exists for when it is not.
+     *
+     * The trailing slash goes, or every link in every message has two.
+     */
+    private String baseUrl(HttpServletRequest request) {
+        String configured = properties.mail().baseUrl();
+        if (!configured.isBlank()) {
+            return trimTrailingSlash(configured);
+        }
+        return trimTrailingSlash(UriComponentsBuilder.fromUriString(request.getRequestURL().toString())
+                .replacePath(null).replaceQuery(null).build().toUriString());
+    }
+
+    private static String trimTrailingSlash(String url) {
+        return url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
     }
 
     /** What the link says before you commit to it. */

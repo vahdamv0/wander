@@ -4,6 +4,7 @@
 export interface SignInConfig {
   demoEmail: string;
   demoPassword: string;
+  passwordResetEnabled: boolean;
   registrationEnabled: boolean;
   sourceUrl: string;
 }

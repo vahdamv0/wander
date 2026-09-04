@@ -57,6 +57,7 @@ public class LoginThrottle {
     private final int maxPerEmail;
     private final int maxPerAddress;
     private final int maxRegistrationsPerAddress;
+    private final int maxResetRequestsPerAddress;
     private final AttemptCounter counter;
 
     // Explicit, because the second constructor below means there is a choice to
@@ -64,16 +65,17 @@ public class LoginThrottle {
     @Autowired
     public LoginThrottle(WanderProperties properties) {
         this(properties.login().maxFailuresPerEmail(), properties.login().maxFailuresPerAddress(),
-                properties.login().maxRegistrationsPerAddress(),
+                properties.login().maxRegistrationsPerAddress(), properties.mail().maxRequestsPerAddress(),
                 Duration.ofMinutes(properties.login().windowMinutes()), properties.login().trackedKeys());
     }
 
     /** Takes the window as a Duration so a test can use one measured in milliseconds. */
-    LoginThrottle(int maxPerEmail, int maxPerAddress, int maxRegistrationsPerAddress, Duration window,
-            int trackedKeys) {
+    LoginThrottle(int maxPerEmail, int maxPerAddress, int maxRegistrationsPerAddress,
+            int maxResetRequestsPerAddress, Duration window, int trackedKeys) {
         this.maxPerEmail = maxPerEmail;
         this.maxPerAddress = maxPerAddress;
         this.maxRegistrationsPerAddress = maxRegistrationsPerAddress;
+        this.maxResetRequestsPerAddress = maxResetRequestsPerAddress;
         this.counter = new AttemptCounter(window, trackedKeys);
     }
 
@@ -153,6 +155,39 @@ public class LoginThrottle {
         counter.forget(resetKey(address));
     }
 
+    /**
+     * Called before a self-service reset link is asked for.
+     *
+     * This is the tightest limit in the class, and it is the only one that meters
+     * an endpoint which makes something leave the building. Every call sends a
+     * message on a relay somebody signed up for, addressed to a mailbox belonging
+     * to a real person, so an unmetered version is not merely a way to spend this
+     * box's CPU — it is a way to use this instance to post junk at a third party
+     * and to get its sending domain listed for it.
+     *
+     * *Attempts*, like registration rather than like sign-in: a request that
+     * found no account still cost a lookup, and one that worked still sent mail.
+     * Nothing clears it but the window passing, because a success here is not
+     * evidence of anything — the caller has not proved they own the address.
+     *
+     * Keyed by address alone. The email would be the better key and cannot be
+     * used: keying on it would make the counter a record of which addresses have
+     * been asked about, which is the fact this whole endpoint is written to keep
+     * quiet.
+     *
+     * @throws RateLimitedException when this address has asked too often
+     */
+    public void checkResetRequest(String address) {
+        if (counter.spent(resetRequestKey(address), maxResetRequestsPerAddress)) {
+            throw new RateLimitedException("Too many requests. Wait a few minutes and try again.");
+        }
+    }
+
+    /** One request from this address, counted whether or not it found an account. */
+    public void resetRequested(String address) {
+        counter.record(resetRequestKey(address));
+    }
+
     /** For the test that holds the bound on the map. */
     int trackedKeyCount() {
         return counter.trackedKeyCount();
@@ -178,5 +213,16 @@ public class LoginThrottle {
     /** And its own again, so a spent reset counter does not lock the household out of signing in. */
     private static String resetKey(String address) {
         return "p:" + (address == null ? "" : address);
+    }
+
+    /**
+     * Separate from {@code resetKey}, so asking for links too often does not also
+     * block redeeming one. They are opposite ends of the same journey and the
+     * person at the second end may be somebody else entirely — a shared office
+     * address where one person requested five links should not stop a colleague
+     * finishing theirs.
+     */
+    private static String resetRequestKey(String address) {
+        return "q:" + (address == null ? "" : address);
     }
 }

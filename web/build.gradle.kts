@@ -1,4 +1,5 @@
 import com.github.gradle.node.npm.task.NpmTask
+import com.github.gradle.node.task.NodeTask
 
 plugins {
     java
@@ -45,6 +46,16 @@ tasks.register<NpmTask>("apiGen") {
     npmCommand = listOf("run", "api:gen")
     inputs.file(rootProject.file("api/build/openapi.json"))
     outputs.dir("src/app/api")
+}
+
+tasks.register<NodeTask>("webLicenses") {
+    description = "Writes third-party notices for the shipped browser bundle."
+    dependsOn(tasks.named("npmInstall"))
+    script = layout.projectDirectory.file("scripts/collect-licenses.mjs").asFile
+    val out = layout.buildDirectory.file("third-party/THIRD-PARTY-web.txt")
+    args = listOf(out.get().asFile.absolutePath)
+    inputs.files("package.json", "package-lock.json", "scripts/collect-licenses.mjs")
+    outputs.file(out)
 }
 
 // Angular writes to build/frontend/browser (see angular.json outputPath), which

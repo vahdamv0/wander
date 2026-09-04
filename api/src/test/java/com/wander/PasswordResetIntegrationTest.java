@@ -241,4 +241,45 @@ class PasswordResetIntegrationTest extends IntegrationTestBase {
             throw new IllegalStateException(ex);
         }
     }
+
+    /**
+     * With no relay configured — the default, and what this whole file is about —
+     * the self-service door is simply not there.
+     *
+     * A 404 rather than a 503 or a polite 204, because it is a fact about the
+     * instance rather than about the caller: identical for everybody, already
+     * published on /api/config/sign-in, and it leaks nothing. The alternative —
+     * answering 204 and sending nothing — would tell somebody locked out that
+     * help was on its way when it never was.
+     */
+    @Test
+    void withoutMailThereIsNoSelfServiceDoor() {
+        String csrf = bootstrapCsrf();
+        ResponseEntity<String> response = http().post()
+                .uri("/api/auth/reset/request")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header(HttpHeaders.COOKIE, "XSRF-TOKEN=" + csrf)
+                .header("X-XSRF-TOKEN", csrf)
+                .body("{\"email\":\"anybody@example.com\"}")
+                .retrieve()
+                .onStatus(status -> true, (request, res) -> {
+                })
+                .toEntity(String.class);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(404);
+    }
+
+    /**
+     * And the login page is told, so it does not offer a link that leads to that
+     * 404. This follows registrationEnabled's rule rather than the rest of the
+     * config's: absent reads as unavailable, because a "Forgot password?" link
+     * that appears a moment late is better than one that vanishes as somebody
+     * reaches for it.
+     */
+    @Test
+    void theSignInPageIsToldThereIsNoSelfServiceReset() {
+        Map<String, Object> config = asMap(
+                http().get().uri("/api/config/sign-in").retrieve().toEntity(String.class).getBody());
+        assertThat(config).containsEntry("passwordResetEnabled", false);
+    }
 }

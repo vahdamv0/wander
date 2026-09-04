@@ -29,6 +29,7 @@ class NominatimClientTest {
         return new WanderProperties("test", "", "", true, "EUR", new WanderProperties.Admin("", ""),
                 new WanderProperties.Demo(false, "", "", 45),
                 new WanderProperties.Login(10, 40, 20, 15, 10000),
+                new WanderProperties.Mail(false, "", "wander", "", 60, 5),
                 new WanderProperties.Quota(120, 60, 60, 5, 10000),
                 new WanderProperties.Csp(true, false, ""),
                 new WanderProperties.Geocoding(true, "http://localhost:1", "", "en", 1000, 2000, 600, 500),

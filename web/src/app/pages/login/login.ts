@@ -1,6 +1,6 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Api, getSignInConfig } from '../../api';
 import { messageOf } from '../../core/errors';
 import { SessionStore } from '../../core/session.store';
@@ -8,7 +8,7 @@ import { BrandMark } from '../../shell/brand-mark';
 
 @Component({
   selector: 'app-login',
-  imports: [FormsModule, BrandMark],
+  imports: [FormsModule, RouterLink, BrandMark],
   templateUrl: './login.html',
 })
 export class LoginPage {
@@ -86,6 +86,15 @@ export class LoginPage {
   protected readonly sourceUrl = signal('');
 
   /**
+   * Whether this instance can mail a reset link. Null until the server says, and
+   * the offer stays hidden until then — `registrationEnabled`'s rule, not the
+   * shell's, and for a sharper version of the same reason. The person who clicks
+   * this is already locked out; offering them a route that turns out not to
+   * exist is worse than making them ask the administrator directly.
+   */
+  protected readonly passwordResetEnabled = signal<boolean | null>(null);
+
+  /**
    * The published demo credentials, or empty on an instance without a demo.
    *
    * Shown rather than hidden behind a "sign in as demo" button that posts them
@@ -119,11 +128,13 @@ export class LoginPage {
       this.sourceUrl.set(config.sourceUrl);
       this.demoEmail.set(config.demoEmail);
       this.demoPassword.set(config.demoPassword);
+      this.passwordResetEnabled.set(config.passwordResetEnabled);
     } catch {
       // Unreachable config is not a reason to strand somebody who has an
       // account: the form still works, and the server refuses a sign-up anyway
       // if it is switched off.
       this.registrationEnabled.set(false);
+      this.passwordResetEnabled.set(false);
     }
   }
 

@@ -40,5 +40,21 @@ public record SignInConfig(
          * instance publishes nothing at all here.
          */
         @NotNull String demoEmail,
-        @NotNull String demoPassword) {
+        @NotNull String demoPassword,
+        /**
+         * Whether this instance can mail somebody a reset link.
+         *
+         * The login page needs it to decide whether to draw "Forgot password?",
+         * and drawing it on an instance that cannot send is worse than not
+         * drawing it at all: the one person who clicks it is, by definition,
+         * already locked out, and a form that quietly does nothing is how they
+         * learn there is no way back.
+         *
+         * It publishes nothing an anonymous caller could not establish by
+         * posting to the endpoint and reading the 404. Note this follows
+         * `registrationEnabled`'s rule rather than the rest of the config's:
+         * "not answered yet" must read as *un*available, or the link flickers
+         * into existence and out again as the page loads.
+         */
+        @NotNull boolean passwordResetEnabled) {
 }

@@ -38,6 +38,7 @@ export type { PlaceSuggestion } from './models/place-suggestion';
 export type { PlaceView } from './models/place-view';
 export type { RedeemResetRequest } from './models/redeem-reset-request';
 export type { RegisterRequest } from './models/register-request';
+export type { RequestResetRequest } from './models/request-reset-request';
 export type { ReservationRequest } from './models/reservation-request';
 export type { ReservationView } from './models/reservation-view';
 export type { ResetPreview } from './models/reset-preview';
