@@ -71,6 +71,26 @@ services:
       WANDER_SMTP_PASSWORD:
       WANDER_SMTP_AUTH:
       WANDER_SMTP_STARTTLS:
+      # Reading a booking out of an uploaded confirmation. See .env.example.
+      # Pass-through, like the mail block: unset variables reach the container
+      # absent, so application.yml decides.
+      #
+      # **WANDER_IMPORT_EXTRACTOR_SEARCH_PATH is deliberately not in this list**,
+      # and that is the opposite of the WANDER_SOURCE_URL reasoning rather than an
+      # oversight. A null entry here does not merely decline to set a variable —
+      # it *unsets* one the image had set, and the Dockerfile sets this one to
+      # /app/extractors, where the fixes to KItinerary's own extractors live. So
+      # listing it removed them, silently: no failure, no log line, just a
+      # confirmation that stopped importing. Verified with `env` inside the
+      # container, because nothing else would have shown it. Overriding the path
+      # means mounting your own scripts, which needs a volume and an edit here
+      # anyway.
+      WANDER_IMPORT_ENABLED:
+      WANDER_IMPORT_MAX_FILE_SIZE:
+      WANDER_IMPORT_MAX_REQUEST_SIZE:
+      WANDER_IMPORT_EXTRACTOR_PATH:
+      WANDER_IMPORT_TIMEOUT_SECONDS:
+      WANDER_IMPORT_MAX_OUTPUT_BYTES:
       # A seeded example trip and a published read-only account. Off unless this
       # is a demo instance; see .env.example.
       WANDER_DEMO_ENABLED: ${WANDER_DEMO_ENABLED:-false}

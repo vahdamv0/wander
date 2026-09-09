@@ -1044,6 +1044,169 @@ that crosses a timezone.
   number stays local, because guessing a country code is how you ring a stranger
   at 1am. It prints, which is half the point: on paper there is nothing to tap.
 
+## Booking import
+
+Reading a booking out of a confirmation: an email, a PDF, an HTML page, a
+calendar attachment or an Apple Wallet pass.
+
+- **It writes nothing, and that is the whole shape of the feature.** `POST
+  .../reservations/import` answers with *drafts*, the client prefills the booking
+  form the reservations page already has, and the user saves through the ordinary
+  `createReservation`. So there is one write path, one set of validation rules, no
+  `TripChanges` event, and nothing to roll back — and a misread file costs a
+  correction on screen rather than a wrong row that live sync puts on everybody
+  else's screen within the second, with no undo.
+  `importingWritesNothing` is the load-bearing test in the suite: everything else
+  here could work perfectly and the feature would still be wrong if a parse
+  reached the database.
+- **The parsing is borrowed, not written.** `BookingExtractor` has one
+  implementation, and it execs KDE's `kitinerary-extractor` — 349 provider
+  extractors (airlines, railways, hotel chains, and the white-label platforms
+  small hotels actually run on: Amadeus, Availpro, Caesar Data, Direct-Book),
+  schema.org JSON-LD **and** microdata, `.pkpass`, IATA boarding-pass barcodes,
+  phone numbers through libphonenumber. A hand-written parser competing with any
+  of that would be worse in every way, and per-vendor parsers of our own would be
+  a treadmill that fails *silently* when a template changes.
+- **One exception, and it is a patch rather than a parser.** `extractors/` holds
+  extractor scripts of our own, handed to the engine as
+  `--additional-search-path` (`wander.booking-import.extractor-search-path`,
+  which the image points at `/app/extractors`). The bar is in
+  `extractors/README.md` and it is narrow: **upstream must already have an
+  extractor for that vendor and it must nearly work.** `ana-fullyear.js` is
+  KItinerary's own `ana.js` with a four-digit year, because an ANA SKY WEB India
+  e-ticket prints `31OCT2026` where the upstream regex wants `31OCT26` — so no
+  leg matches and the import answers "nothing recognised". Writing the *first*
+  parser for a vendor is still the treadmill; correcting a year format is not,
+  and each file here is a patch waiting for upstream to take it.
+  **The year is matched as four digits only, never two-or-four**, which is what
+  keeps the patch and the built-in extractor disjoint: both are loaded and both
+  are offered every matching document, so a script that could match a
+  Japan-issued ticket too would import every leg of it twice. That, and the
+  manifest pairing, is what `ExtractorManifestTest` pins — every way of
+  mis-wiring an extractor is silent, because a script that fails to load looks
+  exactly like a document nothing recognised.
+- **`poppler-data` is a hard dependency of reading a PDF, not a nicety.**
+  Without those CMap tables poppler cannot decode the text of a document in a
+  CJK character collection, and KItinerary hands every matching script an
+  **empty** `pdf.pages[n].text`. Nothing errors: each script returns nothing and
+  the import says "nothing recognised", which is indistinguishable from a
+  template nobody has written an extractor for — and it sent this project
+  looking for a bad regex first. A Japanese airline's e-ticket is exactly such a
+  document. 13MB unpacked of the image's 737, 4MB of the 291 a pull fetches.
+- **It resolves the timezone itself**, from its own airport and address
+  databases — `HND` becomes `Asia/Tokyo`, with a flight's two zones separately.
+  That is why nothing in this project ships a table of IATA codes: one was
+  designed and then deleted when the engine turned out to answer the question
+  already. The `QDateTime` wrapper carrying `timezone` beside `@value` is
+  precisely the wall-clock-plus-zone pair `reservations` stores, which is what
+  made borrowing the engine worth its weight.
+- **A subprocess, and that is a feature.** It is C++ and Qt behind poppler and
+  ZXing parsing a file a stranger mailed somebody, so a malformed PDF that
+  segfaults or wedges the parser kills a child on a timeout instead of taking the
+  instance down. Nothing is linked, nothing is generated at build time, and
+  Gradle knows nothing about any of it — the relationship `backup/backup.sh` has
+  with `pg_dump`. The binary is resolved to an **absolute path once at startup**
+  and probed with `--version`; re-resolving through `PATH` per call would mean
+  anyone able to write to a directory on it gets their binary run as the app user.
+- **The upload is never stored.** It is written into `/dev/shm` at 0600 for the
+  tenth of a second the extractor needs and deleted in a `finally` — a
+  confirmation holds a booking reference and sometimes a passport number, and the
+  nightly dumps leave the machine, which is the same bargain
+  `trip_invites.token_hash` makes. Nothing about the file, its name or its
+  contents is logged, for the same reason.
+- **`IcsBookingReader` exists because of one measured gap, not on principle.**
+  KItinerary returns **nothing at all** for a generic `VEVENT` — verified
+  standalone *and* attached to a multipart email, with a context date supplied
+  and `--no-validation`. That matters because a calendar attachment is what a
+  hotel, restaurant or tour operator with no vendor extractor sends, and that
+  long tail is exactly the self-hoster's small local hotel. It is pure and static
+  rather than a second implementation of the seam: there is nothing external to
+  stand in for.
+- **Reaching into the MIME tree is what makes that reader reachable.** Nobody
+  has a bare `.ics`; they have the email it was attached to. `jakarta.mail` is
+  already on the classpath from the mail starter, and a MIME parser is a MIME
+  parser.
+- **A date-only `DTEND` is exclusive.** RFC 5545 writes a stay from the 15th to
+  the 18th as `DTEND;VALUE=DATE:20261019`. Read it literally and every imported
+  hotel stay checks out a day late — invisible, because the number on the screen
+  is the number in the file. `treatsAnAllDayEndAsExclusive` is what holds it.
+- **Date and time are separate fields on a draft, and neither is required.**
+  That is why `ReservationDraft` is not shaped like `ReservationRequest`: a
+  `LocalDateTime` cannot say "the 15th, time unknown", which is what an all-day
+  entry and a ticket with no time both give you. Forcing midnight in would invent
+  a departure hour. They also line up with the page's existing draft signals, so
+  prefilling is assignment rather than parsing.
+- **Nothing is guessed from prose.** A calendar draft's kind is always `OTHER`
+  even when the summary says "Hotel" — inferring one is the `places.category`
+  mistake, a decorative label promoted to load-bearing. No confirmation code is
+  fished out of a description either; the description travels verbatim into the
+  notes, so the code is in front of the user either way, and guessing which token
+  is the reference is how the field gets confidently filled with a flight number.
+  An unrecognised `TZID` leaves the zone null rather than substituting one.
+- **There is no PDF text-salvage layer, and that is a decision.** PDFBox plus
+  token regexes, to produce a title and a pile of notes in the case where 349
+  vendor scripts found nothing, is the worst ratio of code to value in the
+  feature — and its only possible output is a low-confidence draft. An empty
+  answer names the readers that looked instead.
+- **Two booleans on `/api/config`, not one.** `bookingImportEnabled` is the
+  switch; `bookingDocumentImport` says whether documents can be read or only
+  calendars, because an image built without the extractor still imports `.ics`
+  and reporting a PDF there as "nothing recognised" would send somebody hunting a
+  fault in a file that is fine. `bookingImportEnabled` **inverts the rest of
+  `/api/config`'s rule** and reads "not answered yet" as *un*available, like
+  `registrationEnabled`: an Import button that appears and then errors is worse
+  than one that appears a beat late.
+- **Not metered.** `UpstreamQuota` is for endpoints that spend somebody else's
+  donated capacity, and this one calls nothing outward — a local process, ~170ms,
+  on a trip the caller can already edit. The limit that matters is
+  `spring.servlet.multipart.max-file-size`, plus the extractor's own timeout and
+  output cap. An unrecognised file is a **200 with an empty list**, the enrichment
+  rule again: a confirmation this instance cannot parse is a nicety not
+  delivered, not an error.
+- The image cost is real and measured: **282MB to 737MB unpacked, 134MB to
+  291MB compressed** — +157MB to pull, which is the half an operator waits for.
+  ~90MB peak resident for ~170ms per import. All amd64. Re-measure the same way
+  or the numbers drift apart: compressed is the layer sizes in the manifest,
+  unpacked is the sum of the layer diffs, and `docker image ls` is neither — it
+  reports the unpacked snapshot and answered 1.03GB to the same question. See
+  the Dockerfile comment for the
+  two things not to do to it — Mesa cannot be deleted (Qt6Gui hard-links libEGL,
+  which pulls libgallium at process start), and the package is in Alpine
+  `community` rather than `main` while the base tag floats.
+
+On the client:
+
+- **The prefill fills the same signals the form already had**, so there is one
+  editor and one save path. Import is a prefill, not a second way to create a
+  booking — the same argument as the place panel being the only editor for a
+  place.
+- **`ReservationRepo.importFile` is not a write**, so it skips `write`, raises
+  its own `importing` signal rather than `saving`, and does not re-read the list
+  afterwards. It has **no `OfflineCache`**: parsing happens on the server, and a
+  cached result would be last week's file.
+- **It must be handed a `File`, never a `Blob`.** The generated client puts it
+  through `FormData.set`, which only carries a filename for a `File` — a plain
+  `Blob` arrives named "blob", and the server picks its reader from the
+  extension, so every upload would be refused. Nothing fails visibly at compile
+  time; the parameter's type is `Blob`.
+- **One draft goes straight into the form; several are listed.** Both stay on
+  offer until each is saved, and `cancel` deliberately does *not* clear them —
+  abandoning one leg of a return trip must not throw the other away. A draft is
+  retired by a successful save, not by being picked.
+- **The zone picker has to accept a zone the browser does not list.** A document
+  that gave an offset without naming a zone comes back as `+09:00`, which is not
+  in `Intl.supportedValuesOf`, so `zones` is a computed that unions the imported
+  ones in. Without it the select would show something else while the model held
+  the offset — the quiet way to move a booking nine hours.
+- **`prefillNote` says what the file did not.** A zone defaulted to the reader's
+  own looks exactly like one the document named, and that is the gap nobody would
+  notice. It names a missing start time *and* a missing end time separately,
+  because an all-day calendar entry has a date at each end and a clock at
+  neither, and being told only about the start leaves the reader hunting for why
+  the form will not submit.
+- `bookingImportEnabled` defaults to **false** in `InstanceConfigStore`, which
+  inverts that store's usual optimism, for the reason given above.
+
 ## The forecast on a day card
 
 A fifth upstream, behind the same shape as the others: `WeatherClient` is the seam
@@ -1293,6 +1456,50 @@ alongside everything else.
   and it **pulls** rather than having the server push, because a compromised
   machine cannot reach a destination it holds no credentials for.
 
+## Third-party notices
+
+`THIRD-PARTY.txt` in the image, in **three parts**, generated in two places
+because they answer to two different things.
+
+- **An image is a binary distribution**, so MIT, BSD, ISC and Apache-2.0 all
+  require the copyright notice to accompany it. That is the argument
+  `api/build.gradle.kts` already made about `BOOT-INF/lib`, and it does not stop
+  at the jar.
+- **Parts 1 and 2 are Gradle's** — the browser bundle and the server's jars,
+  from `runtimeClasspath` and the npm tree, because the question is what gets
+  distributed and a test-only dependency ships nothing.
+- **Part 3 is `deploy/os-notices.sh`, run in the runtime stage**, and it cannot
+  move into Gradle: the package set belongs to the image rather than the source
+  tree, and it differs per architecture — 233 packages on amd64, two fewer on
+  arm64 when that was last measured, which the per-arch runtime stage gets
+  right for free.
+- **It reads apk's installed database**, so it cannot drift from what is
+  genuinely in the image the way a hand-kept list would. Records are emitted as
+  one tab-separated line and sorted *then* formatted: sorting the formatted
+  blocks sorts their lines independently and pairs every package with somebody
+  else's licence — a file that looks right and is wrong throughout.
+- **It names licences and does not reproduce their texts**, because Alpine ships
+  no per-package copyright files to copy (unlike Debian's
+  `/usr/share/doc/*/copyright`). What it gives instead is the SPDX id apk
+  records plus the upstream URL, and for the GPL, LGPL and MPL packages the
+  offer of source: Alpine's aports, since these are Alpine's own unmodified
+  binaries.
+- **`extractors/` is LGPL-2.0-or-later and stays that way.** The scripts there
+  are derived from KDE's own, so each keeps its upstream copyright line beside
+  ours. Nothing changes about the argument below: they are not linked into
+  anything either — they are interpreted by the subprocess, which is a further
+  arm's length rather than a shorter one.
+- **None of it reaches wander's own licence.** They are separate programs
+  sharing a filesystem, not code linked in — the application runs
+  `kitinerary-extractor` as a subprocess and reads its output — so an image is
+  an aggregate and a GPL-2.0-only utility sits beside an AGPL-3.0 application
+  without either licence touching the other. The subprocess boundary was chosen
+  for crash isolation; that it also keeps the licensing arm's length is a
+  second reason not to link anything.
+- The section was **never empty**: the base image has always carried a GPL-3
+  `coreutils` and `gnupg`. Booking import took it from 73 packages to 233, which
+  is what prompted writing it down rather than what created the obligation.
+
 ## Shipping the image
 
 CI builds **one image for linux/amd64 and linux/arm64**, because the runners are
@@ -1316,6 +1523,17 @@ the first question anybody asks and a self-hoster otherwise cannot answer it
 without SSH. The version argument is passed *only* when a tag exists: Spring
 reads a set-but-empty environment variable as a value, not as an absent one, so
 passing it empty would produce a blank version rather than `dev`.
+
+**A null entry in `compose.yaml`'s `environment:` block unsets what the image
+set.** The pass-through style there — `WANDER_SOURCE_URL:` with no value — is
+written up as "the variable reaches the container *absent* rather than empty, so
+the application's own default applies". True, and it has a second half worth
+knowing: absent means absent, so if the *Dockerfile* set that variable, listing
+it here removes it. `WANDER_IMPORT_EXTRACTOR_SEARCH_PATH` is set by the image to
+`/app/extractors`, and passing it through unloaded the extractor fixes with
+nothing failing and no log line. It is deliberately not in that block, and the
+comment beside it says why. `env` inside the container is the only thing that
+shows this; Compose's own `config` output prints the same `null` either way.
 
 **The image carries its own deployment bundle**: `docker run --rm <image> bundle
 | tar x` writes out `compose.yaml`, the `Caddyfile`, `backup/backup.sh`,

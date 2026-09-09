@@ -3,6 +3,8 @@
 
 import { MapConfig } from '../models/map-config';
 export interface InstanceConfig {
+  bookingDocumentImport: boolean;
+  bookingImportEnabled: boolean;
   buildRef: string;
   defaultCurrency: string;
   demoSweepMinutes: number;

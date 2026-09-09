@@ -40,18 +40,94 @@ RUN ./gradlew --no-daemon :api:bootJar thirdPartyNotices
 FROM eclipse-temurin:21-jre-alpine AS runtime
 RUN addgroup -S wander && adduser -S -G wander wander
 WORKDIR /app
+
+# KItinerary, the engine behind booking import. It is a command-line program, so
+# nothing here is linked or generated — the application execs it and reads
+# schema.org JSON-LD off stdout, the relationship backup.sh has with pg_dump.
+# What it buys is 349 provider extractors (airlines, railways, hotel chains, and
+# the white-label platforms small hotels run on), schema.org JSON-LD *and*
+# microdata, Apple Wallet passes, boarding-pass barcodes, and its own airport
+# database — which is why nothing in this project ships a table of IATA codes.
+#
+# It roughly triples the image: 282MB to 737MB unpacked, and 134MB to 291MB
+# compressed, which is the number that matters for a pull — +157MB to fetch.
+# Measured on amd64, and measured rather than estimated: the compressed figures
+# are the layer sizes in the image manifest, the unpacked ones the sum of the
+# layer diffs. (`docker image ls` disagrees with both, reporting the unpacked
+# snapshot; it is not the number to quote.) The reason it is still worth it is
+# that the alternative is a hand-written parser competing with 349 maintained
+# ones. The runtime cost is small and bounded — ~90MB peak resident for ~170ms,
+# per import, on this hardware.
+#
+# Two caveats worth knowing before editing this block:
+#
+#  - **Do not delete Mesa or LLVM to save the 225MB they cost.** libEGL and
+#    libGL are hard-linked by Qt6Gui and pull libgallium in at process start, so
+#    removing them does not trim the image, it stops the extractor dead with
+#    "Error loading shared library libgallium". The Breeze icon theme below is
+#    different: it is data nothing links, so removing it is free and verified.
+#  - **The package is in Alpine `community`, not `main`, and this base tag
+#    floats.** A future Temurin rebase onto an Alpine that renames or drops it
+#    breaks this build. That failure is a red pipeline rather than a bad deploy,
+#    which is why the tag is not pinned to a digest here — but it is the reason
+#    to look at this line first if the image build fails for no other reason.
+#
+# The feature degrades rather than breaking if this is removed: the iCalendar
+# reader is pure Java and always present, so an image without the extractor
+# reports itself as calendar-only. See wander.booking-import in application.yml.
+# poppler-data is not optional, and costs 13MB unpacked or 4MB compressed. It
+# carries the CMap tables for the CJK character collections — Adobe-Japan1 and
+# its siblings — and without them poppler cannot decode the *text* of a PDF
+# that uses one. What that looks like from here is not an error: extraction
+# runs, every matching script is offered the document, and `pdf.pages[n].text`
+# is an empty string, so each one returns nothing and the import answers
+# "nothing recognised". A JAL or ANA e-ticket is exactly such a document, which
+# makes this the difference between reading a Japanese airline's confirmation
+# and quietly never reading one.
+RUN apk add --no-cache kitinerary poppler-data && \
+    ln -sf /usr/lib/libexec/kf6/kitinerary-extractor /usr/local/bin/kitinerary-extractor && \
+    rm -rf /usr/share/icons /usr/lib/libKF6BreezeIcons.so* /usr/share/fonts /usr/share/X11
+
+# Both are load-bearing and neither is obvious. Qt probes for a display unless
+# told the platform is offscreen, and KF6 wants a writable cache directory —
+# which the `wander` user does not have, having no home. Get the second wrong and
+# extraction fails for reasons that have nothing to do with the document.
+ENV QT_QPA_PLATFORM=offscreen \
+    XDG_CACHE_HOME=/tmp/kf6-cache
 COPY --from=build /src/api/build/libs/*-SNAPSHOT.jar /app/wander.jar
 
-# The licences of everything redistributed inside that jar — the browser bundle
-# under META-INF/resources and the server's own jars under BOOT-INF/lib.
+# Fixes to upstream extractors, loaded by kitinerary-extractor from this path.
+# Real files rather than jar resources, because the consumer is a subprocess that
+# reads a directory. See extractors/README.md for the bar a file here has to
+# clear — it is a narrow exception to "the parsing is borrowed, not written", and
+# each file is a patch waiting for upstream to take it.
+COPY extractors /app/extractors
+ENV WANDER_IMPORT_EXTRACTOR_SEARCH_PATH=/app/extractors
+
+# The licences of everything this image redistributes, in three parts.
 #
 # It ships *in the image* because the image is the distribution: MIT, BSD, ISC
 # and Apache-2.0 all require the copyright notice to accompany a binary, and an
-# image is a binary. Generated at build time from the two dependency trees, so
-# it cannot fall behind them the way a committed copy would. wander's own
-# licence is separate and is not this file — see LICENSE in the repository, and
-# the Source link the running instance draws for AGPL section 13.
-COPY --from=build /src/build/THIRD-PARTY.txt /app/THIRD-PARTY.txt
+# image is a binary. wander's own licence is separate and is not this file — see
+# LICENSE in the repository, and the Source link the running instance draws for
+# AGPL section 13.
+#
+# Parts 1 and 2 are the jar's two dependency trees — the browser bundle under
+# META-INF/resources and the server's jars under BOOT-INF/lib — generated by
+# Gradle from the trees themselves, so they cannot fall behind the way a
+# committed copy would.
+#
+# **Part 3 is the rest of the image**, and it has to be produced here rather than
+# in Gradle: the package set is a property of the runtime stage, not of the
+# source tree, and it differs per architecture — this image is built for amd64
+# and arm64 and each runtime stage has its own list. Booking import is what made
+# this section large (73 packages to 233), though it was never empty: the base
+# image has always carried a GPL-3 coreutils and gnupg, so the obligation
+# predates that feature and only grew with it.
+COPY --from=build /src/build/THIRD-PARTY.txt /app/THIRD-PARTY-jar.txt
+COPY deploy/os-notices.sh /app/os-notices.sh
+RUN sh /app/os-notices.sh >> /app/THIRD-PARTY-jar.txt && \
+    mv /app/THIRD-PARTY-jar.txt /app/THIRD-PARTY.txt
 
 # What a server needs beside the image, carried inside it: `docker run --rm
 # <image> bundle | tar x` writes these out. They are copied from the repository
