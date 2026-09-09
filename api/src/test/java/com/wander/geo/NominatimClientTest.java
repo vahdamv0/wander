@@ -37,6 +37,7 @@ class NominatimClientTest {
                         30, 4, 200, 4000),
                 new WanderProperties.Weather(true, "http://localhost:1", 16, 180, "test",
                         "http://localhost:1", 200, 4000),
+                new WanderProperties.BookingImport(true, "", "", 30, 4194304),
                 new WanderProperties.MapTiles(true, "", "", "http://localhost:1/{z}/{x}/{y}.png", "test", 19));
     }
 

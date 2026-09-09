@@ -79,6 +79,13 @@ More: [the trip list](docs/screenshots/trips.png) ·
   they were booked in, so a flight keeps London time for its departure and Tokyo
   time for its arrival, and the list is ordered by when things really happen.
   Each one can carry a phone number, shown as typed and dialable in a tap
+- Reading a booking out of a confirmation file — an email, a PDF, an HTML page,
+  a calendar attachment or an Apple Wallet pass. It fills in the booking form and
+  saves nothing until you do, so a misread file costs a correction rather than a
+  wrong entry on everybody's trip; a confirmation with two legs offers both.
+  Behind it is KDE's KItinerary, which knows several hundred airlines, railways
+  and hotel chains, and reads the timezone of an airport code — plus a plain
+  iCalendar reader for the small hotel nobody has written an extractor for
 - Place enrichment: opening a place shows what OpenStreetMap, Wikidata, Wikipedia
   and Commons know about it — a description, opening hours, a website and
   photographs you can keep — each with its source and licence shown, plus
@@ -163,6 +170,16 @@ Four things, and none of them is a code change:
 4. The backups are on the same disk as the database. They survive a bad
    migration, a wrong `DELETE` and a corrupted table; they do not survive losing
    the machine. Copy them off it — see below.
+5. **Booking import parses files your members upload.** A confirmation is fed to
+   KItinerary, and behind it poppler for PDFs and ZXing for barcodes — libraries
+   with a long history of parser bugs, doing exactly the thing they are bad at.
+   It runs as a short-lived subprocess with a timeout, as the non-root
+   application user, and the upload is never written to persistent storage, so a
+   malformed file kills a child process rather than the instance. That is a
+   deliberate trade rather than a non-issue: only a signed-in member who can
+   already edit that trip can reach it. `WANDER_IMPORT_ENABLED=false` turns it
+   off entirely if you would rather nothing here parsed an upload — the feature
+   simply stops being offered.
 
 `/api/auth/login` throttles guesses on its own: failed sign-ins are counted per
 account and per client address and refused with a 429 past ten and forty of them
@@ -613,7 +630,8 @@ wrong:
 ### Third-party notices
 
 wander redistributes other people's code — Angular, Leaflet, MapLibre and rxjs
-in the browser bundle, Spring and its dependencies in the jar. MIT, BSD, ISC and
+in the browser bundle, Spring and its dependencies in the jar, and the whole
+KItinerary, Qt, poppler and ZXing stack in the image. MIT, BSD, ISC and
 Apache-2.0 all require the copyright notice to travel with a **binary**
 distribution, and a container image is a binary distribution, so the image
 carries them:
@@ -622,8 +640,31 @@ carries them:
 docker run --rm --entrypoint sh registry.gitlab.com/vm83043-dev/wander:latest -c 'cat /app/THIRD-PARTY.txt'
 ```
 
-It is **generated at build time**, never committed, for the same reason the API
-client is generated: a hand-maintained list goes stale the first time somebody
-adds a dependency without thinking about licences, which is the normal case and
-exactly when it most needs to be right. `./gradlew thirdPartyNotices` writes it
-to `build/THIRD-PARTY.txt` locally.
+Three parts, because there are three things being redistributed and they are
+generated in two different places. Parts 1 and 2 are the jar's dependency trees
+— the browser bundle and the server's jars — written by `./gradlew
+thirdPartyNotices` to `build/THIRD-PARTY.txt`. **Part 3 is the operating-system
+packages**, appended when the image is built, by `deploy/os-notices.sh` reading
+apk's own database. It has to happen there: the package set belongs to the
+runtime stage rather than the source tree, and it genuinely differs by
+architecture — 233 packages on amd64, and a slightly shorter list on arm64.
+
+All of it is **generated, never committed**, for the same reason the API client
+is: a hand-maintained list goes stale the first time somebody adds a dependency
+without thinking about licences, which is the normal case and exactly when it
+most needs to be right.
+
+Part 3 is also where the copyleft components are, and it says so rather than
+burying them: the image contains GPL, LGPL and MPL packages, and the notice
+carries the offer of source for them — Alpine's aports plus each project's
+upstream, since these are Alpine's own unmodified binary packages. None of that
+reaches wander's own licensing. They are separate programs sharing a filesystem,
+not code linked into the application, which talks to KItinerary by running it and
+reading its output — so a GPL-2.0-only utility can sit beside an AGPL-3.0
+application here without either licence touching the other. **If you rebuild
+this image with your own changes to those packages, that offer of source becomes
+yours to make.**
+
+Worth knowing that this section was never empty: the base image has always
+carried a GPL-3 `coreutils` and `gnupg`. Booking import took it from 73 packages
+to 233, which is what prompted writing it down.

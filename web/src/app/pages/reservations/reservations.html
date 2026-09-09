@@ -56,19 +56,118 @@
 
   @if (trip()) {
     @if (canEdit() && editing() !== 'new') {
-      <button type="button" class="btn-ghost mb-4 w-full justify-center py-2.5" (click)="openNew()">
-        <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-             stroke-linecap="round" aria-hidden="true">
-          <path d="M12 5v14M5 12h14" />
-        </svg>
-        Add a booking
-      </button>
+      <div class="mb-4 grid gap-2" [class.sm:grid-cols-2]="canImport()">
+        <button type="button" class="btn-ghost w-full justify-center py-2.5" (click)="openNew()">
+          <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" aria-hidden="true">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+          Add a booking
+        </button>
+
+        <!-- Import is offered only where the instance said it works. The label
+             says "read", not "import": nothing is saved by choosing a file, and
+             a control that sounded like it filed the booking would be a promise
+             the feature deliberately does not make. -->
+        @if (canImport()) {
+          <button type="button" class="btn-ghost w-full justify-center py-2.5"
+                  [disabled]="importing()" (click)="fileInput.click()">
+            @if (importing()) {
+              Reading the file…
+            } @else {
+              <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                   aria-hidden="true">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+              </svg>
+              Read a confirmation
+            }
+          </button>
+          <!-- Hidden rather than styled: a file input cannot be made to look like
+               anything else, and the button above is the control. -->
+          <input #fileInput type="file" class="hidden" [accept]="importAccept()"
+                 (change)="onFileChosen($event)" />
+        }
+      </div>
+    }
+
+    <!-- Nothing recognised. A 200 with an empty list, so this is information
+         rather than an error — and the server's own words, because "which
+         readers looked" is the part that makes it actionable. -->
+    @if (importMessage() && !importedDrafts().length) {
+      <div class="card mb-4 border-dashed p-4">
+        <p class="text-sm font-medium">Nothing to import from {{ importedFrom() }}</p>
+        <p class="mt-1 text-sm text-muted">{{ importMessage() }}</p>
+        <button type="button" class="btn-ghost mt-3" (click)="dismissImport()">Dismiss</button>
+      </div>
+    }
+
+    <!-- Several bookings in one file: an outbound and a return, most often. All
+         of them stay on offer until each has been used, because dropping the
+         second leg is the thing somebody would notice a week later. -->
+    @if (importedDrafts().length) {
+      <section class="card mb-4 p-4">
+        <div class="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 class="text-sm font-semibold">
+            {{ importedDrafts().length }}
+            {{ importedDrafts().length === 1 ? 'booking' : 'bookings' }}
+            in {{ importedFrom() }}
+          </h2>
+          <button type="button" class="btn-ghost px-2 py-1 text-xs"
+                  (click)="dismissImport()">Dismiss</button>
+        </div>
+        <p class="mt-1 text-sm text-muted">
+          Nothing has been saved. Pick one to fill in the form, then save it.
+        </p>
+        <ul class="mt-3 grid grid-cols-1 gap-2">
+          @for (draft of importedDrafts(); track $index) {
+            <li class="flex flex-wrap items-center justify-between gap-2 rounded-control
+                       bg-surface-2 px-3 py-2">
+              <div class="min-w-0">
+                <p class="truncate text-sm font-medium">{{ draft.title }}</p>
+                <p class="text-xs text-muted">
+                  {{ kindLabel(draft.kind) }}
+                  @if (draft.startDate) {
+                    · {{ draft.startDate }}
+                  }
+                  @if (draft.startTime) {
+                    {{ draft.startTime.slice(0, 5) }}
+                  } @else {
+                    · no time in the file
+                  }
+                  @if (draft.startZone) {
+                    {{ draft.startZone }}
+                  }
+                  @if (draft.confirmation) {
+                    · ref <span class="font-medium text-fg">{{ draft.confirmation }}</span>
+                  }
+                </p>
+              </div>
+              <button type="button" class="btn-ghost shrink-0 px-2 py-1 text-xs"
+                      (click)="useDraft(draft)">
+                <span class="sr-only">Use {{ draft.title }}</span>
+                Use this
+              </button>
+            </li>
+          }
+        </ul>
+      </section>
     }
 
     @if (editing() === 'new') {
       <section class="card mb-4 p-5">
-        <h2 class="mb-3 text-sm font-semibold">New booking</h2>
-        <ng-container [ngTemplateOutlet]="bookingForm" />
+        <h2 class="text-sm font-semibold">New booking</h2>
+        <!-- What the file did not say. Shown here rather than beside each field
+             because a zone defaulted to the reader's own looks exactly like a
+             zone the document named, and that is the one gap nobody would spot. -->
+        @if (prefillNote()) {
+          <p class="mt-2 rounded-control bg-surface-2 px-3 py-2 text-sm text-muted">
+            {{ prefillNote() }}
+          </p>
+        }
+        <div class="mt-3">
+          <ng-container [ngTemplateOutlet]="bookingForm" />
+        </div>
       </section>
     }
 
@@ -212,7 +311,7 @@
           Time zone
           <select class="field" name="startZone"
                   [ngModel]="draftStartZone()" (ngModelChange)="draftStartZone.set($event)">
-            @for (zone of zones; track zone) {
+            @for (zone of zones(); track zone) {
               <option [value]="zone">{{ zone }}</option>
             }
           </select>
@@ -245,7 +344,7 @@
           Time zone
           <select class="field" name="endZone"
                   [ngModel]="draftEndZone()" (ngModelChange)="draftEndZone.set($event)">
-            @for (zone of zones; track zone) {
+            @for (zone of zones(); track zone) {
               <option [value]="zone">{{ zone }}</option>
             }
           </select>

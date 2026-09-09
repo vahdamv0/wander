@@ -87,6 +87,8 @@ export type { ListAccounts$Params as ListAccounts$Params } from './fn/admin-cont
 export { listAccounts as listAccounts } from './fn/admin-controller/list-accounts';
 export type { RevokeReset$Params as RevokeReset$Params } from './fn/admin-controller/revoke-reset';
 export { revokeReset as revokeReset } from './fn/admin-controller/revoke-reset';
+export type { ImportReservations$Params as ImportReservations$Params } from './fn/booking-import-controller/import-reservations';
+export { importReservations as importReservations } from './fn/booking-import-controller/import-reservations';
 export type { ListInvites$Params as ListInvites$Params } from './fn/trip-invite-controller/list-invites';
 export { listInvites as listInvites } from './fn/trip-invite-controller/list-invites';
 export type { CreateInvite$Params as CreateInvite$Params } from './fn/trip-invite-controller/create-invite';
