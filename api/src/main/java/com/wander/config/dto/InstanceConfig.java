@@ -58,5 +58,30 @@ public record InstanceConfig(
          * and a page promising 45 minutes on an instance configured for 10 is
          * worse than saying nothing, because somebody would believe it.
          */
-        @NotNull int demoSweepMinutes) {
+        @NotNull int demoSweepMinutes,
+        /**
+         * Whether this instance can read a booking out of a confirmation file.
+         *
+         * This one field **inverts the rule the rest of this record follows.**
+         * Everything else here is treated as available until the config answers,
+         * so nothing flickers into existence — but an Import button that appears
+         * and then errors is worse than one that appears a beat late, and the
+         * whole point of the switch is the instance that cannot. So the client
+         * reads "not answered yet" as unavailable, as it does for
+         * {@code registrationEnabled} and for the same reason: not offering the
+         * thing is the entire purpose.
+         */
+        @NotNull boolean bookingImportEnabled,
+        /**
+         * Whether documents can be read, or only calendar attachments.
+         *
+         * A second boolean rather than a wider first one, because the difference
+         * is real and the client has to say it out loud. The iCalendar reader is
+         * pure Java and always present; the document extractor is a binary an
+         * image may or may not carry. Without it a PDF was never going to work,
+         * and telling somebody "nothing was recognised" would send them looking
+         * for a fault in a file that is fine — so the file picker narrows what it
+         * accepts and the empty result says which readers looked.
+         */
+        @NotNull boolean bookingDocumentImport) {
 }

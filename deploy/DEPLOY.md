@@ -56,9 +56,55 @@ five certificates per hostname per week.
 ./update.sh
 ```
 
-Pull, restart, prune the old image. Flyway applies any new migrations as the
-container boots, which is not undone by starting the old image again — take a
-dump first if you want a way back (`update.sh` says how).
+Pull, refresh the bundle, restart, prune the old image. Flyway applies any new
+migrations as the container boots, which is not undone by starting the old image
+again — take a dump first if you want a way back (`update.sh` says how).
+
+Refreshing the bundle is not housekeeping, and it is why this is a script rather
+than two commands to remember. `.env` only carries values; it is `compose.yaml`
+that decides which of them are handed to the container, so a release that adds a
+setting adds a line to both — and a server still running the previous
+`compose.yaml` starts perfectly, reads the new variable out of `.env`, and passes
+it nowhere. One feature is missing and nothing anywhere says so. So `update.sh`
+re-extracts the bundle from the image it just pulled, which is the same
+everything-travels-together argument that puts the bundle in the image in the
+first place.
+
+Every file it replaces came out of the image and is meant to be replaced whole:
+the `Caddyfile` takes its address from `$WANDER_SITE_ADDRESS` and has nothing in
+it to customise, and the same is true of `compose.yaml`, `backup/backup.sh`, this
+file and the script itself. **`.env` is never written by the bundle**, so your
+settings are not at risk. Anything you had edited is copied to a timestamped
+`bundle-backup-*/` directory rather than lost, and the script prints the settings
+this release added.
+
+If it cannot read the bundle out of the image — an image too old to have a
+`bundle` verb, a half-pulled layer — it stops there and says so, **after** the
+pull and **before** the restart. That is the safe half to stop in: the old
+container is still up and the files beside it still match the image it came
+from. Run it again once the pull is sound.
+
+### Once, on a server updated before this existed
+
+`update.sh` refreshes the bundle, so the copy that does the refreshing has to be
+new enough to know how — and the one on your server is the one the *previous*
+release put there. The first update after this lands therefore pulls the new
+image and leaves `compose.yaml` alone, exactly as before, with nothing to say it
+happened. Re-extract by hand once and every update after it is `./update.sh`:
+
+```bash
+cd ~/wander                     # wherever .env lives
+docker compose pull
+docker run --rm "$(docker compose config \
+  | awk '/^  [a-zA-Z0-9_-]+:$/ { s = $1 } s == "wander:" && /^    image: / { print $2; exit }')" \
+  bundle | tar x
+docker compose up -d --no-build
+```
+
+That overwrites `update.sh` with the version that knows about bundles. It does
+not touch `.env`, and it keeps no backup of what it replaces — this is the one
+run where nothing has diverged yet, because everything in the directory came out
+of the previous image untouched.
 
 ## Pinning a version
 

@@ -4,6 +4,7 @@
 export type { AcceptedInviteView } from './models/accepted-invite-view';
 export type { AddMemberRequest } from './models/add-member-request';
 export type { AdminUserView } from './models/admin-user-view';
+export type { BookingImportResult } from './models/booking-import-result';
 export type { ChangePasswordRequest } from './models/change-password-request';
 export type { ChangeRoleRequest } from './models/change-role-request';
 export type { CreatedInviteView } from './models/created-invite-view';
@@ -39,6 +40,7 @@ export type { PlaceView } from './models/place-view';
 export type { RedeemResetRequest } from './models/redeem-reset-request';
 export type { RegisterRequest } from './models/register-request';
 export type { RequestResetRequest } from './models/request-reset-request';
+export type { ReservationDraft } from './models/reservation-draft';
 export type { ReservationRequest } from './models/reservation-request';
 export type { ReservationView } from './models/reservation-view';
 export type { ResetPreview } from './models/reset-preview';

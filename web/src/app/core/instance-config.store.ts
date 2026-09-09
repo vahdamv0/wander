@@ -39,6 +39,18 @@ export class InstanceConfigStore {
    * deletion schedule it has not been told.
    */
   private readonly _demoSweepMinutes = signal(0);
+  /**
+   * Whether a booking can be read out of a confirmation file, and whether
+   * *documents* can be — or only calendar attachments.
+   *
+   * Both default to **false**, which inverts this store's usual rule. Everything
+   * else here is optimistic until answered so that nothing flickers into
+   * existence; an Import button that appears and then errors is worse than one
+   * that appears a beat late, and the whole purpose of the switch is the instance
+   * that cannot. Same reasoning as `registrationEnabled` on the sign-in config.
+   */
+  private readonly _bookingImportEnabled = signal(false);
+  private readonly _bookingDocumentImport = signal(false);
 
   readonly map = this._map.asReadonly();
   readonly searchEnabled = this._searchEnabled.asReadonly();
@@ -48,6 +60,21 @@ export class InstanceConfigStore {
   readonly mapEnabled = computed(() => this._map()?.enabled === true);
   readonly sourceUrl = this._sourceUrl.asReadonly();
   readonly demoSweepMinutes = this._demoSweepMinutes.asReadonly();
+  readonly bookingImportEnabled = this._bookingImportEnabled.asReadonly();
+  readonly bookingDocumentImport = this._bookingDocumentImport.asReadonly();
+
+  /**
+   * What the file picker will accept.
+   *
+   * Narrowed on an instance with no document extractor, because offering a PDF
+   * there and answering "nothing recognised" would send somebody hunting for a
+   * fault in a file that is perfectly fine.
+   */
+  readonly bookingImportAccept = computed(() =>
+    this._bookingDocumentImport()
+      ? '.eml,.pdf,.html,.htm,.txt,.ics,.pkpass'
+      : '.eml,.ics',
+  );
 
   /**
    * "wander v1.2.0 · a1b2c3d", or the parts of it that exist. An image built
@@ -75,6 +102,8 @@ export class InstanceConfigStore {
       this._buildRef.set(config.buildRef);
       this._sourceUrl.set(config.sourceUrl);
       this._demoSweepMinutes.set(config.demoSweepMinutes);
+      this._bookingImportEnabled.set(config.bookingImportEnabled);
+      this._bookingDocumentImport.set(config.bookingDocumentImport);
     } catch {
       // A signed-out visitor gets 401 here, which is not a failure — the
       // defaults stand, and the next sign-in loads it again.
@@ -84,6 +113,8 @@ export class InstanceConfigStore {
       this._defaultCurrency.set(null);
       this._sourceUrl.set('');
       this._demoSweepMinutes.set(0);
+      this._bookingImportEnabled.set(false);
+      this._bookingDocumentImport.set(false);
     } finally {
       this._loaded.set(true);
     }
