@@ -83,5 +83,29 @@ public record InstanceConfig(
          * for a fault in a file that is fine — so the file picker narrows what it
          * accepts and the empty result says which readers looked.
          */
-        @NotNull boolean bookingDocumentImport) {
+        @NotNull boolean bookingDocumentImport,
+        /**
+         * Whether this instance can look an exchange rate up.
+         *
+         * **Not the switch for the feature**, which is why it is named for the
+         * lookup. An expense in another currency can always be recorded; what
+         * this says is whether the rate arrives on its own or has to be typed.
+         * False on an instance with no outbound network, and there the form asks
+         * for the rate instead of hiding the currency picker — a self-hoster
+         * with no internet still went to Japan.
+         *
+         * It follows this record's *usual* rule rather than
+         * {@code bookingImportEnabled}'s: "not answered yet" is read as
+         * available, because the cost of being wrong is a rate box that appears
+         * a beat late rather than a control that errors when pressed.
+         */
+        @NotNull boolean rateLookupEnabled,
+        /**
+         * Shown beside a converted amount, so a number somebody is asked to
+         * trust says where it came from — the same reason the tile attribution
+         * and the weather credit travel with their data rather than being
+         * compiled into the client.
+         */
+        @NotNull String rateAttribution,
+        @NotNull String rateAttributionUrl) {
 }

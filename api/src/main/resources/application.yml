@@ -183,6 +183,10 @@ wander:
     searches-per-window: ${WANDER_QUOTA_SEARCHES:120}
     enrichments-per-window: ${WANDER_QUOTA_ENRICHMENTS:60}
     forecasts-per-window: ${WANDER_QUOTA_FORECASTS:60}
+    # A rate for the expense form's preview. The tightest, and it can afford to
+    # be: one lookup per foreign expense somebody is typing, over a cache that
+    # never expires.
+    rates-per-window: ${WANDER_QUOTA_RATES:40}
     window-minutes: ${WANDER_QUOTA_WINDOW_MINUTES:5}
   # The Content-Security-Policy header, assembled from the map settings below
   # rather than written out, so an operator running their own tiles does not get
@@ -237,6 +241,33 @@ wander:
     cache-minutes: ${WANDER_WEATHER_CACHE_MINUTES:180}
     attribution: ${WANDER_WEATHER_ATTRIBUTION:Weather data by Open-Meteo.com (CC BY 4.0)}
     attribution-url: ${WANDER_WEATHER_ATTRIBUTION_URL:https://open-meteo.com/}
+  fx:
+    # Exchange rates, for an expense paid in something other than the trip's
+    # currency. Frankfurter — no API key, for the same reason Open-Meteo was
+    # chosen: a self-hoster should not have to open an account with a foreign
+    # exchange vendor to record a dinner in yen. It is MIT-licensed and ships a
+    # container, so `url` below can point at your own copy.
+    #
+    # Off turns off the **lookup**, not the feature. A foreign currency can still
+    # be recorded with a rate somebody types, which is the only thing that works
+    # on an instance with no outbound network — and is often the better number
+    # anyway, since a card statement knows what was really charged.
+    #
+    # Whatever the rate, it is stored on the expense and **frozen**: the money
+    # left the account at the rate of the day, and editing the description later
+    # must not move anybody's balance.
+    enabled: ${WANDER_FX_ENABLED:true}
+    base-url: ${WANDER_FX_URL:https://api.frankfurter.dev}
+    # How long the supported-currency listing is held. A day: coverage moves when
+    # a central bank joins or leaves, and the list is wanted on every page that
+    # draws a currency picker.
+    currency-cache-hours: ${WANDER_FX_CURRENCY_CACHE_HOURS:24}
+    # Not required by the upstream's licence, and carried for the reason the
+    # weather credit is: a number somebody is asked to trust should say where it
+    # came from, and an operator pointing this elsewhere needs the credit to
+    # follow the data.
+    attribution: ${WANDER_FX_ATTRIBUTION:Exchange rates via Frankfurter}
+    attribution-url: ${WANDER_FX_ATTRIBUTION_URL:https://frankfurter.dev/}
   booking-import:
     # Reading a booking out of a confirmation file: an email, a PDF, an HTML
     # page, a calendar attachment or an Apple Wallet pass.

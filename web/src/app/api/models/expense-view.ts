@@ -5,11 +5,16 @@ import { ExpenseShareView } from '../models/expense-share-view';
 export interface ExpenseView {
   amountMinor: number;
   description: string;
+  fxManual: boolean;
+  fxQuotedOn?: string;
+  fxRate?: string;
   id: number;
   kind: 'EXPENSE' | 'PAYMENT';
   paidByName: string;
   paidByUserId: number;
   shares: Array<ExpenseShareView>;
+  sourceAmountMinor?: number;
+  sourceCurrency?: string;
   spentOn: string;
   splitMode: 'EQUAL' | 'EXACT';
 }

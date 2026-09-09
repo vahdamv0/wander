@@ -11,17 +11,28 @@ import {
 import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
-import { ExpenseView, SettlementView } from '../../api';
+import { ExchangeRateView, ExpenseView, SettlementView } from '../../api';
 import { formatMoney, parseMoney, toAmountInput } from '../../core/money';
 import { ageLabel, messageOf } from '../../core/errors';
 import { SessionStore } from '../../core/session.store';
 import { TripChange, TripSyncService } from '../../core/trip-sync';
 import { ExpenseRepo } from '../../repo/expense.repo';
+import { FxRepo } from '../../repo/fx.repo';
 import { MemberRepo } from '../../repo/member.repo';
+import { InstanceConfigStore } from '../../core/instance-config.store';
 
 /** See TripPage: a pushed re-read has nobody watching it, so it retries itself. */
 const REFRESH_ATTEMPTS = 4;
 const REFRESH_BACKOFF_MS = 500;
+
+/**
+ * How long the form waits before asking what a foreign amount converts to.
+ *
+ * Debounced in the component, next to the keystrokes it throttles, exactly as
+ * the place search's is. The preview is a server call because the client does no
+ * money arithmetic, so without this every digit of an amount would be a request.
+ */
+const QUOTE_DEBOUNCE_MS = 400;
 
 /** One participant as the form deals with them: in or out, and for how much. */
 interface Participant {
@@ -52,6 +63,8 @@ interface Participant {
 export class ExpensesPage {
   private readonly repo = inject(ExpenseRepo);
   private readonly members = inject(MemberRepo);
+  private readonly fx = inject(FxRepo);
+  private readonly config = inject(InstanceConfigStore);
   private readonly session = inject(SessionStore);
   private readonly sync = inject(TripSyncService);
   private readonly router = inject(Router);
@@ -89,6 +102,64 @@ export class ExpensesPage {
   protected readonly draftPaidBy = signal<number | null>(null);
   protected readonly draftMode = signal<'EQUAL' | 'EXACT'>('EQUAL');
   protected readonly draftParticipants = signal<Participant[]>([]);
+  /**
+   * What was actually paid in. Defaults to the trip's, which is the common case
+   * and the one that costs nothing.
+   */
+  protected readonly draftCurrency = signal('');
+  /** A rate somebody typed, as text. Empty means "look one up". */
+  protected readonly draftRate = signal('');
+  /** The server's answer for the current currency, date and amount. */
+  protected readonly draftQuote = signal<ExchangeRateView | null>(null);
+  /** True once a lookup has been tried and come back with nothing. */
+  protected readonly quoteFailed = signal(false);
+
+  protected readonly payCurrency = signal('');
+  protected readonly payRate = signal('');
+  protected readonly payQuote = signal<ExchangeRateView | null>(null);
+  protected readonly payQuoteFailed = signal(false);
+
+  protected readonly currencyOptions = this.fx.options;
+  protected readonly commonCurrencies = computed(() => {
+    const available = new Set(this.currencyOptions());
+    const trip = this.currency();
+    const pinned: string[] = [];
+    for (const code of [trip, 'USD', 'EUR', 'INR']) {
+      // The trip's own is offered whether or not a rate can be found for it —
+      // it needs none, being the currency everything is already stored in.
+      if (code && !pinned.includes(code) && (code === trip || available.has(code))) {
+        pinned.push(code);
+      }
+    }
+    return pinned;
+  });
+
+  protected readonly otherCurrencies = computed(() => {
+    const pinned = new Set(this.commonCurrencies());
+    return this.currencyOptions().filter((code) => !pinned.has(code));
+  });
+  protected readonly rateAttribution = this.config.rateAttribution;
+  protected readonly rateAttributionUrl = this.config.rateAttributionUrl;
+
+  /** Whether the expense form is dealing in something other than the trip's currency. */
+  protected readonly draftIsForeign = computed(
+    () => !!this.draftCurrency() && this.draftCurrency() !== this.currency(),
+  );
+  protected readonly payIsForeign = computed(
+    () => !!this.payCurrency() && this.payCurrency() !== this.currency(),
+  );
+
+  /**
+   * Whether the form has a rate to convert with — either one it fetched or one
+   * somebody typed. A foreign expense with neither cannot be saved, and the
+   * button says so rather than letting the server refuse it.
+   */
+  protected readonly draftHasRate = computed(
+    () => !this.draftIsForeign() || !!this.draftRate().trim() || !!this.draftQuote(),
+  );
+  protected readonly payHasRate = computed(
+    () => !this.payIsForeign() || !!this.payRate().trim() || !!this.payQuote(),
+  );
 
   /** People who may be in a split: the current members. */
   protected readonly candidates = computed(() => this.members.members());
@@ -102,8 +173,14 @@ export class ExpensesPage {
    * the guard on the submit button — an unparseable amount cannot be sent.
    */
   protected readonly draftAmountMinor = computed(() =>
-    parseMoney(this.draftAmount(), this.currency()),
+    // Parsed in the currency it was typed in: the yen has no decimal places, so
+    // reading "8000" against the trip's euros would make it ¥80.
+    parseMoney(this.draftAmount(), this.entryCurrency()),
   );
+
+  /** The currency the amount and the shares are being typed in. */
+  protected readonly entryCurrency = computed(() => this.draftCurrency() || this.currency());
+  protected readonly payEntryCurrency = computed(() => this.payCurrency() || this.currency());
 
   /**
    * For an exact split: the total still unallocated. Shown while typing, because
@@ -120,7 +197,7 @@ export class ExpensesPage {
       if (!participant.included) {
         continue;
       }
-      const amount = parseMoney(participant.amount || '0', this.currency());
+      const amount = parseMoney(participant.amount || '0', this.entryCurrency());
       if (amount === null) {
         return null;
       }
@@ -129,7 +206,9 @@ export class ExpensesPage {
     return total - allocated;
   });
 
-  protected readonly payAmountMinor = computed(() => parseMoney(this.payAmount(), this.currency()));
+  protected readonly payAmountMinor = computed(() =>
+    parseMoney(this.payAmount(), this.payEntryCurrency()),
+  );
 
   protected readonly canRecordPayment = computed(() => {
     const amount = this.payAmountMinor();
@@ -141,7 +220,10 @@ export class ExpensesPage {
       this.payTo() !== null &&
       // Paying yourself is not settling up, and the server refuses it anyway.
       this.payFrom() !== this.payTo() &&
-      !!this.payDate()
+      !!this.payDate() &&
+      // A foreign payment with no rate cannot be converted, and the server would
+      // refuse it — better to say so on the button than after the click.
+      this.payHasRate()
     );
   });
 
@@ -153,12 +235,35 @@ export class ExpensesPage {
     if (amount === null || amount < 1 || this.draftPaidBy() === null || !this.includedCount()) {
       return false;
     }
+    if (!this.draftHasRate()) {
+      return false;
+    }
     return this.draftMode() === 'EQUAL' || this.remainingMinor() === 0;
   });
 
   constructor() {
     queueMicrotask(() => void this.reload());
     queueMicrotask(() => this.sync.watch(this.id()));
+    queueMicrotask(() => void this.fx.load());
+
+    // The expense form's preview. Reacts to the four things that change what a
+    // rate answer would be — and to nothing else, so retyping a description does
+    // not ask again.
+    effect(() => {
+      const currency = this.draftCurrency();
+      const on = this.draftDate();
+      const amount = this.draftAmountMinor();
+      const typed = this.draftRate().trim();
+      untracked(() => this.scheduleQuote('draft', currency, on, amount, typed));
+    });
+
+    effect(() => {
+      const currency = this.payCurrency();
+      const on = this.payDate();
+      const amount = this.payAmountMinor();
+      const typed = this.payRate().trim();
+      untracked(() => this.scheduleQuote('pay', currency, on, amount, typed));
+    });
 
     effect(() => {
       const change = this.sync.lastChange();
@@ -180,8 +285,82 @@ export class ExpensesPage {
     return Number(this.tripId());
   }
 
+  private quoteTimers: Record<'draft' | 'pay', ReturnType<typeof setTimeout> | null> = {
+    draft: null,
+    pay: null,
+  };
+
+  /**
+   * Asks the server what an amount converts to, once the typing settles.
+   *
+   * A **server** call rather than a multiplication here, which is the rule the
+   * whole money feature turns on: a preview computed in TypeScript would be a
+   * second implementation of the conversion, and it would announce itself by
+   * disagreeing with the saved figure by a cent.
+   *
+   * A rate somebody typed short-circuits it entirely — there is nothing to look
+   * up, and asking anyway would spend this instance's quota to answer a question
+   * that has already been answered.
+   */
+  private scheduleQuote(
+    which: 'draft' | 'pay',
+    currency: string,
+    on: string,
+    amountMinor: number | null,
+    typedRate: string,
+  ): void {
+    const quote = which === 'draft' ? this.draftQuote : this.payQuote;
+    const failed = which === 'draft' ? this.quoteFailed : this.payQuoteFailed;
+    const existing = this.quoteTimers[which];
+    if (existing) {
+      clearTimeout(existing);
+      this.quoteTimers[which] = null;
+    }
+
+    const trip = this.currency();
+    if (!currency || currency === trip || !on || typedRate) {
+      quote.set(null);
+      failed.set(false);
+      return;
+    }
+
+    this.quoteTimers[which] = setTimeout(() => {
+      void this.fx
+        .quote(currency, trip, on, amountMinor ?? undefined)
+        .then((answer) => {
+          quote.set(answer);
+          // Distinguished from "not asked yet", because the two want different
+          // things on screen: a spinner, or a box to type the rate into.
+          failed.set(answer === null);
+        });
+    }, QUOTE_DEBOUNCE_MS);
+  }
+
   protected money(minorUnits: number): string {
     return formatMoney(minorUnits, this.currency());
+  }
+
+  /** An amount in whatever it was actually paid in. */
+  protected sourceMoney(minorUnits: number, currency: string): string {
+    return formatMoney(minorUnits, currency);
+  }
+
+  /**
+   * How an expense's conversion reads on the row: what the rate was and where it
+   * came from.
+   *
+   * A typed rate says so instead of naming a date, because the two are different
+   * claims — a looked-up rate is a market reference for a day, and a typed one is
+   * what somebody's card charged.
+   */
+  protected rateLabel(expense: ExpenseView): string {
+    if (!expense.sourceCurrency || !expense.fxRate) {
+      return '';
+    }
+    const rate = `1 ${expense.sourceCurrency} = ${expense.fxRate} ${this.currency()}`;
+    return expense.fxManual
+      ? `${rate} · rate you entered`
+      : `${rate} · ${this.dateLabel(expense.fxQuotedOn ?? expense.spentOn)}`;
   }
 
   /**
@@ -222,6 +401,10 @@ export class ExpensesPage {
     this.draftDate.set(new Date().toISOString().slice(0, 10));
     this.draftPaidBy.set(this.session.user()?.id ?? null);
     this.draftMode.set('EQUAL');
+    this.draftCurrency.set(this.currency());
+    this.draftRate.set('');
+    this.draftQuote.set(null);
+    this.quoteFailed.set(false);
     this.draftParticipants.set(
       this.candidates().map((member) => ({
         userId: member.userId,
@@ -246,11 +429,17 @@ export class ExpensesPage {
     this.editing.set(null);
     this.payFrom.set(suggestion?.fromUserId ?? this.session.user()?.id ?? null);
     this.payTo.set(suggestion?.toUserId ?? null);
+    // A suggestion is already in the trip's currency — it is a balance, and
+    // balances are only ever kept in one.
     this.payAmount.set(
       suggestion ? toAmountInput(suggestion.amountMinor, this.currency()) : '',
     );
     this.payDate.set(new Date().toISOString().slice(0, 10));
     this.payNote.set('');
+    this.payCurrency.set(this.currency());
+    this.payRate.set('');
+    this.payQuote.set(null);
+    this.payQuoteFailed.set(false);
     this.paying.set(true);
   }
 
@@ -271,6 +460,8 @@ export class ExpensesPage {
         fromUserId,
         toUserId,
         amountMinor,
+        currency: this.payIsForeign() ? this.payEntryCurrency() : undefined,
+        fxRate: this.payIsForeign() ? this.payRate().trim() || undefined : undefined,
         paidOn: this.payDate(),
         note: this.payNote().trim() || undefined,
       });
@@ -286,12 +477,27 @@ export class ExpensesPage {
   protected openEdit(expense: ExpenseView): void {
     this.error.set(null);
     this.draftDescription.set(expense.description);
-    this.draftAmount.set(toAmountInput(expense.amountMinor, this.currency()));
+    // Reopened in the currency it was entered in, showing what was really paid.
+    // Putting the converted figure back in the box would rewrite the expense as
+    // a euro one the moment somebody saved a spelling correction.
+    const currency = expense.sourceCurrency ?? this.currency();
+    this.draftCurrency.set(currency);
+    this.draftRate.set('');
+    this.draftQuote.set(null);
+    this.quoteFailed.set(false);
+    this.draftAmount.set(
+      toAmountInput(expense.sourceAmountMinor ?? expense.amountMinor, currency),
+    );
     this.draftDate.set(expense.spentOn);
     this.draftPaidBy.set(expense.paidByUserId);
     // Reopened in the mode it was saved in, which is why the server stores it.
     this.draftMode.set(expense.splitMode);
 
+    // The stored shares are in the trip's currency; the form types in the
+    // expense's. For an unconverted expense those are the same thing, and for a
+    // converted one the exact amounts are re-derived from what is on screen —
+    // which is why reopening a converted EXACT split starts from the shares as
+    // stored and lets the person restate them.
     const shares = new Map(expense.shares.map((share) => [share.userId, share.amountMinor]));
     // Anybody in the split stays in it even if they have since left the trip;
     // dropping them silently would change the numbers behind somebody's back.
@@ -302,6 +508,7 @@ export class ExpensesPage {
       amount: shares.has(member.userId)
         ? toAmountInput(shares.get(member.userId)!, this.currency())
         : '',
+
     }));
     for (const share of expense.shares) {
       if (!people.some((person) => person.userId === share.userId)) {
@@ -355,7 +562,7 @@ export class ExpensesPage {
     this.draftParticipants.update((people) =>
       people.map((person) =>
         amounts.has(person.userId)
-          ? { ...person, amount: toAmountInput(amounts.get(person.userId)!, this.currency()) }
+          ? { ...person, amount: toAmountInput(amounts.get(person.userId)!, this.entryCurrency()) }
           : person,
       ),
     );
@@ -374,13 +581,17 @@ export class ExpensesPage {
         userId: person.userId,
         amountMinor:
           this.draftMode() === 'EXACT'
-            ? (parseMoney(person.amount || '0', this.currency()) ?? 0)
+            ? (parseMoney(person.amount || '0', this.entryCurrency()) ?? 0)
             : undefined,
       }));
 
     const body = {
       description: this.draftDescription().trim(),
       amountMinor,
+      // Sent only when it is not the trip's, so an ordinary expense's request is
+      // exactly the request it was before this feature existed.
+      currency: this.draftIsForeign() ? this.entryCurrency() : undefined,
+      fxRate: this.draftIsForeign() ? this.draftRate().trim() || undefined : undefined,
       spentOn: this.draftDate(),
       paidByUserId,
       splitMode: this.draftMode(),

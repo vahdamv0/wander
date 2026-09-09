@@ -118,6 +118,55 @@ class DemoSeedIntegrationTest extends IntegrationTestBase {
                 .get("expenses")).hasSize(8);
     }
 
+    /**
+     * One of the seeded expenses was paid in another currency, and the demo is
+     * the only place that shape is on show without somebody typing it in.
+     *
+     * Asserted here for the reason the VIEWER role is: nothing else would
+     * notice it breaking. A conversion that stopped happening would leave a
+     * ledger that still adds up and still renders — it would just quietly be
+     * counting pounds as yen, on the one instance strangers are looking at.
+     */
+    @Test
+    @SuppressWarnings("unchecked")
+    void theDemoShowsAnExpensePaidInAnotherCurrency() {
+        Session demo = demo();
+        Object id = theTrip(demo).get("id");
+
+        List<Map<String, Object>> expenses = (List<Map<String, Object>>) asMap(
+                get(demo, "/api/trips/" + id + "/expenses").getBody()).get("expenses");
+        List<Map<String, Object>> converted = expenses.stream()
+                .filter(expense -> expense.get("sourceCurrency") != null)
+                .toList();
+
+        assertThat(converted).hasSize(1);
+        Map<String, Object> flights = converted.get(0);
+        assertThat(flights).containsEntry("sourceCurrency", "GBP");
+        // Seeded with no network and no lookup, so it says a person entered the
+        // rate rather than stamping a market quote onto a date that moves with
+        // every re-seed.
+        assertThat(flights).containsEntry("fxManual", true);
+        assertThat(flights).containsEntry("fxQuotedOn", null);
+
+        // The stored rate reproduces the stored amount: £1,028.00 at 208.63 is
+        // ¥214,471.64, and the yen has no minor unit to keep the .64 in.
+        long sourceMinor = ((Number) flights.get("sourceAmountMinor")).longValue();
+        long amountMinor = ((Number) flights.get("amountMinor")).longValue();
+        assertThat(sourceMinor).isEqualTo(102_800L);
+        assertThat(new java.math.BigDecimal(sourceMinor)
+                .multiply(new java.math.BigDecimal((String) flights.get("fxRate")))
+                .movePointRight(0 - 2)
+                .setScale(0, java.math.RoundingMode.HALF_UP).longValueExact())
+                .as("the rate on the row is the one that produced the amount on the row")
+                .isEqualTo(amountMinor);
+
+        // And the invariant everything else rests on survives the conversion.
+        List<Map<String, Object>> shares = (List<Map<String, Object>>) flights.get("shares");
+        assertThat(shares.stream().mapToLong(share -> ((Number) share.get("amountMinor")).longValue()).sum())
+                .as("the split sums to the converted total, not to the pounds")
+                .isEqualTo(amountMinor);
+    }
+
     @Test
     void thePublishedAccountCannotLeaveTheTrip() {
         Session demo = demo();
