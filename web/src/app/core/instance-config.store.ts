@@ -51,6 +51,20 @@ export class InstanceConfigStore {
    */
   private readonly _bookingImportEnabled = signal(false);
   private readonly _bookingDocumentImport = signal(false);
+  /**
+   * Whether this instance can look an exchange rate up.
+   *
+   * **True until answered**, which follows this store's usual optimism rather
+   * than the booking-import exception above — and the difference is what being
+   * wrong costs. There, being wrong offers a button that errors when pressed.
+   * Here it offers a rate box a beat late on an instance with the lookup off,
+   * on a form whose currency picker works either way: a foreign expense can
+   * always be recorded, the only question is whether the rate arrives on its own
+   * or has to be typed.
+   */
+  private readonly _rateLookupEnabled = signal(true);
+  private readonly _rateAttribution = signal('');
+  private readonly _rateAttributionUrl = signal('');
 
   readonly map = this._map.asReadonly();
   readonly searchEnabled = this._searchEnabled.asReadonly();
@@ -62,6 +76,9 @@ export class InstanceConfigStore {
   readonly demoSweepMinutes = this._demoSweepMinutes.asReadonly();
   readonly bookingImportEnabled = this._bookingImportEnabled.asReadonly();
   readonly bookingDocumentImport = this._bookingDocumentImport.asReadonly();
+  readonly rateLookupEnabled = this._rateLookupEnabled.asReadonly();
+  readonly rateAttribution = this._rateAttribution.asReadonly();
+  readonly rateAttributionUrl = this._rateAttributionUrl.asReadonly();
 
   /**
    * What the file picker will accept.
@@ -104,6 +121,9 @@ export class InstanceConfigStore {
       this._demoSweepMinutes.set(config.demoSweepMinutes);
       this._bookingImportEnabled.set(config.bookingImportEnabled);
       this._bookingDocumentImport.set(config.bookingDocumentImport);
+      this._rateLookupEnabled.set(config.rateLookupEnabled);
+      this._rateAttribution.set(config.rateAttribution);
+      this._rateAttributionUrl.set(config.rateAttributionUrl);
     } catch {
       // A signed-out visitor gets 401 here, which is not a failure — the
       // defaults stand, and the next sign-in loads it again.
@@ -115,6 +135,11 @@ export class InstanceConfigStore {
       this._demoSweepMinutes.set(0);
       this._bookingImportEnabled.set(false);
       this._bookingDocumentImport.set(false);
+      // Left alone on a failed read, unlike the switches above: the optimistic
+      // default is the useful one here, and clearing it would hide the rate box
+      // from the instance most likely to still be able to fetch a rate.
+      this._rateAttribution.set('');
+      this._rateAttributionUrl.set('');
     } finally {
       this._loaded.set(true);
     }
