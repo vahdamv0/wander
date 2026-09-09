@@ -51,4 +51,20 @@ public class UpstreamGates {
         WanderProperties.Weather config = properties.weather();
         return new RateGate(config.minIntervalMillis(), config.maxWaitMillis());
     }
+
+    /**
+     * Frankfurter, for exchange rates. Its own gate again.
+     *
+     * The least-used of the four by a wide margin, and deliberately still gated.
+     * Its cache never expires — a rate published for a past day is final, not
+     * merely fresh — so a healthy instance reaches this upstream a handful of
+     * times a day, and the gate is here for the unhealthy one: a bug that asks
+     * in a loop should be slow rather than be the reason a free service starts
+     * refusing this instance.
+     */
+    @Bean
+    public RateGate frankfurterGate(WanderProperties properties) {
+        WanderProperties.Fx config = properties.fx();
+        return new RateGate(config.minIntervalMillis(), config.maxWaitMillis());
+    }
 }

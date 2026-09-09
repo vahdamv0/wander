@@ -282,7 +282,9 @@ Java record → springdoc → `api/build/openapi.json` (written by
   tests replace (`@MockitoBean`), which is what keeps the suite off the network
   and off a free public service's rate budget. `GeocodingService` owns the
   feature toggle, the LRU cache, and the shared one-request-a-second gate — a
-  new upstream call belongs behind the same shape, not in a controller.
+  new upstream call belongs behind the same shape, not in a controller. There are
+  five of these now: `GeocoderClient`, `EnrichmentClient`, `WeatherClient`,
+  `MailClient` and `FxRateClient`.
 - **A second application context in a test needs command-line arguments**, not
   `SpringApplicationBuilder.properties()`: the latter lands in Spring's *default*
   property source, which `application.yml` then overrides, so the new instance
@@ -572,7 +574,70 @@ rules are narrow on purpose.
 - **One currency per trip**, on `trips.currency`, chosen at creation and **not
   editable** — the amounts stored against it mean something, so changing it would
   be a re-denomination rather than a relabel. `wander.currency` is the default for
-  a caller that does not choose.
+  a caller that does not choose. An *expense* may be in any currency; see below.
+- **An expense carries its own currency, converted once on the way in.**
+  `expenses.amount_minor` did not change meaning — it is still the trip's
+  currency and still what every aggregate sums, which is why `sumPerDay` and the
+  balance summary needed no edit and `V18` needed no backfill. Beside it sits the
+  receipt: `source_amount_minor`, `source_currency`, `fx_rate` and `fx_quoted_on`,
+  all null for the ordinary case, and `ck_expenses_fx` refuses any half of that.
+  `V6` said balances that mix currencies "stop being arithmetic" and that is still
+  the rule — the conversion happens at the boundary so nothing downstream of
+  `ExpenseService` knows a second currency exists.
+- **The rate is frozen at entry and never looked up again.** The money left the
+  account at the rate of the day. An edit re-runs the arithmetic (the amount may
+  have changed) but reuses the stored rate; only a change of *currency* or of
+  *date* refetches, because those make the row a different claim. Without that,
+  fixing a typo in a description silently moves everybody's balance —
+  `theRateIsFrozenAndAnEditDoesNotLookItUpAgain` is what holds it.
+- **The split is made of the converted total, never of converted shares.**
+  Convert each share on its own and they round independently: ¥5,000 and ¥3,000
+  of a ¥8,000 bill come to €27.92 and €16.75, which is a cent short of the €44.67
+  the expense is worth. So EXACT shares are typed and validated in the currency on
+  the bill, then `ExpenseSplitter.proportionalShares` divides the converted total
+  in those proportions — largest remainder, ties to the lowest user id, the same
+  rule `equalShares` uses. For an expense in the trip's own currency it is the
+  identity, which is what lets one code path serve both.
+- **Rates are asked for against the euro and divided here.** Never as a pair.
+  The upstream publishes about five significant figures whichever direction it is
+  asked in, so the small side of a pair arrives pre-rounded: the dong against the
+  euro is `3.3e-05` — two figures, over a percent of error — where the euro
+  against the dong is `30127`. The date is always explicit for the same class of
+  reason: asked for "latest", each currency answers with its own most recent
+  publication, so two legs of one cross rate can be stamped with different days.
+- **A missing rate is an error, and this is the one upstream where that is
+  true.** Enrichment swallows an outage because a description is a nicety; the
+  forecast answers 200 with nothing because weather is decoration. Neither
+  argument survives money: an expense stored without a rate either drops out of
+  the totals or counts its yen as euros, and nothing later rechecks it. So the
+  write is refused — and the message names the way out, because there is one.
+- **A rate can be typed, and that is a first-class path rather than a fallback.**
+  It replaces the lookup rather than overriding its answer, so it is the only
+  thing that works on an instance with no outbound network — and it is frequently
+  the *better* number, since a card statement knows what was really charged and a
+  market reference does not. `fx_manual` is a column because the two are different
+  claims and the interface says which.
+- **The client computes no part of the conversion, including the preview.**
+  `GET /api/fx/rate` takes an optional `amountMinor` and answers with
+  `convertedMinor`, so the figure the form shows comes from the same code path
+  that will do the real conversion on save. A preview multiplied in TypeScript
+  would be a second implementation, and the way it would announce itself is by
+  disagreeing with the saved figure by a cent.
+- **`fx_rates` is the strongest cache in the project and has no TTL.** A rate
+  published for a past day is *final*, not merely fresh — unlike an enrichment,
+  which goes stale, or a forecast, which improves. Keyed against the euro rather
+  than as a pair, so a trip's second foreign currency is half a lookup. Global,
+  like `place_enrichment`, which means **rows outlive a test**: a test that counts
+  calls to `FxRateClient` has to bring its own date or it is really testing which
+  test ran first.
+- **`CurrencyConversion` is the one place a decimal type is allowed**, and the
+  exception is narrow: a rate is not a quantity of money and has no minor unit,
+  so the multiplication has to happen somewhere. It happens there, in
+  `BigDecimal`, rounded HALF_UP exactly once, and the result leaves as a `long`.
+  Exponents come from `java.util.Currency`, for the reason `money.ts` takes them
+  from `Intl` — a table maintained here is a table that is wrong about the yen.
+  Rates cross the wire as **strings**, never JSON numbers, for the same reason
+  amounts are integers.
 - **A split always sums to its amount.** `ExpenseSplitter.equalShares` spreads the
   remainder one minor unit at a time to the lowest user ids — €10 over three is
   334/333/333, deterministic so a test can assert on it. An `EXACT` split is the
@@ -932,8 +997,23 @@ it belongs on a demo box, not on somebody's real one.
   trains, so the spare minor unit visibly lands on the lowest user id — every
   other amount here halves cleanly, and without one of these the rule that a
   split always sums to its total cannot be seen), a payment (so a balance is
-  partly settled), a shared packing pile beside assigned items, days with no
-  places at all, and a flight whose arrival zone differs from its departure.
+  partly settled), an expense **paid in another currency** (the flights, bought
+  from home months before anybody was near a yen), a shared packing pile beside
+  assigned items, days with no places at all, and a flight whose arrival zone
+  differs from its departure.
+- **The seeded conversion is marked as a rate somebody entered, and that is
+  argued rather than convenient.** A looked-up rate belongs to a published day,
+  and this trip is re-dated on every boot — so stamping a market quote onto
+  whatever date the seeder produced would be the `places.category` mistake in
+  another costume, a number presented as fact that came from something that does
+  not know. It also keeps the seeder true to its own rule of needing no outbound
+  network. `DemoContent` therefore declares the amount in **pounds** with the
+  rate beside it and the seeder converts through `CurrencyConversion`, so the
+  yen figure is never written down and cannot drift from the rate that produced
+  it. `theDemoShowsAnExpensePaidInAnotherCurrency` pins that, for the reason the
+  VIEWER role is pinned: a conversion that stopped happening would leave a ledger
+  that still adds up and still renders, quietly counting pounds as yen on the one
+  instance strangers are looking at.
 - **Trips the shared account makes for itself are swept on a schedule**, and
   that is a second job rather than part of the re-seed because the re-seed
   cannot do it: its delete is scoped to the demo *content* owner, which is what

@@ -188,10 +188,30 @@
               </select>
             </label>
             <label class="label min-w-0">
-              Amount ({{ currency() }})
-              <input class="field" type="text" name="payAmount" inputmode="decimal" required
-                     placeholder="0.00"
-                     [ngModel]="payAmount()" (ngModelChange)="payAmount.set($event)" />
+              <span>Amount</span>
+              <div class="flex gap-2">
+                <input class="field min-w-0 flex-1" type="text" name="payAmount" inputmode="decimal"
+                       required placeholder="0.00"
+                       [ngModel]="payAmount()" (ngModelChange)="payAmount.set($event)" />
+                <!-- Cash handed over abroad is handed over in the cash somebody
+                     has, so a payment converts exactly as an expense does. -->
+                <select class="field w-28 shrink-0" name="payCurrency"
+                        aria-label="Currency this was paid in"
+                        [ngModel]="payCurrency()" (ngModelChange)="payCurrency.set($event)">
+                  <optgroup label="Common">
+                    @for (code of commonCurrencies(); track code) {
+                      <option [value]="code">{{ code }}</option>
+                    }
+                  </optgroup>
+                  @if (otherCurrencies().length) {
+                    <optgroup label="All currencies">
+                      @for (code of otherCurrencies(); track code) {
+                        <option [value]="code">{{ code }}</option>
+                      }
+                    </optgroup>
+                  }
+                </select>
+              </div>
             </label>
             <label class="label min-w-0">
               Date
@@ -203,6 +223,40 @@
               <input class="field" type="text" name="payNote" placeholder="cash at the station"
                      [ngModel]="payNote()" (ngModelChange)="payNote.set($event)" />
             </label>
+
+            @if (payIsForeign()) {
+              <div class="sm:col-span-2 rounded-control bg-surface-2 p-3 text-sm">
+                @if (payQuote(); as quote) {
+                  <p>
+                    <span class="text-muted">Clears</span>
+                    <span class="font-medium">
+                      @if (quote.convertedMinor) {
+                        {{ money(quote.convertedMinor) }}
+                      } @else {
+                        &mdash;
+                      }
+                    </span>
+                    <span class="text-xs text-muted">
+                      · 1 {{ quote.from }} = {{ quote.rate }} {{ quote.to }}
+                    </span>
+                  </p>
+                } @else if (payQuoteFailed() && !payRate().trim()) {
+                  <p class="text-muted">
+                    No rate for {{ payEntryCurrency() }} on that date. Enter the rate you were
+                    charged.
+                  </p>
+                } @else if (!payRate().trim()) {
+                  <p class="text-muted">Looking up the rate&hellip;</p>
+                }
+
+                <label class="label mt-3 min-w-0">
+                  <span>Rate <span class="font-normal text-muted">(optional)</span></span>
+                  <input class="field" type="text" name="payFxRate" inputmode="decimal"
+                         [placeholder]="'1 ' + payEntryCurrency() + ' in ' + currency()"
+                         [ngModel]="payRate()" (ngModelChange)="payRate.set($event)" />
+                </label>
+              </div>
+            }
           </div>
           <div class="flex items-center gap-2">
             <button type="submit" class="btn-primary" [disabled]="!canRecordPayment()">
@@ -254,7 +308,19 @@
                 }
               </div>
               <div class="flex shrink-0 items-center gap-2">
-                <span class="text-sm font-medium">{{ money(expense.amountMinor) }}</span>
+                <!-- Both figures, never one. The converted number is what the
+                     split is made of and what every balance is in; the original
+                     is what the person remembers handing over and the only thing
+                     a bank statement can be checked against. -->
+                <span class="text-right text-sm font-medium">
+                  {{ money(expense.amountMinor) }}
+                  @if (expense.sourceCurrency && expense.sourceAmountMinor) {
+                    <span class="block text-xs font-normal text-muted"
+                          [title]="rateLabel(expense)">
+                      {{ sourceMoney(expense.sourceAmountMinor, expense.sourceCurrency) }}
+                    </span>
+                  }
+                </span>
                 <!-- Two blocks, not one: only an expense can be edited, but a
                      payment recorded in error still has to be removable. -->
                 @if (canEdit() && expense.kind === 'EXPENSE') {
@@ -327,10 +393,33 @@
                [ngModel]="draftDescription()" (ngModelChange)="draftDescription.set($event)" />
       </label>
       <label class="label min-w-0">
-        Amount ({{ currency() }})
-        <input class="field" type="text" name="amount" inputmode="decimal" required
-               placeholder="0.00"
-               [ngModel]="draftAmount()" (ngModelChange)="draftAmount.set($event)" />
+        <span>Amount</span>
+        <div class="flex gap-2">
+          <input class="field min-w-0 flex-1" type="text" name="amount" inputmode="decimal" required
+                 placeholder="0.00"
+                 [ngModel]="draftAmount()" (ngModelChange)="draftAmount.set($event)" />
+          <!-- Typed in whatever was on the bill. The trip's own currency is the
+               default and costs nothing; anything else is converted on save. -->
+          <select class="field w-28 shrink-0" name="currency"
+                  aria-label="Currency this was paid in"
+                  [ngModel]="draftCurrency()" (ngModelChange)="draftCurrency.set($event)">
+            <!-- Two groups, and nothing is in both: a couple of hundred codes is
+                 the right thing for the menu to hold and the wrong thing for it
+                 to open on. -->
+            <optgroup label="Common">
+              @for (code of commonCurrencies(); track code) {
+                <option [value]="code">{{ code }}</option>
+              }
+            </optgroup>
+            @if (otherCurrencies().length) {
+              <optgroup label="All currencies">
+                @for (code of otherCurrencies(); track code) {
+                  <option [value]="code">{{ code }}</option>
+                }
+              </optgroup>
+            }
+          </select>
+        </div>
       </label>
       <label class="label min-w-0">
         Date
@@ -346,11 +435,60 @@
           }
         </select>
       </label>
+
+      <!-- Only when there is something to convert. An expense in the trip's own
+           currency is the common case and shows nothing extra at all. -->
+      @if (draftIsForeign()) {
+        <div class="sm:col-span-2 rounded-control bg-surface-2 p-3 text-sm">
+          @if (draftQuote(); as quote) {
+            <p>
+              <span class="text-muted">Converts to</span>
+              <span class="font-medium">
+                @if (quote.convertedMinor) {
+                  {{ money(quote.convertedMinor) }}
+                } @else {
+                  &mdash;
+                }
+              </span>
+            </p>
+            <p class="mt-1 text-xs text-muted">
+              1 {{ quote.from }} = {{ quote.rate }} {{ quote.to }} · {{ dateLabel(quote.quotedOn) }}
+              @if (rateAttribution()) {
+                ·
+                <a class="underline" [href]="rateAttributionUrl()" target="_blank"
+                   rel="noopener noreferrer">{{ rateAttribution() }}</a>
+              }
+            </p>
+          } @else if (quoteFailed() && !draftRate().trim()) {
+            <!-- Every reason a lookup comes back empty ends in the same place:
+                 there is a rate this person knows and this instance does not. -->
+            <p class="text-muted">
+              No rate for {{ entryCurrency() }} on that date. Enter the rate you were charged.
+            </p>
+          } @else if (!draftRate().trim()) {
+            <p class="text-muted">Looking up the rate&hellip;</p>
+          }
+
+          <label class="label mt-3 min-w-0">
+            <span>Rate <span class="font-normal text-muted">(optional)</span></span>
+            <input class="field" type="text" name="fxRate" inputmode="decimal"
+                   [placeholder]="'1 ' + entryCurrency() + ' in ' + currency()"
+                   [ngModel]="draftRate()" (ngModelChange)="draftRate.set($event)" />
+            <span class="mt-1 text-xs text-muted">
+              Leave this empty to use the rate above. Fill it in to use the rate your
+              card charged &mdash; it is stored with the expense either way and is not
+              looked up again.
+            </span>
+          </label>
+        </div>
+      }
     </div>
 
     <div class="rounded-control bg-surface-2 p-3">
       <div class="flex flex-wrap items-center justify-between gap-2">
-        <span class="text-xs font-semibold uppercase tracking-wide text-muted">Split between</span>
+        <span class="text-xs font-semibold uppercase tracking-wide text-muted">
+          Split between@if (draftIsForeign()) { <span class="normal-case">({{ entryCurrency() }})</span> }
+        </span>
         <div class="flex items-center gap-1">
           <button type="button" class="btn-ghost px-2 py-1 text-xs"
                   [class.text-accent]="draftMode() === 'EQUAL'"

@@ -4,7 +4,9 @@
 import { ExpenseShareInput } from '../models/expense-share-input';
 export interface ExpenseRequest {
   amountMinor: number;
+  currency?: string;
   description: string;
+  fxRate?: string;
   paidByUserId: number;
   shares: Array<ExpenseShareInput>;
   spentOn: string;

@@ -2605,3 +2605,98 @@ test('a single booking in a file skips the picker', async ({ browser }) => {
 
   await context.close();
 });
+
+/**
+ * An expense paid in another currency, converted at a rate the user types.
+ *
+ * The **typed** rate is what makes this a browser test rather than a second copy
+ * of the Java one: it exercises the whole form — the currency picker, the amount
+ * parsed in the currency it was typed in, both figures on the row afterwards —
+ * and touches no upstream on either side. A test that let the server look a rate
+ * up would spend a free service's budget on every CI run, which is the same
+ * argument that keeps the basemap stubbed.
+ *
+ * The amount is the reason the picker cannot be cosmetic. The yen has **no minor
+ * unit**, so "8000" is eight thousand whole yen; parsed against the trip's euros
+ * it would be ¥80, and the expense would be out by a factor of a hundred with
+ * nothing failing.
+ */
+test('an expense in another currency converts at a typed rate and keeps both figures', async ({
+  page,
+}) => {
+  const stamp = Date.now();
+  await stubBasemap(page);
+
+  const consoleErrors: string[] = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error' && !message.text().includes('401')) {
+      consoleErrors.push(message.text());
+    }
+  });
+  page.on('pageerror', (error) => consoleErrors.push(error.message));
+
+  await page.goto('/login');
+  await page.getByText('Create one').click();
+  await page.locator('input[name=email]').fill(`e2e-fx-${stamp}@example.com`);
+  await page.locator('input[name=displayName]').fill('Fx Traveller');
+  await page.locator('input[name=password]').fill('correct-horse-battery');
+  await page.locator('button[type=submit]').click();
+  await expect(page).toHaveURL(/\/trips$/);
+
+  await page.getByRole('button', { name: 'Plan your first trip' }).click();
+  await page.locator('input[name=name]').fill('Kyoto');
+  await page.locator('input[name=startDate]').fill('2027-09-10');
+  await page.locator('input[name=endDate]').fill('2027-09-12');
+  await page.getByRole('button', { name: 'Create trip' }).click();
+  await page.getByRole('link', { name: /Kyoto/ }).click();
+  await page.getByRole('link', { name: 'Expenses' }).click();
+  await expect(page).toHaveURL(/\/expenses$/);
+
+  await page.getByRole('button', { name: 'Add an expense' }).click();
+  await page.locator('input[name=description]').fill('Dinner');
+  await page.locator('input[name=amount]').fill('8000');
+  await page.locator('input[name=spentOn]').fill('2027-09-10');
+
+  // Nothing about the conversion is on screen until there is something to
+  // convert: an expense in the trip's own currency is the common case and shows
+  // no extra controls at all.
+  await expect(page.locator('input[name=fxRate]')).toHaveCount(0);
+
+  // The picker holds every code the upstream can answer for, so the few worth
+  // opening on are pinned in front — the trip's own first, since switching back
+  // to it is how you undo picking the wrong one. Nothing appears in both groups:
+  // on a EUR trip, EUR is at the top and not again among the other two hundred.
+  const options = page.locator('select[name=currency] option');
+  await expect(options.first()).toHaveText('EUR');
+  await expect(options.filter({ hasText: /^EUR$/ })).toHaveCount(1);
+  await expect(page.locator('select[name=currency] optgroup[label="Common"] option'))
+    .toHaveText(['EUR', 'USD', 'INR']);
+
+  await page.locator('select[name=currency]').selectOption('JPY');
+  await expect(page.locator('input[name=fxRate]')).toBeVisible();
+
+  // The rate this person's card actually charged, which no reference series
+  // knows. ¥8,000 at 0.0055 is €44.00.
+  await page.locator('input[name=fxRate]').fill('0.0055');
+  await page.getByRole('button', { name: 'Save expense' }).click();
+
+  const row = page.locator('ul > li.card').filter({ hasText: 'Dinner' });
+  // Both figures, and asserted on the amount cell rather than the row: with one
+  // participant the share equals the total, so a loose getByText('€44.00')
+  // matches twice and fails strict mode. The pairing is the point anyway — the
+  // euro figure is what the balances are made of, and the yen one is what the
+  // receipt says, without which the ledger cannot be checked against a bank
+  // statement.
+  const amount = row.locator('span.text-right').first();
+  await expect(amount).toContainText('€44.00');
+  await expect(amount).toContainText('¥8,000');
+  await expect(page.getByText('€44.00 in total')).toBeVisible();
+
+  // Reopening shows the yen back, not the euros: putting the converted figure in
+  // the box would rewrite the expense as a euro one on the next save.
+  await page.getByRole('button', { name: 'Edit Dinner' }).click();
+  await expect(page.locator('input[name=amount]')).toHaveValue('8000');
+  await expect(page.locator('select[name=currency]')).toHaveValue('JPY');
+
+  expect(consoleErrors).toEqual([]);
+});

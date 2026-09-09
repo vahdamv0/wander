@@ -110,6 +110,7 @@ services:
       WANDER_QUOTA_SEARCHES: ${WANDER_QUOTA_SEARCHES:-120}
       WANDER_QUOTA_ENRICHMENTS: ${WANDER_QUOTA_ENRICHMENTS:-60}
       WANDER_QUOTA_FORECASTS: ${WANDER_QUOTA_FORECASTS:-60}
+      WANDER_QUOTA_RATES: ${WANDER_QUOTA_RATES:-40}
       WANDER_QUOTA_WINDOW_MINUTES: ${WANDER_QUOTA_WINDOW_MINUTES:-5}
       # The Content-Security-Policy, built from the map settings below.
       WANDER_CSP_ENABLED: ${WANDER_CSP_ENABLED:-true}
@@ -119,6 +120,13 @@ services:
       WANDER_GEOCODING_URL: ${WANDER_GEOCODING_URL:-https://nominatim.openstreetmap.org}
       WANDER_GEOCODING_CONTACT: ${WANDER_GEOCODING_CONTACT:-}
       WANDER_GEOCODING_LANGUAGE: ${WANDER_GEOCODING_LANGUAGE:-en}
+      # Exchange rates for an expense paid in another currency. Off turns off
+      # the lookup, not the feature: a rate can still be typed, which is what an
+      # instance with no outbound network does.
+      WANDER_FX_ENABLED: ${WANDER_FX_ENABLED:-true}
+      WANDER_FX_URL: ${WANDER_FX_URL:-https://api.frankfurter.dev}
+      WANDER_FX_ATTRIBUTION: ${WANDER_FX_ATTRIBUTION:-Exchange rates via Frankfurter}
+      WANDER_FX_ATTRIBUTION_URL: ${WANDER_FX_ATTRIBUTION_URL:-https://frankfurter.dev/}
       WANDER_MAP_ENABLED: ${WANDER_MAP_ENABLED:-true}
       # A MapLibre vector style, which is what lets the map be labelled in the
       # reader's language. Blank falls back to the raster tile URL below.

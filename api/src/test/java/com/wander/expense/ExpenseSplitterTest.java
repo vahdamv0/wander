@@ -78,6 +78,123 @@ class ExpenseSplitterTest {
     }
 
     @Test
+    void aProportionalSplitKeepsTheProportionsAndTheTotal() {
+        // ¥8,000 split 5,000 / 3,000, converted to €44.68. Converting the shares
+        // one at a time gives 2792 and 1675, which is 4467 — a cent short of the
+        // expense it belongs to. Dividing the converted total cannot do that.
+        Map<Long, Long> typed = new LinkedHashMap<>();
+        typed.put(1L, 5000L);
+        typed.put(2L, 3000L);
+
+        Map<Long, Long> shares = ExpenseSplitter.proportionalShares(4468, typed);
+
+        assertThat(shares).containsEntry(1L, 2793L).containsEntry(2L, 1675L);
+        assertThat(sum(shares)).isEqualTo(4468);
+    }
+
+    @Test
+    void aProportionalSplitOfTheSameCurrencyIsTheIdentity() {
+        // The case that lets one code path serve both: when the total being
+        // divided is already the sum of the weights, everybody gets back exactly
+        // what they typed. If this ever stops holding, every ordinary exact split
+        // in the application starts being rounded.
+        Map<Long, Long> typed = new LinkedHashMap<>();
+        typed.put(4L, 3000L);
+        typed.put(2L, 2999L);
+        typed.put(9L, 1L);
+
+        assertThat(ExpenseSplitter.proportionalShares(6000, typed))
+                .containsExactlyInAnyOrderEntriesOf(typed);
+    }
+
+    @Test
+    void theLeftoverGoesToWhoeverWasRoundedDownHardest() {
+        // Three equal weights over a total that does not divide by three. Every
+        // remainder ties, so the tie-break decides — lowest user ids first, the
+        // same rule equalShares uses.
+        Map<Long, Long> typed = new LinkedHashMap<>();
+        typed.put(7L, 100L);
+        typed.put(3L, 100L);
+        typed.put(5L, 100L);
+
+        Map<Long, Long> shares = ExpenseSplitter.proportionalShares(1000, typed);
+
+        assertThat(shares).containsEntry(3L, 334L).containsEntry(5L, 333L).containsEntry(7L, 333L);
+        assertThat(sum(shares)).isEqualTo(1000);
+    }
+
+    @Test
+    void aProportionalSplitSurvivesAmountsThatWouldOverflowALong() {
+        // A rupiah trip: the product of the total and one weight is past what a
+        // long holds long before either number is unreasonable on its own. Done
+        // in long arithmetic this wraps negative, and somebody's share owes money
+        // backwards.
+        Map<Long, Long> typed = new LinkedHashMap<>();
+        typed.put(1L, 6_000_000_000L);
+        typed.put(2L, 4_000_000_000L);
+
+        Map<Long, Long> shares = ExpenseSplitter.proportionalShares(10_000_000_000L, typed);
+
+        assertThat(shares).containsEntry(1L, 6_000_000_000L).containsEntry(2L, 4_000_000_000L);
+        assertThat(sum(shares)).isEqualTo(10_000_000_000L);
+    }
+
+    /**
+     * The same property {@code sharesAlwaysSumToTheAmount} pins for an equal
+     * split, for the converted one: whatever the total and whatever the
+     * proportions, the pieces add up to the whole and none of them is negative.
+     */
+    @ParameterizedTest
+    @CsvSource({ "4468, 5000, 3000", "1, 1, 1", "999, 7, 993", "100000, 1, 999999",
+            "3121, 1000, 1000", "7, 3, 3", "123456789, 5, 11" })
+    void aProportionalSplitAlwaysSumsToTheTotal(long total, long first, long second) {
+        Map<Long, Long> typed = new LinkedHashMap<>();
+        typed.put(1L, first);
+        typed.put(2L, second);
+
+        Map<Long, Long> shares = ExpenseSplitter.proportionalShares(total, typed);
+
+        assertThat(sum(shares)).isEqualTo(total);
+        assertThat(shares.values()).allMatch(share -> share >= 0);
+    }
+
+    @Test
+    void aNegativeProportionIsRejected() {
+        // The API refuses one before it gets here, so this is the guard on the
+        // function rather than on the endpoint — and it is not decoration. A
+        // negative weight lets the running total overshoot the amount, and the
+        // leftover then indexes past the end of the participant list.
+        Map<Long, Long> typed = new LinkedHashMap<>();
+        typed.put(1L, 5000L);
+        typed.put(2L, -1000L);
+
+        assertThatThrownBy(() -> ExpenseSplitter.proportionalShares(4000, typed))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void aNegativeTotalIsRejected() {
+        Map<Long, Long> typed = new LinkedHashMap<>();
+        typed.put(1L, 5000L);
+
+        assertThatThrownBy(() -> ExpenseSplitter.proportionalShares(-1, typed))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void proportionsThatAddUpToNothingAreRejected() {
+        // Not reachable through the service, which checks the shares against the
+        // amount first — and worth refusing here anyway, because the alternative
+        // is a division by zero inside the money arithmetic.
+        Map<Long, Long> typed = new LinkedHashMap<>();
+        typed.put(1L, 0L);
+        typed.put(2L, 0L);
+
+        assertThatThrownBy(() -> ExpenseSplitter.proportionalShares(1000, typed))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     void settlingTwoPeopleIsOneTransfer() {
         Map<Long, Long> balances = new LinkedHashMap<>();
         balances.put(1L, 9732L);

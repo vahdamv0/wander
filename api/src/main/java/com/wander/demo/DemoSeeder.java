@@ -1,24 +1,5 @@
 package com.wander.demo;
 
-import java.security.SecureRandom;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.time.ZoneId;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.boot.ApplicationArguments;
-import org.springframework.boot.ApplicationRunner;
-import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
-
 import com.wander.auth.UserAccountService;
 import com.wander.config.WanderProperties;
 import com.wander.day.DayNote;
@@ -27,11 +8,8 @@ import com.wander.demo.DemoContent.DemoBooking;
 import com.wander.demo.DemoContent.DemoExpense;
 import com.wander.demo.DemoContent.DemoPacking;
 import com.wander.demo.DemoContent.DemoPlace;
-import com.wander.expense.Expense;
-import com.wander.expense.ExpenseKind;
-import com.wander.expense.ExpenseRepository;
-import com.wander.expense.ExpenseSplitter;
-import com.wander.expense.SplitMode;
+import com.wander.expense.*;
+import com.wander.fx.CurrencyConversion;
 import com.wander.packing.PackingItem;
 import com.wander.packing.PackingItemRepository;
 import com.wander.place.Place;
@@ -39,14 +17,25 @@ import com.wander.place.PlaceRepository;
 import com.wander.reservation.Reservation;
 import com.wander.reservation.ReservationKind;
 import com.wander.reservation.ReservationRepository;
-import com.wander.trip.Trip;
-import com.wander.trip.TripMember;
-import com.wander.trip.TripMemberRepository;
-import com.wander.trip.TripRepository;
-import com.wander.trip.TripRole;
+import com.wander.trip.*;
 import com.wander.user.GlobalRole;
 import com.wander.user.User;
 import com.wander.user.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.boot.ApplicationArguments;
+import org.springframework.boot.ApplicationRunner;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.security.SecureRandom;
+import java.time.*;
+import java.util.Base64;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * A worked example trip, and a read-only account to look at it with.
@@ -197,18 +186,33 @@ public class DemoSeeder implements ApplicationRunner {
     private void addMoney(Trip trip, LocalDate start, List<User> travellers) {
         List<Long> ids = travellers.stream().map(User::getId).toList();
         for (DemoExpense spec : DemoContent.EXPENSES) {
-            Expense expense = new Expense(trip, spec.description(), spec.amountMinor(),
+            BigDecimal rate = spec.fxRate() == null
+                    ? null
+                    : new BigDecimal(spec.fxRate())
+                            .setScale(CurrencyConversion.RATE_SCALE, RoundingMode.HALF_UP);
+            long amountMinor = rate == null
+                    ? spec.amountMinor()
+                    : CurrencyConversion.convert(spec.amountMinor(), spec.sourceCurrency(),
+                            DemoContent.TRIP_CURRENCY, rate);
+
+            Expense expense = new Expense(trip, spec.description(), amountMinor,
                     start.plusDays(spec.dayOffset()), travellers.get(spec.paidBy()),
                     spec.exact() ? SplitMode.EXACT : SplitMode.EQUAL, ExpenseKind.EXPENSE);
+            if (rate != null) {
+                expense.setConversion(spec.sourceCurrency(), spec.amountMinor(), rate, null, true);
+            }
+
             Map<Long, Long> shares = new HashMap<>();
             if (spec.exact()) {
+                Map<Long, Long> typed = new HashMap<>();
                 for (int i = 0; i < ids.size(); i++) {
-                    shares.put(ids.get(i), spec.shares()[i]);
+                    typed.put(ids.get(i), spec.shares()[i]);
                 }
+                shares.putAll(ExpenseSplitter.proportionalShares(amountMinor, typed));
             } else {
                 // The same splitter the endpoint uses, so the remainder lands
                 // where it really lands rather than where a seeder guessed.
-                shares.putAll(ExpenseSplitter.equalShares(spec.amountMinor(), ids));
+                shares.putAll(ExpenseSplitter.equalShares(amountMinor, ids));
             }
             expense.replaceShares(shares, id -> travellers.stream()
                     .filter(u -> u.getId().equals(id)).findFirst().orElseThrow());

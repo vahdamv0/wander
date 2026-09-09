@@ -93,6 +93,8 @@ public record WanderProperties(
 
         @DefaultValue Weather weather,
 
+        @DefaultValue Fx fx,
+
         @DefaultValue BookingImport bookingImport,
 
         @DefaultValue MapTiles map) {
@@ -229,7 +231,13 @@ public record WanderProperties(
             /* Opening a place, which on first sight may walk four services. */
             @DefaultValue("60") int enrichmentsPerWindow,
             /* One request covers a whole trip, so this is really per page view. */
-            @DefaultValue("60") int forecastsPerWindow, @DefaultValue("5") int windowMinutes,
+            @DefaultValue("60") int forecastsPerWindow,
+            /*
+             * A rate for the expense form's preview. The tightest, and it can
+             * afford to be: one lookup per foreign expense somebody is typing,
+             * over a cache that never expires.
+             */
+            @DefaultValue("40") int ratesPerWindow, @DefaultValue("5") int windowMinutes,
             @DefaultValue("10000") int trackedKeys) {
     }
 
@@ -366,6 +374,47 @@ public record WanderProperties(
      * the attribution are both settings, and why the attribution travels to the
      * client with the data rather than being compiled into the Angular app.
      */
+    /*
+     * Exchange rates, for an expense paid in something other than the trip's
+     * currency.
+     *
+     * Frankfurter by default, because — like Open-Meteo — **it needs no API
+     * key**. A self-hoster should not have to open an account with a foreign
+     * exchange vendor to record a dinner in yen, and every keyed alternative
+     * makes the operator somebody's customer to run their own software. It is
+     * MIT-licensed and ships a container, which is why {@code baseUrl} is a
+     * setting: an instance that would rather ask its own copy changes one line.
+     *
+     * `enabled: false` turns off the *lookup*, not the feature. A foreign
+     * currency can still be recorded with a rate somebody types, which is the
+     * only thing that works on an instance with no outbound network anyway —
+     * and is frequently the better number, since a card statement knows what was
+     * actually charged and a reference rate does not.
+     */
+    public record Fx(@DefaultValue("true") boolean enabled,
+                     @DefaultValue("https://api.frankfurter.dev") String baseUrl,
+            /*
+             * How long the supported-currency listing is held before it is asked
+             * for again. A day, because coverage moves on the scale of a central
+             * bank joining or leaving, and the list is wanted on every page that
+             * draws a currency picker.
+             */
+                     @DefaultValue("24") int currencyCacheHours,
+            /*
+             * Shown wherever a converted amount is. Not required by the
+             * upstream's licence the way Open-Meteo's is, and carried anyway for
+             * the reason that one is: a number somebody is expected to trust
+             * should say where it came from, and an operator pointing this
+             * elsewhere needs the credit to follow the data rather than being
+             * compiled into the Angular app.
+             */
+                     @DefaultValue("Exchange rates via Frankfurter") String attribution,
+                     @DefaultValue("https://frankfurter.dev/") String attributionUrl,
+            /* Gap between outbound calls, and how long a caller waits for the gate. */
+                     @DefaultValue("200") long minIntervalMillis,
+                     @DefaultValue("4000") long maxWaitMillis) {
+    }
+
     public record Weather(@DefaultValue("true") boolean enabled,
                           @DefaultValue("https://api.open-meteo.com") String baseUrl,
             /*
