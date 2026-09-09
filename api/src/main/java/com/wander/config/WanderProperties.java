@@ -93,6 +93,8 @@ public record WanderProperties(
 
         @DefaultValue Weather weather,
 
+        @DefaultValue BookingImport bookingImport,
+
         @DefaultValue MapTiles map) {
 
     /*
@@ -306,6 +308,50 @@ public record WanderProperties(
                              @DefaultValue("4") int photoCount,
             /* Gap between outbound Wikimedia calls, and how long a caller waits for the gate. */
                              @DefaultValue("200") long minIntervalMillis, @DefaultValue("4000") long maxWaitMillis) {
+    }
+
+    /*
+     * Reading a booking out of a confirmation file.
+     *
+     * On by default and useful either way, which is why this is one switch rather
+     * than two. The heavy half — KItinerary, which carries 349 provider formats
+     * plus schema.org markup, Apple Wallet passes and boarding-pass barcodes — is
+     * a binary in the image, and an image built without it simply reports itself
+     * as calendar-only: the iCalendar reader is pure Java and always there, so the
+     * feature degrades rather than disappearing. `enabled: false` is for an
+     * operator who would rather not have poppler parse an upload at all.
+     *
+     * The extractor is found by probing at startup, so `extractor-path` is only
+     * for an installation the probe does not know about. Everything else here is
+     * a bound on somebody else's process: how long it may run, and how much it
+     * may say.
+     */
+    public record BookingImport(@DefaultValue("true") boolean enabled,
+            /* Blank means probe: the Alpine and Debian layouts, then PATH. */
+                               @DefaultValue("") String extractorPath,
+            /*
+             * A directory of extra extractor scripts, handed to the extractor as
+             * `--additional-search-path`. The image points this at
+             * /app/extractors; blank loads nothing but the 349 built in.
+             *
+             * It exists for fixes to upstream extractors, not for parsers of our
+             * own — see extractors/README.md, which sets the bar for adding one.
+             */
+                               @DefaultValue("") String extractorSearchPath,
+            /*
+             * A tenth of a second is typical, so this is not a deadline anybody
+             * meets on a bad day — it is the cap on a Qt process that has wedged
+             * on a malformed PDF, which is exactly the case a subprocess boundary
+             * exists to survive.
+             */
+                               @DefaultValue("30") int timeoutSeconds,
+            /*
+             * How much output is read back. The process is not ours, so a runaway
+             * one must not be able to spend the heap; over the cap the answer is
+             * nothing at all, because half a JSON array is a syntax error rather
+             * than a shorter list of bookings.
+             */
+                               @DefaultValue("4194304") int maxOutputBytes) {
     }
 
     /*

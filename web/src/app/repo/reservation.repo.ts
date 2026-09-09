@@ -1,10 +1,12 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import {
   Api,
+  BookingImportResult,
   ReservationRequest,
   TripReservations,
   createReservation,
   deleteReservation,
+  importReservations,
   listReservations,
   updateReservation,
 } from '../api';
@@ -32,10 +34,12 @@ export class ReservationRepo {
   /** When this came from the device rather than the server. Null when fresh. */
   private readonly _savedAt = signal<number | null>(null);
   private readonly _saving = signal(false);
+  private readonly _importing = signal(false);
 
   readonly loading = this._loading.asReadonly();
   readonly savedAt = this._savedAt.asReadonly();
   readonly saving = this._saving.asReadonly();
+  readonly importing = this._importing.asReadonly();
 
   readonly trip = computed(() => this._trip()?.trip ?? null);
   readonly reservations = computed(() => this._trip()?.reservations ?? []);
@@ -71,6 +75,36 @@ export class ReservationRepo {
 
   async remove(tripId: number, reservationId: number): Promise<void> {
     await this.write(tripId, () => this.api.invoke(deleteReservation, { tripId, reservationId }));
+  }
+
+  /**
+   * Reads a confirmation file into draft bookings.
+   *
+   * **Not a write**, which is why it does not go through `write` and does not
+   * reload afterwards: the server parses and answers with candidates, and
+   * nothing is stored until the ordinary `add` saves one. So there is no `saving`
+   * flag to raise, no list to re-read, and nothing to undo if the parse is wrong.
+   * It has its own `importing` signal because the page has to be able to say
+   * "reading…" without the row controls thinking a save is in flight.
+   *
+   * There is deliberately **no `OfflineCache`** here. Parsing happens on the
+   * server, so this cannot work from a saved copy, and a cached result would be
+   * last week's file — `requireOnline` refuses it outright instead, as the writes
+   * do.
+   *
+   * The argument must be a `File` rather than a `Blob`. The generated client
+   * puts it through `FormData.set`, which only carries a filename for a `File` —
+   * a plain `Blob` arrives named "blob", and the server picks its reader from the
+   * extension, so it would refuse every upload.
+   */
+  async importFile(tripId: number, file: File): Promise<BookingImportResult> {
+    this.requireOnline();
+    this._importing.set(true);
+    try {
+      return await this.api.invoke(importReservations, { tripId, body: { file } });
+    } finally {
+      this._importing.set(false);
+    }
   }
 
 

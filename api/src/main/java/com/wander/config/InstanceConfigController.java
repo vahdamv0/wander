@@ -8,6 +8,7 @@ import com.wander.common.PublicEndpoint;
 import com.wander.config.dto.InstanceConfig;
 import com.wander.config.dto.MapConfig;
 import com.wander.admin.PasswordResetService;
+import com.wander.bookingimport.BookingImportService;
 import com.wander.config.dto.SignInConfig;
 
 /**
@@ -23,10 +24,13 @@ public class InstanceConfigController {
 
     private final WanderProperties properties;
     private final PasswordResetService resets;
+    private final BookingImportService imports;
 
-    public InstanceConfigController(WanderProperties properties, PasswordResetService resets) {
+    public InstanceConfigController(WanderProperties properties, PasswordResetService resets,
+            BookingImportService imports) {
         this.properties = properties;
         this.resets = resets;
+        this.imports = imports;
     }
 
     /**
@@ -68,6 +72,12 @@ public class InstanceConfigController {
                 properties.version(), properties.buildRef(), properties.sourceUrl(),
                 // Zero on an ordinary instance: there is no sweep, and nothing
                 // for the client to promise anybody.
-                properties.demo().enabled() ? properties.demo().sweepMinutes() : 0);
+                properties.demo().enabled() ? properties.demo().sweepMinutes() : 0,
+                // Asked of the service rather than read off the property, for the
+                // reason selfServiceEnabled is asked of the mail client: "switched
+                // on" and "able to do the thing" are different questions, and the
+                // second boolean is only answerable by whatever probed for the
+                // extractor at startup.
+                imports.enabled(), imports.extractorAvailable());
     }
 }

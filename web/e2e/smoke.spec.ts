@@ -2414,3 +2414,194 @@ test('the itinerary prints as a document, with its bookings on the right days', 
 
   expect(consoleErrors, 'unexpected console errors').toEqual([]);
 });
+
+/**
+ * Reading a confirmation file into the booking form.
+ *
+ * The fixture is a **calendar attachment**, not a PDF, and that is deliberate:
+ * the document extractor is a native binary that only the release image carries,
+ * so a test needing it would pass on CI's image and fail on a laptop. The
+ * iCalendar reader is pure Java and always present, so this exercises the whole
+ * journey — upload, drafts, prefill, save — on any instance.
+ *
+ * Two events in one file, because that is the case worth protecting: a
+ * confirmation with an outbound and a return leg must offer both, and the second
+ * must survive the first being saved.
+ *
+ * The browser is pinned to Europe/London so the zone the *file* names is
+ * distinguishable from the one the client would fall back to.
+ */
+test('a calendar file becomes drafts, and saves nothing until asked', async ({ browser }) => {
+  const context = await browser.newContext({ timezoneId: 'Europe/London' });
+  const page = await context.newPage();
+  await stubBasemap(page);
+
+  const consoleErrors: string[] = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error' && !message.text().includes('401')) {
+      consoleErrors.push(message.text());
+    }
+  });
+  page.on('pageerror', (error) => consoleErrors.push(error.message));
+
+  await page.goto('/login');
+  await page.getByText('Create one').click();
+  await page.locator('input[name=email]').fill(`e2e-import-${Date.now()}@example.com`);
+  await page.locator('input[name=displayName]').fill('Import Tester');
+  await page.locator('input[name=password]').fill('correct-horse-battery');
+  await page.locator('button[type=submit]').click();
+
+  await expect(page).toHaveURL(/\/trips$/);
+  await page.getByRole('button', { name: 'Plan your first trip' }).click();
+  await page.locator('input[name=name]').fill('Japan by file');
+  await page.locator('input[name=startDate]').fill('2027-07-12');
+  await page.locator('input[name=endDate]').fill('2027-07-20');
+  await page.getByRole('button', { name: 'Create trip' }).click();
+  await page.getByRole('link', { name: /Japan by file/ }).click();
+  await page.getByRole('link', { name: 'Bookings' }).click();
+  await expect(page).toHaveURL(/\/reservations$/);
+
+  // A timed stay in Tokyo, and an all-day entry with no clock on it at all —
+  // which is the case a LocalDateTime could not represent and the reason a draft
+  // keeps date and time apart.
+  const calendar = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Example Hotels//Booking//EN',
+    'BEGIN:VEVENT',
+    'UID:one@example.org',
+    'DTSTART;TZID=Asia/Tokyo:20270715T150000',
+    'DTEND;TZID=Asia/Tokyo:20270719T110000',
+    'SUMMARY:Hotel Granbell Kyoto',
+    'DESCRIPTION:Confirmation number 88213-ABQ',
+    'END:VEVENT',
+    'BEGIN:VEVENT',
+    'UID:two@example.org',
+    'DTSTART;VALUE=DATE:20270716',
+    'DTEND;VALUE=DATE:20270717',
+    'SUMMARY:Nara day pass',
+    'END:VEVENT',
+    'END:VCALENDAR',
+    '',
+  ].join('\r\n');
+
+  // The input is hidden behind a button, which Playwright can still set.
+  await page.locator('input[type=file]').setInputFiles({
+    name: 'reservation.ics',
+    mimeType: 'text/calendar',
+    buffer: Buffer.from(calendar),
+  });
+
+  // Two drafts on offer — and **nothing saved**, which is the whole design. The
+  // empty-state text is the proof: it is rendered from the trip's own list.
+  await expect(page.getByRole('heading', { name: /2 bookings in reservation\.ics/ })).toBeVisible();
+  await expect(page.getByText('Nothing has been saved.')).toBeVisible();
+  await expect(page.getByText('No bookings yet')).toBeVisible();
+  // The all-day entry admits it has no time rather than showing a midnight.
+  await expect(page.getByText('no time in the file')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Use Hotel Granbell Kyoto' }).click();
+
+  // Prefilled from the file: the zone is the one the file named, not the
+  // browser's, and the reference is left in the notes rather than guessed at.
+  await expect(page.locator('input[name=title]')).toHaveValue('Hotel Granbell Kyoto');
+  await expect(page.locator('input[name=startDate]')).toHaveValue('2027-07-15');
+  await expect(page.locator('input[name=startTime]')).toHaveValue('15:00');
+  await expect(page.locator('select[name=startZone]')).toHaveValue('Asia/Tokyo');
+  await expect(page.locator('textarea[name=notes]')).toHaveValue(/88213-ABQ/);
+  // A calendar event says when, not what: the kind stays OTHER and the form says so.
+  await expect(page.locator('select[name=kind]')).toHaveValue('OTHER');
+  await expect(page.getByText(/came from a calendar event/)).toBeVisible();
+
+  await page.getByRole('button', { name: 'Save booking' }).click();
+  await expect(page.getByText('Hotel Granbell Kyoto', { exact: true })).toBeVisible();
+
+  // The second leg survived the first being saved — the assertion this test
+  // exists for. Its heading is singular now, one draft having been spent.
+  await expect(page.getByRole('heading', { name: /1 booking in reservation\.ics/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Use Nara day pass' }).click();
+
+  // An all-day entry: a date at each end and a clock at neither. None was
+  // invented, so the form will not submit — and the note names both gaps, since
+  // being told only about the start would leave the reader hunting for why.
+  await expect(page.locator('input[name=startDate]')).toHaveValue('2027-07-16');
+  await expect(page.locator('input[name=startTime]')).toHaveValue('');
+  await expect(page.getByText(/no start time, no end time/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save booking' })).toBeDisabled();
+
+  // The end date is the day before the calendar's exclusive DTEND — a one-day
+  // pass, not two.
+  await expect(page.locator('input[name=endDate]')).toHaveValue('2027-07-16');
+
+  await page.locator('input[name=startTime]').fill('09:30');
+  // Still refused: a date at the far end with no time on it is not a moment.
+  await expect(page.getByRole('button', { name: 'Save booking' })).toBeDisabled();
+  await page.locator('input[name=endTime]').fill('17:00');
+  await expect(page.getByRole('button', { name: 'Save booking' })).toBeEnabled();
+  await page.getByRole('button', { name: 'Save booking' }).click();
+  await expect(page.getByText('Nara day pass', { exact: true })).toBeVisible();
+
+  // Both saved, and the panel has nothing left to offer.
+  await expect(page.getByText('2 bookings')).toBeVisible();
+  await expect(page.getByText(/bookings? in reservation\.ics/)).toHaveCount(0);
+  await expect(page.locator('[role=alert]')).toHaveCount(0);
+
+  expect(consoleErrors, 'unexpected console errors').toEqual([]);
+  await context.close();
+});
+
+/**
+ * One booking in a file goes straight into the form.
+ *
+ * A picker listing a single option would be a click that asks the reader to
+ * confirm something the page is about to show them anyway.
+ */
+test('a single booking in a file skips the picker', async ({ browser }) => {
+  const context = await browser.newContext({ timezoneId: 'Europe/London' });
+  const page = await context.newPage();
+  await stubBasemap(page);
+
+  await page.goto('/login');
+  await page.getByText('Create one').click();
+  await page.locator('input[name=email]').fill(`e2e-import-one-${Date.now()}@example.com`);
+  await page.locator('input[name=displayName]').fill('Single Import');
+  await page.locator('input[name=password]').fill('correct-horse-battery');
+  await page.locator('button[type=submit]').click();
+
+  await expect(page).toHaveURL(/\/trips$/);
+  await page.getByRole('button', { name: 'Plan your first trip' }).click();
+  await page.locator('input[name=name]').fill('One booking');
+  await page.locator('input[name=startDate]').fill('2027-07-12');
+  await page.locator('input[name=endDate]').fill('2027-07-20');
+  await page.getByRole('button', { name: 'Create trip' }).click();
+  await page.getByRole('link', { name: /One booking/ }).click();
+  await page.getByRole('link', { name: 'Bookings' }).click();
+
+  const calendar = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'BEGIN:VEVENT',
+    'UID:solo@example.org',
+    'DTSTART;TZID=Europe/Paris:20270714T193000',
+    'SUMMARY:Dinner at Le Comptoir',
+    'END:VEVENT',
+    'END:VCALENDAR',
+    '',
+  ].join('\r\n');
+
+  await page.locator('input[type=file]').setInputFiles({
+    name: 'table.ics',
+    mimeType: 'text/calendar',
+    buffer: Buffer.from(calendar),
+  });
+
+  await expect(page.getByRole('heading', { name: 'New booking' })).toBeVisible();
+  await expect(page.locator('input[name=title]')).toHaveValue('Dinner at Le Comptoir');
+  await expect(page.locator('input[name=startTime]')).toHaveValue('19:30');
+  await expect(page.locator('select[name=startZone]')).toHaveValue('Europe/Paris');
+  // Straight to the form, so no picker was drawn.
+  await expect(page.getByText(/in table\.ics/)).toHaveCount(0);
+  await expect(page.getByText('No bookings yet')).toBeVisible();
+
+  await context.close();
+});

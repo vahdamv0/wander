@@ -2,6 +2,15 @@ spring:
   application:
     name: wander
 
+  servlet:
+    multipart:
+      # The one limit that matters for booking import: an uploaded confirmation
+      # is an email or a PDF, and both are small. This is what stops a large
+      # upload becoming a large byte[] in the heap before anything has looked at
+      # it — the extractor's own timeout and output cap are downstream of here.
+      max-file-size: ${WANDER_IMPORT_MAX_FILE_SIZE:5MB}
+      max-request-size: ${WANDER_IMPORT_MAX_REQUEST_SIZE:6MB}
+
   # Credentials for whatever relay the operator chose. Spring's own properties
   # rather than repeated under `wander`: every provider speaks SMTP, so there is
   # one shape to configure and no vendor named anywhere in this project. Brevo,
@@ -228,6 +237,30 @@ wander:
     cache-minutes: ${WANDER_WEATHER_CACHE_MINUTES:180}
     attribution: ${WANDER_WEATHER_ATTRIBUTION:Weather data by Open-Meteo.com (CC BY 4.0)}
     attribution-url: ${WANDER_WEATHER_ATTRIBUTION_URL:https://open-meteo.com/}
+  booking-import:
+    # Reading a booking out of a confirmation file: an email, a PDF, an HTML
+    # page, a calendar attachment or an Apple Wallet pass.
+    #
+    # Two readers, and only one of them is optional. The iCalendar reader is
+    # pure Java and always present. The document extractor is KItinerary, a
+    # binary in the image carrying 349 provider formats plus schema.org markup
+    # and boarding-pass barcodes — probed at startup, so an image built without
+    # it reports itself as calendar-only rather than failing. Switch this off
+    # entirely if you would rather nothing on this instance parsed an upload.
+    #
+    # Importing never writes: it answers with drafts and the user saves them
+    # through the ordinary booking form.
+    enabled: ${WANDER_IMPORT_ENABLED:true}
+    # Only for an installation the startup probe does not know about.
+    extractor-path: ${WANDER_IMPORT_EXTRACTOR_PATH:}
+    # Extra extractor scripts, handed to the extractor as its additional search
+    # path. This project's image sets it to /app/extractors, which carries fixes
+    # to upstream extractors — not parsers of our own; extractors/README.md sets
+    # the bar. Blank loads the 349 built in and nothing else.
+    extractor-search-path: ${WANDER_IMPORT_EXTRACTOR_SEARCH_PATH:}
+    # A cap on a wedged process, not a deadline: a tenth of a second is typical.
+    timeout-seconds: ${WANDER_IMPORT_TIMEOUT_SECONDS:30}
+    max-output-bytes: ${WANDER_IMPORT_MAX_OUTPUT_BYTES:4194304}
   map:
     # Tiles are fetched by the browser, so this is the one thing here that is
     # not proxied. Point it at your own tile server if you would rather your
