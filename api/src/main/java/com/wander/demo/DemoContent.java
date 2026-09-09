@@ -33,8 +33,21 @@ final class DemoContent {
     }
 
     /** `shares` null means an equal split; otherwise exact amounts by traveller index. */
+    /**
+     * {@code amountMinor} and any exact {@code shares} are in
+     * {@code sourceCurrency} when there is one, exactly as they are in
+     * {@code ExpenseRequest} — the trip's own currency otherwise. The seeder
+     * converts, so the yen figure is never written down here and cannot drift
+     * away from the rate beside it.
+     */
     record DemoExpense(String description, long amountMinor, int dayOffset, int paidBy,
-            boolean exact, long[] shares) {
+            boolean exact, long[] shares, String sourceCurrency, String fxRate) {
+
+        /** The ordinary case: paid in the trip's own currency, nothing to convert. */
+        DemoExpense(String description, long amountMinor, int dayOffset, int paidBy,
+                boolean exact, long[] shares) {
+            this(description, amountMinor, dayOffset, paidBy, exact, shares, null, null);
+        }
     }
 
     record DemoPacking(String description, Integer assignee, boolean packed) {
@@ -135,7 +148,20 @@ final class DemoContent {
     // Yen has no minor unit at all, which is why amounts are stored as a BIGINT
     // count of minor units rather than anything with a decimal point in it.
     static final List<DemoExpense> EXPENSES = List.of(
-            new DemoExpense("Flights, London → Haneda", 214800, -80, 0, false, null),
+            // The one paid in another currency, and the only realistic place
+            // for it: the flights were bought from home, months before anybody
+            // was anywhere near a yen. £1,028.00 at 208.63 yen to the pound.
+            //
+            // The rate is **marked as one a person entered**, and that is the
+            // honest encoding rather than a shortcut. A looked-up rate belongs
+            // to a published day, and this trip is re-dated on every boot so the
+            // day moves — stamping a market quote onto whatever date the seeder
+            // happens to produce would be the `places.category` mistake in
+            // another costume: a number presented as fact that came from
+            // something that does not know. It also keeps the seeder true to
+            // its own rule of needing no outbound network.
+            new DemoExpense("Flights, London → Haneda", 102800, -80, 0, false, null,
+                    "GBP", "208.63"),
             new DemoExpense("JR Pass, 7 days", 50000, -11, 1, false, null),
             new DemoExpense("Hotel, Asakusa (3 nights)", 58200, 0, 0, false, null),
             new DemoExpense("Sushi at Tsukiji", 9400, 2, 1, false, null),

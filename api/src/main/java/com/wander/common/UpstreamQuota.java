@@ -9,12 +9,13 @@ import com.wander.config.WanderProperties;
 /**
  * How much of this instance's upstream budget one signed-in person may spend.
  *
- * Three endpoints reach somebody else's service on a caller's behalf — place
- * search, place enrichment and the forecast — and all three run on donated
- * capacity that belongs to the *instance* rather than to a user. `.env.example`
- * names that as the reason self-signup is off by default: an open sign-up form on
- * a public hostname hands Nominatim, Wikimedia and Open-Meteo to whoever finds
- * the address. This is the counter that makes opening it survivable.
+ * Four endpoints reach somebody else's service on a caller's behalf — place
+ * search, place enrichment, the forecast and an exchange rate — and every one of
+ * them runs on donated capacity that belongs to the *instance* rather than to a
+ * user. `.env.example` names that as the reason self-signup is off by default: an
+ * open sign-up form on a public hostname hands Nominatim, Wikimedia, Open-Meteo
+ * and Frankfurter to whoever finds the address. This is the counter that makes
+ * opening it survivable.
  *
  * **`RateGate` is not this, and does not help here.** It spaces what wander sends
  * *out*, application-wide, by parking the request thread until a slot is free.
@@ -43,6 +44,7 @@ public class UpstreamQuota {
     private final int searches;
     private final int enrichments;
     private final int forecasts;
+    private final int rates;
 
     public UpstreamQuota(WanderProperties properties) {
         WanderProperties.Quota quota = properties.quota();
@@ -50,9 +52,10 @@ public class UpstreamQuota {
         this.searches = quota.searchesPerWindow();
         this.enrichments = quota.enrichmentsPerWindow();
         this.forecasts = quota.forecastsPerWindow();
+        this.rates = quota.ratesPerWindow();
     }
 
-    /** A place search. The loosest of the three — it is a typeahead. */
+    /** A place search. The loosest of the four — it is a typeahead. */
     public void search(Long userId) {
         spend("q:" + userId, searches, "Too many place searches. Wait a few minutes and try again.");
     }
@@ -65,6 +68,18 @@ public class UpstreamQuota {
     /** A trip's forecast. One request covers every day, so this is per page view. */
     public void forecast(Long userId) {
         spend("w:" + userId, forecasts, "Too many forecast requests. Wait a few minutes and try again.");
+    }
+
+    /**
+     * An exchange rate, for the expense form's preview.
+     *
+     * The tightest of the four, and it can afford to be: a rate is asked for
+     * once per foreign expense somebody is actually typing, and the cache behind
+     * it never expires, so the number that matters is how fast a person fills in
+     * a form rather than how many expenses a trip has.
+     */
+    public void rate(Long userId) {
+        spend("x:" + userId, rates, "Too many exchange rate lookups. Wait a few minutes and try again.");
     }
 
     /**

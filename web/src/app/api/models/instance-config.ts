@@ -9,6 +9,9 @@ export interface InstanceConfig {
   defaultCurrency: string;
   demoSweepMinutes: number;
   map: MapConfig;
+  rateAttribution: string;
+  rateAttributionUrl: string;
+  rateLookupEnabled: boolean;
   searchEnabled: boolean;
   sourceUrl: string;
   version: string;

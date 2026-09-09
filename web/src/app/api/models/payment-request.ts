@@ -3,7 +3,9 @@
 
 export interface PaymentRequest {
   amountMinor: number;
+  currency?: string;
   fromUserId: number;
+  fxRate?: string;
   note?: string;
   paidOn: string;
   toUserId: number;

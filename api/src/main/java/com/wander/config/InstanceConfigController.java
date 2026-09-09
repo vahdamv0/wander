@@ -78,6 +78,8 @@ public class InstanceConfigController {
                 // on" and "able to do the thing" are different questions, and the
                 // second boolean is only answerable by whatever probed for the
                 // extractor at startup.
-                imports.enabled(), imports.extractorAvailable());
+                imports.enabled(), imports.extractorAvailable(),
+                properties.fx().enabled(), properties.fx().attribution(),
+                properties.fx().attributionUrl());
     }
 }

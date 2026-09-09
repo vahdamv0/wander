@@ -73,6 +73,13 @@ More: [the trip list](docs/screenshots/trips.png) ·
   without reloading
 - Expenses in one currency per trip: equal or exact splits, balances, who-owes-whom
   reduced to the fewest payments, and recording those payments
+- Pay for something in another currency and it converts once, at the rate of the
+  day it was spent, which is then **frozen on the expense** — so editing it later
+  cannot move anybody's balance. Both figures are kept, because the one on the
+  receipt is the one you can check a bank statement against. Rates come from
+  Frankfurter, which needs no API key, and you can type the rate your card
+  actually charged instead — which is also what an instance with no outbound
+  network does
 - A packing list per trip: shared items and per-person ones, ticked off live, with
   a note of who packed each shared thing
 - Bookings — flights, trains, hotels, tables — stored as instants with the zone
@@ -580,7 +587,10 @@ tables under a running instance. Don't lower a gate to land a change.
    integer minor units, equal or exact splits, a "who owes whom" summary reduced
    to the fewest payments, and recording those payments so balances actually
    clear, a packing list grouped by who is bringing what, and bookings kept on a
-   real clock — each time in the zone it happens in.
+   real clock — each time in the zone it happens in. An expense may be paid in
+   **any** currency: it is converted once on the way in, at the rate of the day,
+   and that rate is stored on the row — so the balances stay arithmetic in one
+   currency and a later edit cannot silently re-price a holiday.
    The day card is finished alongside it: the day's own note, **what the day
    cost** (grouped from the expenses, payments excluded), and **the forecast**
    from Open-Meteo when there is one — no API key, CC BY 4.0, and nothing at all

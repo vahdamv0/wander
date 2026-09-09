@@ -20,8 +20,20 @@ import jakarta.validation.constraints.Size;
 public record PaymentRequest(
         @NotNull Long fromUserId,
         @NotNull Long toUserId,
-        /** Minor units, and more than nothing. */
+        /** Minor units of {@code currency}, and more than nothing. */
         @NotNull @Min(1) Long amountMinor,
+        /**
+         * What actually changed hands, ISO 4217. Optional, meaning the trip's own
+         * currency.
+         *
+         * Settling up in a foreign currency is not an edge case: somebody hands
+         * over cash abroad, in the cash they have. It converts exactly as an
+         * expense does — once, frozen, stored in the trip's currency — so the
+         * balance it clears is the balance it was meant to clear.
+         */
+        @Size(min = 3, max = 3) String currency,
+        /** A rate to use instead of looking one up, as a decimal string. See {@code ExpenseRequest}. */
+        String fxRate,
         @NotNull LocalDate paidOn,
         /** Optional: "cash at the airport". Shown instead of the default label. */
         @Size(max = 160) String note) {

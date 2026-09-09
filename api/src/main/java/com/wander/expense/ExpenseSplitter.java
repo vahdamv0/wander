@@ -1,5 +1,6 @@
 package com.wander.expense;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -45,6 +46,86 @@ public final class ExpenseSplitter {
         Map<Long, Long> shares = new LinkedHashMap<>();
         for (int i = 0; i < people; i++) {
             shares.put(ordered.get(i), i < remainder ? base + 1 : base);
+        }
+        return shares;
+    }
+
+    /**
+     * Splits an amount in the same proportions as another set of amounts, with
+     * **no money lost or invented**: {@code sum(result) == total} exactly,
+     * always, as with {@link #equalShares}.
+     *
+     * This exists for one situation, and the situation is the whole reason a
+     * foreign-currency expense is hard. Somebody splits a ¥8,000 dinner
+     * unevenly — ¥5,000 and ¥3,000 — on a trip kept in euros. The shares are
+     * typed in yen, because yen is what the bill says, and they are stored in
+     * euros, because a balance that mixes currencies is not arithmetic. Convert
+     * each share on its own and the two results round independently: ¥5,000 and
+     * ¥3,000 come to €27.92 and €16.75, which is €44.67 against a bill of
+     * €44.68. A cent appears from nowhere, or goes missing, on an expense whose
+     * total is right — and it is the sort of cent that is only ever found by
+     * somebody adding a column up by hand and losing an evening.
+     *
+     * So the total is converted once and **divided here**, in the proportions
+     * that were typed. Largest remainder: everybody gets their exact share
+     * rounded down, and the units left over go to whoever was rounded down
+     * hardest. Ties break towards the lowest user id, the same arbitrary but
+     * deterministic rule {@code equalShares} uses, so the same expense split
+     * twice gives the same answer and a test can assert on it.
+     *
+     * @param total   what is being divided, in the currency it is stored in
+     * @param weights each participant's share in the currency it was typed in
+     */
+    public static Map<Long, Long> proportionalShares(long total, Map<Long, Long> weights) {
+        if (weights.isEmpty()) {
+            throw new IllegalArgumentException("An expense needs at least one participant");
+        }
+        if (total < 0) {
+            throw new IllegalArgumentException("A split cannot divide a negative amount");
+        }
+        for (Long weight : weights.values()) {
+            if (weight == null || weight < 0) {
+                throw new IllegalArgumentException("A share of a split cannot be negative");
+            }
+        }
+        BigInteger weightTotal = weights.values().stream()
+                .map(BigInteger::valueOf)
+                .reduce(BigInteger.ZERO, BigInteger::add);
+        if (weightTotal.signum() <= 0) {
+            throw new IllegalArgumentException("A split cannot be divided in proportions that add up to nothing");
+        }
+
+        BigInteger amount = BigInteger.valueOf(total);
+        List<Long> ordered = weights.keySet().stream().sorted().toList();
+        Map<Long, Long> shares = new LinkedHashMap<>();
+        // Kept beside the shares so the leftover can be handed out by how much
+        // each participant was shortchanged by the rounding down.
+        Map<Long, BigInteger> remainders = new LinkedHashMap<>();
+        long allocated = 0;
+
+        for (Long userId : ordered) {
+            // BigInteger rather than long: the product of a total and a weight
+            // overflows for a JPY trip long before either of them does on its
+            // own, and a wrapped negative here would be a share that owes money
+            // backwards.
+            BigInteger[] divided = amount.multiply(BigInteger.valueOf(weights.get(userId)))
+                    .divideAndRemainder(weightTotal);
+            long base = divided[0].longValueExact();
+            shares.put(userId, base);
+            remainders.put(userId, divided[1]);
+            allocated = Math.addExact(allocated, base);
+        }
+
+        // Whatever the rounding down left behind — strictly fewer units than
+        // there are participants, so this is a short loop.
+        long leftover = Math.subtractExact(total, allocated);
+        List<Long> byRemainder = ordered.stream()
+                .sorted(Comparator.<Long, BigInteger>comparing(remainders::get).reversed()
+                        .thenComparing(Comparator.naturalOrder()))
+                .toList();
+        for (int i = 0; i < leftover; i++) {
+            Long userId = byRemainder.get(i);
+            shares.put(userId, shares.get(userId) + 1);
         }
         return shares;
     }
