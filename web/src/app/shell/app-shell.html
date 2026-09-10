@@ -7,6 +7,24 @@
       saved until you reconnect.
     </p>
   }
+  @if (updateReady()) {
+    <!-- An installed window has no reload button, so this is the only way in.
+         It asks rather than acting: a reload throws away whatever is in a form. -->
+    <p
+      class="print-hide flex flex-wrap items-center justify-center gap-x-2 gap-y-1
+             bg-accent-soft px-4 py-1.5 text-center text-xs text-accent"
+      role="status"
+    >
+      <span>A new version of wander is ready.</span>
+      <button
+        type="button"
+        class="font-semibold underline underline-offset-2"
+        (click)="applyUpdate()"
+      >
+        Reload to update
+      </button>
+    </p>
+  }
   <!-- print-hide: the shell is screen furniture, and the itinerary printout is
        the one page here designed for paper. -->
   <header

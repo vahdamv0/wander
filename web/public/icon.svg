@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- The app icon: favicon.svg's geometry with the colours fixed. A tab icon
+       may follow the reader's chrome; an app icon may not, because it is drawn
+       on a launcher this application knows nothing about.
+
+       Also the source `scripts/render-icons.mjs` composites the PNGs from —
+       shrunk onto a tile of the same teal, the rounding vanishes and the result
+       is the full-bleed square a maskable icon needs. -->
+  <rect width="32" height="32" rx="7" fill="#0f766e" />
+  <path d="M9.84 21.28Q15.56 12.66 22.16 12.04" fill="none" stroke="#ffffff" stroke-width="2.6"
+        stroke-linecap="round" />
+  <circle cx="9.84" cy="21.28" r="3.2" fill="#ffffff" />
+  <path d="M25.06 11.42 22.81 14.24 21.86 9.77Z" fill="#ffffff" />
+</svg>

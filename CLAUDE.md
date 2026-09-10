@@ -36,6 +36,7 @@ cd web && npm start                      # Angular dev server on :4200, proxies 
 cd web && npm run api:gen                # regenerate the typed client from the spec
 ./gradlew :web:apiGen                    # the same, on Gradle's pinned Node
 cd web && npm test                       # vitest unit tests (money formatting)
+cd web && npm run icons                  # redraw the app icons from public/icon.svg
 ```
 
 Tests need a Docker daemon: they run against real Postgres via Testcontainers,
@@ -1460,6 +1461,48 @@ else's work.
 - Every page says "Saved copy · 2 hours ago" when it is showing one, and the shell
   says so once when offline. Showing stale data without saying so is the thing
   this project has refused everywhere else.
+
+## Installing it
+
+The other half of the service worker. Offline reading gave wander a worker and
+a cache; a manifest is what lets a browser turn that into an application with a
+name, an icon and a window — and `ContentSecurityPolicy` has carried
+`manifest-src 'self'` since it was written, waiting for the file.
+
+- **`start_url` is `/`, not `/trips`.** The guard already answers "signed in or
+  not" for every other way into the app, and a second answer to "where does
+  this start" is a second thing to keep in step.
+- **`.webmanifest` is in neither Spring's `mime.types` nor Boot's table**, so
+  without `SpaFallbackConfig`'s `MimeMappings` customiser the manifest is served
+  with no usable content type. Browsers parse one regardless, which is exactly
+  why this is easy to get wrong and impossible to notice.
+- **Three icon shapes from one drawing.** `public/icon.svg` is favicon.svg's
+  geometry with the colours *fixed* — a tab icon may follow the reader's chrome,
+  an app icon may not, because it is drawn on a launcher this application knows
+  nothing about. `scripts/render-icons.mjs` composites the PNGs: full-size for
+  `any`, shrunk to the centre 80% on a full-bleed tile for `maskable` (Android
+  crops to whatever shape the launcher likes and guarantees only that circle),
+  and an opaque 180px `apple-touch-icon.png`, iOS reading no manifest icon and
+  compositing transparency onto black.
+- **The renderer is Playwright's Chromium, and its output is committed.** No
+  `sharp` or `resvg`: a native module per platform to draw four pictures that
+  change never, when the suite already carries the engine that will draw the
+  icon in the browser. `npm run icons` is run when the mark changes; the Docker
+  build and a fresh clone must not need a browser download. Unlike
+  `web/src/app/api/`, CI does **not** check it for drift — the input is a
+  drawing, not a contract that moves with every DTO.
+- **Installing is what made an update prompt necessary.** ngsw serves a new
+  build on the *next load*, which is fine for a tab and wrong for a standalone
+  window: no reload button, and people leave one open for the length of a
+  holiday. `core/app-update.ts` watches `SwUpdate.versionUpdates` and the shell
+  offers a reload beside the offline notice. It **asks rather than reloading** —
+  a reload throws away whatever is in a form, and ignoring it costs nothing.
+  It also polls (six hours, plus `visibilitychange`), because ngsw checks on
+  load and never again and the whole problem is a window that does not load.
+- **The manifest test parses it rather than checking the status.** Same silent
+  failure as the map worker: a missing file under the SPA fallback comes back
+  200 with `index.html` in it, and now that the extension is mapped it would
+  carry `application/manifest+json` too.
 
 ## Browser tests
 

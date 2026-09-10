@@ -771,6 +771,43 @@ test('the tab icon is served, not swallowed by the SPA fallback', async ({ page 
   await expect(page.locator('link[rel=icon][type="image/svg+xml"]')).toHaveCount(1);
 });
 
+/**
+ * Installability — the half of "progressive web app" the service worker did not
+ * give us, and one that fails silently: a missing manifest comes back 200 with
+ * `index.html` in it, the app runs perfectly, and the only symptom is an
+ * Install option nobody was watching for. The status code proves nothing, and
+ * now that the container maps the extension, neither does the content type on
+ * its own — HTML under that path would carry it too. So this parses it, and
+ * fetches every icon it names, the PNGs being committed rather than built.
+ */
+test('the app manifest is served and installable', async ({ page }) => {
+  const response = await page.request.get('/manifest.webmanifest');
+  expect(response.status()).toBe(200);
+  expect(response.headers()['content-type']).toContain('application/manifest+json');
+
+  const manifest = JSON.parse(await response.text());
+  expect(manifest.name).toBe('wander');
+  // Chromium installs nothing without a display mode and a 192px icon, and
+  // Android crops to the safe zone unless a maskable one is offered.
+  expect(manifest.display).toBe('standalone');
+  expect(manifest.start_url).toBe('/');
+  const icons = manifest.icons as { src: string; type: string; sizes: string; purpose: string }[];
+  expect(icons.map((icon) => icon.purpose)).toContain('maskable');
+  expect(icons.some((icon) => icon.sizes.includes('192x192')), 'a 192px icon').toBe(true);
+
+  for (const icon of icons) {
+    const asset = await page.request.get(icon.src);
+    expect(asset.status(), icon.src).toBe(200);
+    expect(asset.headers()['content-type'], icon.src).toContain(icon.type);
+  }
+
+  // iOS reads none of the above and wants its own link.
+  await page.goto('/login');
+  await expect(page.locator('link[rel=manifest]')).toHaveCount(1);
+  await expect(page.locator('link[rel=apple-touch-icon]')).toHaveCount(1);
+  expect((await page.request.get('/apple-touch-icon.png')).status()).toBe(200);
+});
+
 test('drag a place within a day and into the next one', async ({ page }) => {
   const consoleErrors: string[] = [];
   page.on('console', (message) => {
