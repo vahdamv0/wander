@@ -12,6 +12,11 @@
   <link rel="icon" type="image/x-icon" href="favicon.ico" sizes="16x16 32x32 48x48 64x64">
   <meta name="theme-color" content="#0f766e" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#04211d" media="(prefers-color-scheme: dark)">
+  <!-- The half the service worker did not give us: without a manifest a
+       browser has no name, icon or display mode to install with. -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <!-- iOS reads no manifest icon, and composites transparency onto black. -->
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
 </head>
 <body>
   <app-root></app-root>

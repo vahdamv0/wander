@@ -99,6 +99,8 @@ More: [the trip list](docs/screenshots/trips.png) ·
   directions in Google Maps or OpenStreetMap
 - Offline reading: open a trip once and its days, places, bookings and packing
   list stay readable with no connection, labelled with how old the copy is
+- Installable: add it to a phone's home screen or a desktop dock and it opens in
+  its own window, with the same offline cache behind it
 - Print or save the itinerary as a PDF — a day-by-day document with bookings,
   confirmation references and phone numbers folded onto the days they happen on
 - Nightly database backups that are verified before they are kept, with a restore
@@ -297,6 +299,7 @@ cd web && npm run e2e                    # Playwright, against a running instanc
 ./gradlew :api:test                      # tests + exports api/build/openapi.json
 cd web && npm run api:gen                # regenerate the typed client from that spec
 ./gradlew :web:apiGen                    # the same, using Gradle's pinned Node
+cd web && npm run icons                  # redraw the app icons from public/icon.svg
 ```
 
 Tests need a Docker daemon: they run against a real Postgres via Testcontainers,
@@ -556,6 +559,16 @@ a printout (the app shell coming along, the toolbar printing itself) are invisib
 on screen, so the browser test asserts them under `emulateMedia({ media: 'print' })`
 rather than trusting them.
 
+**Installing it needed a manifest, not a framework.** The service worker had
+been there since offline reading landed; what was missing was the file that
+gives a browser a name, an icon and a window to install *with*. The icons come
+from one drawing composited three ways by Playwright's Chromium — the same
+engine that will draw them — rather than by a native image library added to
+render four pictures that change never. Installing is also what made an update
+prompt necessary: ngsw serves a new build on the next *load*, and a standalone
+window has no reload button and stays open for the length of a holiday. It asks
+rather than reloading, since a reload throws away whatever is in a form.
+
 **Gates stay on.** `EndpointAuthRatchetTest` fires an anonymous request at every
 endpoint this project declares and fails if one answers; opening an endpoint
 requires an explicit `@PublicEndpoint` that shows up in review. Hibernate runs
@@ -599,7 +612,9 @@ tables under a running instance. Don't lower a gate to land a change.
    IndexedDB inside the repos, so a trip you have opened is readable with no
    signal, honestly labelled as a saved copy. Writes are refused rather than
    queued: a replay queue forces conflict resolution that live sync deliberately
-   never needed, and that stays a decision rather than a gap.
+   never needed, and that stays a decision rather than a gap. Installing it is done too ✅ —
+   a manifest, an icon and a standalone window, plus the piece that only matters
+   once there is no reload button: a prompt when a new build is waiting.
 
 ## Licence
 
