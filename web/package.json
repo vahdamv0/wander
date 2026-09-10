@@ -9,6 +9,7 @@
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "api:gen": "ng-openapi-gen",
+    "icons": "node scripts/render-icons.mjs",
     "lint": "ng lint",
     "e2e": "playwright test"
   },

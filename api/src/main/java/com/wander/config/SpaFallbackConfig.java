@@ -3,6 +3,10 @@ package com.wander.config;
 import java.io.IOException;
 import java.util.List;
 
+import org.springframework.boot.web.server.MimeMappings;
+import org.springframework.boot.web.server.WebServerFactoryCustomizer;
+import org.springframework.boot.web.server.servlet.ConfigurableServletWebServerFactory;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
@@ -23,6 +27,24 @@ import org.springframework.web.servlet.resource.PathResourceResolver;
 public class SpaFallbackConfig implements WebMvcConfigurer {
 
     private static final List<String> API_PREFIXES = List.of("api/", "v3/", "swagger-ui", "actuator/");
+
+    /**
+     * `.webmanifest` is in neither Spring's `mime.types` nor Boot's table, so
+     * the app manifest would otherwise be served with no usable content type.
+     * Browsers parse one regardless, which is why this is easy to leave wrong.
+     *
+     * On the container rather than the resource handler because
+     * `ResourceHandlerRegistration` exposes no way to add one, and
+     * `ResourceHttpRequestHandler` asks the servlet context first.
+     */
+    @Bean
+    WebServerFactoryCustomizer<ConfigurableServletWebServerFactory> webmanifestMimeType() {
+        return factory -> {
+            MimeMappings mappings = new MimeMappings(MimeMappings.DEFAULT);
+            mappings.add("webmanifest", "application/manifest+json");
+            factory.setMimeMappings(mappings);
+        };
+    }
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
