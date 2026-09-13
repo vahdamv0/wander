@@ -38,6 +38,17 @@ public class Place {
     @Column(name = "sort_order", nullable = false)
     private int sortOrder;
 
+    /**
+     * Whether an auto-sort has to leave this place where it is.
+     *
+     * A position rather than a preference: a locked place keeps its index and
+     * the optimiser fits the rest around it, which is how a hotel or a booked
+     * table stays put without the server knowing what either of those is. It
+     * constrains nothing a person does — dragging a locked place is fine.
+     */
+    @Column(nullable = false)
+    private boolean locked;
+
     @Column(nullable = false)
     private String name;
 
@@ -161,6 +172,14 @@ public class Place {
 
     public void setSortOrder(int sortOrder) {
         this.sortOrder = sortOrder;
+    }
+
+    public boolean isLocked() {
+        return locked;
+    }
+
+    public void setLocked(boolean locked) {
+        this.locked = locked;
     }
 
     public String getName() {

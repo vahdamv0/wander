@@ -65,6 +65,17 @@ export class InstanceConfigStore {
   private readonly _rateLookupEnabled = signal(true);
   private readonly _rateAttribution = signal('');
   private readonly _rateAttributionUrl = signal('');
+  /**
+   * Whether a day can be sorted by route.
+   *
+   * **False until answered**, with booking import rather than with the rate
+   * lookup: there is no public routing engine, so most instances do not have
+   * one, and an Auto-sort button that appears and then answers 503 is worse
+   * than one that appears a beat late.
+   */
+  private readonly _routingEnabled = signal(false);
+  private readonly _routingAttribution = signal('');
+  private readonly _routingAttributionUrl = signal('');
 
   readonly map = this._map.asReadonly();
   readonly searchEnabled = this._searchEnabled.asReadonly();
@@ -79,6 +90,9 @@ export class InstanceConfigStore {
   readonly rateLookupEnabled = this._rateLookupEnabled.asReadonly();
   readonly rateAttribution = this._rateAttribution.asReadonly();
   readonly rateAttributionUrl = this._rateAttributionUrl.asReadonly();
+  readonly routingEnabled = this._routingEnabled.asReadonly();
+  readonly routingAttribution = this._routingAttribution.asReadonly();
+  readonly routingAttributionUrl = this._routingAttributionUrl.asReadonly();
 
   /**
    * What the file picker will accept.
@@ -124,6 +138,9 @@ export class InstanceConfigStore {
       this._rateLookupEnabled.set(config.rateLookupEnabled);
       this._rateAttribution.set(config.rateAttribution);
       this._rateAttributionUrl.set(config.rateAttributionUrl);
+      this._routingEnabled.set(config.routingEnabled);
+      this._routingAttribution.set(config.routingAttribution);
+      this._routingAttributionUrl.set(config.routingAttributionUrl);
     } catch {
       // A signed-out visitor gets 401 here, which is not a failure — the
       // defaults stand, and the next sign-in loads it again.
@@ -135,6 +152,9 @@ export class InstanceConfigStore {
       this._demoSweepMinutes.set(0);
       this._bookingImportEnabled.set(false);
       this._bookingDocumentImport.set(false);
+      this._routingEnabled.set(false);
+      this._routingAttribution.set('');
+      this._routingAttributionUrl.set('');
       // Left alone on a failed read, unlike the switches above: the optimistic
       // default is the useful one here, and clearing it would hide the rate box
       // from the instance most likely to still be able to fetch a rate.

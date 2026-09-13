@@ -17,6 +17,11 @@ public record PlaceView(
         @NotNull String name,
         /** In order, and usually empty: most places never get a note. */
         @NotNull List<String> notes,
+        /**
+         * True when an auto-sort has to leave this place at this position. See
+         * {@code DayRouteOptimiser}: it is a pinned index, not a hint.
+         */
+        @NotNull boolean locked,
         /** The hour, when the place has one. */
         LocalTime startsAt,
         /** Null unless the place came from a search — both coordinates or neither. */
@@ -45,7 +50,8 @@ public record PlaceView(
 
     public static PlaceView of(Place place) {
         return new PlaceView(place.getId(), place.getDayDate(), place.getSortOrder(), place.getName(),
-                place.getNotes().stream().map(PlaceNote::getBody).toList(), place.getStartsAt(),
+                place.getNotes().stream().map(PlaceNote::getBody).toList(), place.isLocked(),
+                place.getStartsAt(),
                 place.getLatitude(), place.getLongitude(), place.getAddress(),
                 place.getCategory(), place.getOsmRef() != null,
                 place.getPhotoThumbUrl(), place.getPhotoUrl(), place.getPhotoAuthor(),

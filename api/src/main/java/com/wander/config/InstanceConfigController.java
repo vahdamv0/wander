@@ -80,6 +80,8 @@ public class InstanceConfigController {
                 // extractor at startup.
                 imports.enabled(), imports.extractorAvailable(),
                 properties.fx().enabled(), properties.fx().attribution(),
-                properties.fx().attributionUrl());
+                properties.fx().attributionUrl(),
+                properties.routing().enabled(), properties.routing().attribution(),
+                properties.routing().attributionUrl());
     }
 }
