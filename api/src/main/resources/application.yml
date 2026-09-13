@@ -187,6 +187,9 @@ wander:
     # be: one lookup per foreign expense somebody is typing, over a cache that
     # never expires.
     rates-per-window: ${WANDER_QUOTA_RATES:40}
+    # Auto-sorting a day. One click is one matrix, which is the heaviest
+    # question this application asks anything, and it cannot be cached.
+    routes-per-window: ${WANDER_QUOTA_ROUTES:40}
     window-minutes: ${WANDER_QUOTA_WINDOW_MINUTES:5}
   # The Content-Security-Policy header, assembled from the map settings below
   # rather than written out, so an operator running their own tiles does not get
@@ -241,6 +244,34 @@ wander:
     cache-minutes: ${WANDER_WEATHER_CACHE_MINUTES:180}
     attribution: ${WANDER_WEATHER_ATTRIBUTION:Weather data by Open-Meteo.com (CC BY 4.0)}
     attribution-url: ${WANDER_WEATHER_ATTRIBUTION_URL:https://open-meteo.com/}
+  routing:
+    # Auto-sorting a day by how long it takes to get between its stops, over
+    # OSRM. **Off by default, and this is the one upstream where that is not
+    # caution.** The others have a public service anybody may politely use;
+    # routing has none — the OSRM project's demo server is a demo, not capacity
+    # to build on. What a self-hoster does have is that OSRM is easy to run:
+    #
+    #   docker run -p 5000:5000 osrm/osrm-backend osrm-routed /data/region.osrm
+    #
+    # over an extract of wherever they are going. Point base-url at that and
+    # switch this on. The profile (driving, walking, cycling) is a path segment,
+    # so one URL serves all three on an engine that has all three graphs; a
+    # single-graph osrm-backend ignores it and answers the same for each.
+    enabled: ${WANDER_ROUTING_ENABLED:false}
+    base-url: ${WANDER_ROUTING_URL:http://localhost:5000}
+    # The most stops one day may be sorted with. The matrix is n², and a day
+    # with more than a dozen stops is not a day anybody is having.
+    max-stops: ${WANDER_ROUTING_MAX_STOPS:12}
+    attribution: ${WANDER_ROUTING_ATTRIBUTION:Routing by OSRM · map data © OpenStreetMap contributors}
+    attribution-url: ${WANDER_ROUTING_ATTRIBUTION_URL:https://project-osrm.org/}
+    # Gap between outbound calls. 200ms is written for an engine in the next
+    # rack, which is what base-url points at by default. It is a setting because
+    # a shared engine's limit is somebody else's to set and is usually far
+    # lower: FOSSGIS's public OSRM allows one request a second, so an instance
+    # pointed there must raise this to 1000 or it is over the limit by five
+    # times. Nothing would say so — the gate still gates, the requests still
+    # answer, and the blocking arrives later and from outside.
+    min-interval-millis: ${WANDER_ROUTING_MIN_INTERVAL_MS:200}
   fx:
     # Exchange rates, for an expense paid in something other than the trip's
     # currency. Frankfurter — no API key, for the same reason Open-Meteo was

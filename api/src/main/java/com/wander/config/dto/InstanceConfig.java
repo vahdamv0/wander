@@ -107,5 +107,24 @@ public record InstanceConfig(
          * compiled into the client.
          */
         @NotNull String rateAttribution,
-        @NotNull String rateAttributionUrl) {
+        @NotNull String rateAttributionUrl,
+        /**
+         * Whether a day can be sorted by route.
+         *
+         * Follows {@code bookingImportEnabled}'s rule rather than this
+         * record's usual one — the client reads "not answered yet" as *un*available
+         * — because an Auto-sort button that appears and then answers 503 is
+         * worse than one that appears a beat late. Off is also the default for
+         * the feature itself: there is no public routing service, so the
+         * button exists on an instance whose operator stood one up.
+         */
+        @NotNull boolean routingEnabled,
+        /**
+         * Shown wherever a sorted route is, for the reason the rate credit is:
+         * the answer rearranged somebody's day, so it should say what
+         * rearranged it — and an operator pointing this at their own engine
+         * gets their own credit rather than one compiled into the client.
+         */
+        @NotNull String routingAttribution,
+        @NotNull String routingAttributionUrl) {
 }

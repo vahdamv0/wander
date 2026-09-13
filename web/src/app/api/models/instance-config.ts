@@ -12,6 +12,9 @@ export interface InstanceConfig {
   rateAttribution: string;
   rateAttributionUrl: string;
   rateLookupEnabled: boolean;
+  routingAttribution: string;
+  routingAttributionUrl: string;
+  routingEnabled: boolean;
   searchEnabled: boolean;
   sourceUrl: string;
   version: string;

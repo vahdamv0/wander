@@ -8,6 +8,7 @@ export interface PlaceView {
   enrichable: boolean;
   id: number;
   latitude?: number;
+  locked: boolean;
   longitude?: number;
   name: string;
   notes: Array<string>;

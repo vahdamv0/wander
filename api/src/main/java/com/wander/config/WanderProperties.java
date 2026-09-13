@@ -93,6 +93,8 @@ public record WanderProperties(
 
         @DefaultValue Weather weather,
 
+        @DefaultValue Routing routing,
+
         @DefaultValue Fx fx,
 
         @DefaultValue BookingImport bookingImport,
@@ -237,7 +239,15 @@ public record WanderProperties(
              * afford to be: one lookup per foreign expense somebody is typing,
              * over a cache that never expires.
              */
-            @DefaultValue("40") int ratesPerWindow, @DefaultValue("5") int windowMinutes,
+            @DefaultValue("40") int ratesPerWindow,
+            /*
+             * Auto-sorting a day. Tighter than the forecast and looser than a
+             * rate: one click is one matrix call, and a click is a decision
+             * rather than a keystroke — but a person comparing walking against
+             * driving across a week's days gets through a dozen without doing
+             * anything unreasonable.
+             */
+            @DefaultValue("40") int routesPerWindow, @DefaultValue("5") int windowMinutes,
             @DefaultValue("10000") int trackedKeys) {
     }
 
@@ -463,6 +473,50 @@ public record WanderProperties(
      * setting `styleUrl` to blank: an instance with its own raster tile server
      * loses nothing by this change but the language.
      */
+    /*
+     * The routing engine behind auto-sorting a day, and the three profiles.
+     *
+     * **Off by default, and this is the one upstream where that is not
+     * hesitancy.** The others have a public service anybody may politely use —
+     * Nominatim, Open-Meteo, Frankfurter, Commons — and there is no such thing
+     * for routing: the demo server the OSRM project runs is a demo, not
+     * capacity to build on. What a self-hoster has instead is that OSRM is
+     * genuinely easy to run themselves (`docker run osrm/osrm-backend` over the
+     * extract for wherever they are going), so the honest default is off with a
+     * URL waiting for whatever they point it at.
+     *
+     * The profile is a path segment, so one base URL covers all three on an
+     * engine that serves them. A self-hosted osrm-backend serves the graph it
+     * was built with and ignores the segment — an operator who wants three
+     * genuinely different answers runs three of them, which is their
+     * arrangement to make rather than something to model here.
+     */
+    public record Routing(@DefaultValue("false") boolean enabled,
+                          @DefaultValue("http://localhost:5000") String baseUrl,
+            /*
+             * The most stops one day may be sorted with. The matrix is n², and
+             * more to the point a day with fifteen stops on it is not a day
+             * anybody is having — the cap is there so a paste-happy afternoon
+             * cannot turn one click into a large request against somebody
+             * else's machine.
+             */
+                          @DefaultValue("12") int maxStops,
+            /*
+             * Shown wherever a sorted route is. Not demanded by OSRM's licence
+             * the way Open-Meteo's is, and carried anyway for the same reason
+             * the exchange-rate credit is: the answer moved somebody's
+             * itinerary about, so it should say what moved it — and an operator
+             * pointing this at their own engine gets their own credit rather
+             * than one compiled into the client.
+             */
+                          @DefaultValue("Routing by OSRM · map data © OpenStreetMap contributors")
+                          String attribution,
+                          @DefaultValue("https://project-osrm.org/") String attributionUrl,
+            /* Gap between outbound calls, and how long a caller waits for the gate. */
+                          @DefaultValue("200") long minIntervalMillis,
+                          @DefaultValue("4000") long maxWaitMillis) {
+    }
+
     public record MapTiles(@DefaultValue("true") boolean enabled,
                            @DefaultValue("https://tiles.openfreemap.org/styles/liberty") String styleUrl,
             /*

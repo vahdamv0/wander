@@ -1,0 +1,19 @@
+-- A stop that stays where it is when the day is sorted by route.
+--
+-- Auto-sorting a day rearranges its places to cut the travelling between them,
+-- and some places must not move: the hotel you start from, the restaurant that
+-- is holding a table at eight. This is how somebody says so.
+--
+-- It is a **position**, not a preference. A locked place keeps its exact index
+-- in the day and the optimiser permutes the others into the slots that are
+-- left, which is what makes "hotel first, dinner last" expressible without the
+-- server having any idea what a hotel is. That matters: `places.category` holds
+-- the geocoder's own word and is deliberately decorative everywhere in this
+-- application, so anchoring a route on it would promote a label into something
+-- load-bearing — and be wrong for every place typed by hand, which has no
+-- category at all.
+--
+-- FALSE for every existing row, which is the honest default: nothing has been
+-- locked because until now there was nothing to lock it against. Dragging is
+-- unaffected — a lock constrains the optimiser, not the person.
+ALTER TABLE places ADD COLUMN locked BOOLEAN NOT NULL DEFAULT FALSE;

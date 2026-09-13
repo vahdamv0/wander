@@ -23,10 +23,14 @@ export type { UpdatePlace$Params as UpdatePlace$Params } from './fn/place-contro
 export { updatePlace as updatePlace } from './fn/place-controller/update-place';
 export type { DeletePlace$Params as DeletePlace$Params } from './fn/place-controller/delete-place';
 export { deletePlace as deletePlace } from './fn/place-controller/delete-place';
+export type { SetPlaceLocked$Params as SetPlaceLocked$Params } from './fn/place-controller/set-place-locked';
+export { setPlaceLocked as setPlaceLocked } from './fn/place-controller/set-place-locked';
 export type { CreatePlace$Params as CreatePlace$Params } from './fn/place-controller/create-place';
 export { createPlace as createPlace } from './fn/place-controller/create-place';
 export type { MovePlace$Params as MovePlace$Params } from './fn/place-controller/move-place';
 export { movePlace as movePlace } from './fn/place-controller/move-place';
+export type { ReorderDay$Params as ReorderDay$Params } from './fn/place-controller/reorder-day';
+export { reorderDay as reorderDay } from './fn/place-controller/reorder-day';
 export type { GetItinerary$Params as GetItinerary$Params } from './fn/place-controller/get-itinerary';
 export { getItinerary as getItinerary } from './fn/place-controller/get-itinerary';
 export type { SetPlacePhoto$Params as SetPlacePhoto$Params } from './fn/enrichment-controller/set-place-photo';
@@ -99,6 +103,8 @@ export type { PreviewInvite$Params as PreviewInvite$Params } from './fn/trip-inv
 export { previewInvite as previewInvite } from './fn/trip-invite-controller/preview-invite';
 export type { RevokeInvite$Params as RevokeInvite$Params } from './fn/trip-invite-controller/revoke-invite';
 export { revokeInvite as revokeInvite } from './fn/trip-invite-controller/revoke-invite';
+export type { PreviewDayRoute$Params as PreviewDayRoute$Params } from './fn/route-controller/preview-day-route';
+export { previewDayRoute as previewDayRoute } from './fn/route-controller/preview-day-route';
 export type { PreviewReset$Params as PreviewReset$Params } from './fn/password-reset-controller/preview-reset';
 export { previewReset as previewReset } from './fn/password-reset-controller/preview-reset';
 export type { RedeemReset$Params as RedeemReset$Params } from './fn/password-reset-controller/redeem-reset';

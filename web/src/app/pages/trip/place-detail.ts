@@ -207,6 +207,26 @@ export class PlaceDetail {
     });
   }
 
+  /**
+   * Pinning this place so an auto-sort leaves it where it is — the hotel to
+   * start from, the table booked for eight.
+   *
+   * It lives here rather than on the row for the reason the row's own comment
+   * gives: `.row-actions` is already six small icons and stays on permanently
+   * where there is no hover. The row shows a lock *indicator*; this is where
+   * there is room to say what it means.
+   *
+   * Offered whether or not the instance has a routing engine. A lock is a fact
+   * about the place, an operator may switch routing on next week, and a control
+   * that only sometimes exists is worse than one that always does.
+   */
+  protected async toggleLock(): Promise<void> {
+    await this.guard(async () => {
+      await this.places.setLocked(this.tripId(), this.place().id, !this.place().locked);
+      this.changed.emit();
+    });
+  }
+
   protected askRemove(): void {
     this.error.set(null);
     this.confirmingRemoval.set(true);

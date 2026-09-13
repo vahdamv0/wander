@@ -37,7 +37,14 @@
     <!-- The credit sits under the picture, not in a tooltip: a Commons image is
          licensed per image and the attribution is a condition of showing it. -->
     <figure class="mt-3">
-      <img [src]="place().photoUrl" [alt]="'Photo of ' + place().name"
+      <!-- The *thumbnail*, not `photoUrl`. `photoUrl` is the original file on
+           Commons, which is routinely several megabytes for a picture drawn
+           160px high — the panel took visible seconds to fill in. The original
+           is still one click away under the credit, which is where somebody who
+           actually wants it goes. `photoThumbUrl` is never null when a photo is
+           kept: `Place.setPhoto` falls back to the original when Commons
+           offered no thumbnail. -->
+      <img [src]="place().photoThumbUrl" [alt]="'Photo of ' + place().name"
            class="h-40 w-full rounded-control object-cover" />
       <figcaption class="mt-1 text-[0.6875rem] text-muted">
         {{ place().photoAuthor }} · {{ place().photoLicence }}
@@ -273,6 +280,28 @@
              out on its own — so only a margin keeps them at the right-hand end
              wherever they land. -->
         <div class="ml-auto flex items-center gap-1">
+          <!-- A lock is a position: an auto-sort fits the rest of the day
+               around this place instead of moving it. Dragging it is still
+               yours to do. -->
+          <button type="button" class="btn-ghost gap-1.5 px-2.5 text-sm"
+                  [class.text-accent]="place().locked" [disabled]="saving()"
+                  [attr.aria-pressed]="place().locked"
+                  [title]="place().locked
+                    ? 'An auto-sort leaves this place where it is'
+                    : 'Keep this place where it is when the day is auto-sorted'"
+                  (click)="toggleLock()">
+            <svg class="size-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
+                 aria-hidden="true">
+              <rect x="5" y="11" width="14" height="9" rx="2" />
+              @if (place().locked) {
+                <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+              } @else {
+                <path d="M8 11V8a4 4 0 0 1 7.5-2" />
+              }
+            </svg>
+            {{ place().locked ? 'Locked' : 'Lock' }}
+          </button>
           <button type="button" class="btn-ghost gap-1.5 px-2.5 text-sm" (click)="openEdit()">
             <svg class="size-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                  stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"

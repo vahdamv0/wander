@@ -99,6 +99,10 @@ Java record → springdoc → `api/build/openapi.json` (written by
   photo lives beside it, and `places.category` is the geocoder's own word for what
   the place is — under the same deadline and never inferred from the name, because
   a category shown as fact should have come from something that knows.
+  A kept photo is drawn from `photoThumbUrl` everywhere — the row, the
+  detail panel and the printed page — because `photoUrl` is the *original* on
+  Commons, which is routinely several megabytes for a picture shown 160px high.
+  The original stays one click away under the credit.
   `Place.setPhoto` takes its author and licence or
   refuses: a Commons image is licensed *per image*, so a URL without its credit is
   a picture this project has no right to draw.
@@ -232,6 +236,12 @@ Java record → springdoc → `api/build/openapi.json` (written by
   started it. Getting this wrong is invisible to whoever has the picture cached
   — the person who chose a photo could see it and nobody else could, and ngsw
   turned the refusal into a synthetic 504 that looks like an upstream outage.
+  **Commons is two hosts, not one**: the original file is on
+  `upload.wikimedia.org`, and `imageinfo`'s `thumburl` now comes back on
+  `thumb.wikimedia.org`. Both are in the policy, because the thumbnail is what
+  a place row and the printout draw — with only the first, a photo kept before
+  Wikimedia's change renders and one kept after it is a broken image, while the
+  detail panel goes on working.
 - **A validation failure's message is in `fields`, not in `message`.** The
   envelope's own `message` is the generic "Validation failed", so `messageOf`
   prefers the first field message — otherwise somebody refused for a weak
@@ -395,6 +405,10 @@ Java record → springdoc → `api/build/openapi.json` (written by
   backoff and is single-flight, so several events arriving together cost one
   re-read. A *reconnection* re-reads unconditionally — events during the gap were
   never delivered, and there is no replay.
+- **A space between an element and an `@if` block needs `&ngsp;`.** Angular
+  drops a whitespace-only text node there, so `</span> @if (…) { <span>· …` runs
+  the two together — "September 14· ¥9,400" on the printed day heading. Nothing
+  fails; the separator simply loses its space.
 - **`@for` needs a collection from the component, not an inline array literal.**
   `@for (x of [1, 2]; ...)` does not survive the block-syntax parser and fails at
   runtime with `newCollection[Symbol.iterator] is not a function`.
@@ -1288,6 +1302,78 @@ On the client:
 - `bookingImportEnabled` defaults to **false** in `InstanceConfigStore`, which
   inverts that store's usual optimism, for the reason given above.
 
+## Routes
+
+Sorting a day by how long it takes to get between its stops, over OSRM, with
+three profiles — and the finished order handed to Google Maps.
+
+- **Off by default, and this is the one upstream where that is not caution.**
+  Nominatim, Open-Meteo, Frankfurter and Wikimedia all run a public service
+  anybody may politely use; routing has none — the OSRM project's demo server
+  is a demo, not capacity to build on. What a self-hoster does have is that
+  OSRM is easy to run over a Geofabrik extract, so `wander.routing.base-url`
+  defaults to `localhost:5000` and waits.
+- **`/table`, never `/route`.** The optimiser needs the cost between every pair
+  of stops, which is one call for a whole day instead of n². The shape of the
+  path between two of them is what the person's phone is for.
+- **Preview writes nothing, and `previewWritesNothing` is the load-bearing
+  test** — booking import's rule again. `POST …/route/preview` calls upstream
+  and answers with a proposal; `POST …/days/{date}/order` is a pure write that
+  takes place ids and renumbers, with no upstream call in it. So applying is
+  not a second chance to spend the routing budget, one thing on the server
+  decides what order a day is in whether the order came from a drag or an
+  optimiser, and a misread route costs a Discard rather than a rearranged day
+  appearing on everybody else's screen a second later with no undo.
+- **Locked is a position, not a preference.** `places.locked` pins a stop to its
+  index and the optimiser permutes the rest into what is left; a 2-opt reversal
+  is skipped outright if the stretch it would reverse contains a pinned slot,
+  which is the whole mechanism and means there is no second code path for
+  locked stops to disagree with. It is enforced *again* in `reorderDay`, because
+  a client that ignored the flag would otherwise make the lock a suggestion.
+  Dragging a locked place is still allowed: a lock constrains the optimiser, not
+  the person.
+- **A place with no coordinates is locked implicitly.** It was never sent
+  upstream, so moving it would be rearranging somebody's plan around a guess —
+  and dropping it to the end would be worse, since it is usually the
+  note-to-self ("pick up tickets") that was typed rather than searched. The
+  proposal says which stops did not move and why, because being told "these have
+  no location" is the difference between a disappointing answer and a mysterious
+  one.
+- **`places.category` stays decorative, so there is no hotel anchor.** Inferring
+  an anchor from the geocoder's own word would promote a label into something
+  load-bearing and would be null for every place typed by hand. Locking the
+  hotel is the same thing said explicitly.
+- **No cache, and that is worth saying out loud** because every other upstream
+  here has one. The key would be an ordered set of coordinates that changes the
+  moment anything on the day moves, so the hit rate is nil outside a double
+  click — which `RateGate` already covers, with `UpstreamQuota.route` behind it.
+- **Off is a 503, not a quiet "no change".** The forecast swallows an outage
+  because weather is decoration; a sort that answers "already the best order"
+  when it never asked anything is a claim about somebody's day. The client is
+  told through `routingEnabled`, which follows `bookingImportEnabled`'s rule of
+  reading "not answered yet" as *un*available.
+- **A null cell in the matrix is refused, never read as zero.** OSRM answers
+  `null` for a stop it cannot snap to a road, and zero would make that stop the
+  nearest thing to everywhere — the optimiser would route through it first and
+  the day would come back confidently wrong. Coordinates go into the URL
+  **longitude first**, which is the opposite of everywhere else in this project
+  and fails by routing into the sea rather than by erroring.
+- **The improvement loop scores a candidate by walking the whole route**, not by
+  the usual two-edge delta. Driving is asymmetric — one-way systems — and the
+  shortcut assumes reversing a stretch costs the same both ways.
+- **The Google Maps link is built in the client**, from the day's coordinates,
+  like a single place's Directions menu: wander proxies nothing to Google. The
+  `dir/?api=1` form carries an origin, a destination and **nine** waypoints, so
+  a longer day links the first eleven stops and the title says so rather than
+  letting Google drop the afternoon silently.
+- The profile is **one choice for the page**, not one per day: it is a fact
+  about how the trip is being got around, and setting it on each of eight days
+  is eight chances to leave one wrong. `bicycling` is Google's word for cycling.
+- Locking lives in the **place panel**, and the row gets an indicator only. The
+  row's `.row-actions` strip is already six icons that stay on permanently where
+  there is no hover, and an `sr-only` name in a row once broke six browser tests
+  at once.
+
 ## The forecast on a day card
 
 A fifth upstream, behind the same shape as the others: `WeatherClient` is the seam
@@ -1384,6 +1470,41 @@ sends nothing but keepalive, and the payload is one small event.
   People panel and a day's worth of controls, so printing it would be a long list
   of things to hide — and it would still be missing the bookings, which live on
   another page and belong on the same sheet.
+- **It opens with a cover, and the cover *is* the header.** Name, destination,
+  the date range, how many days, who is coming and what it has cost — then
+  `break-after: page`, which is the whole difference between a cover and a
+  banner. Growing the existing header into it rather than adding a second block
+  is deliberate twice over: a title printed twice is a title printed twice, and
+  a second `<h1>` carrying the trip's name would make "the heading called Tokyo"
+  ambiguous to the browser suite. The rule sits on the wrapper, not on the `h1`,
+  which the stylesheet already forbids breaking after.
+- **The total on the cover is the server's, never a sum of the day figures.**
+  They legitimately differ: an expense's date is not range-checked against the
+  trip, so the flight bought in March is in `ExpenseSummary.totalMinor` and on no
+  printed day. Summing `spentMinor` here would be wrong *and* would be the client
+  computing money, which the ledger's rules forbid outright. It is null rather
+  than zero when nothing has been spent, like `spentMinor` itself — a cover
+  printing "Total spent 0.00" states something nobody entered. The cover is what
+  took the page from two reads to four (members and the ledger join the
+  itinerary and the bookings); all four are read-through cached, so it still
+  assembles from the device with no signal.
+- **Two toggles, both remembered, and photos default to off.** `One page per day`
+  adds `one-day-per-page` to the document, which is a `break-before: page` on
+  every `.print-day` — adjacent forced breaks collapse, so the cover's own break
+  leaves no blank sheet before day one. `Print photos` is off by default because
+  paper is white and ink is expensive, the same argument the stylesheet's forced
+  white background makes. Both live in localStorage under `wander.print.*`, the
+  shape `ThemeService` uses: a print choice you must make again on every reprint
+  gets made wrong once and then printed thirty times. Whether a break actually
+  landed is the print engine's business and no browser will say, so the browser
+  test asserts on the class and stops there.
+- **A printed photo carries its credit under it, not in a tooltip.** There is
+  nothing to hover on paper, and a Commons image is licensed per image.
+  `photoThumbUrl` is what prints — 640px from Commons, and never null when a
+  photo exists — sized in *millimetres* in the print stylesheet, this being the
+  one place in the application whose output is measured in paper. It stays an
+  `<img>` rather than a background, so a reader with background graphics
+  switched off still gets the picture.
 - **Bookings are folded into the day they happen on**, unlike on screen where they
   are their own list. On paper you follow an itinerary rather than maintain it.
   A booking outside the trip's range — the flight out the night before — gets its
@@ -1682,7 +1803,10 @@ and invitation links for people who have no account yet. Milestone 4 is done: ex
 settling up, packing lists, and reservations. Milestone 5 is half done — offline
 *reads* are in; the write queue is deliberately not, and a decision rather than an
 omission. The day card is finished: a note, what the day cost, and the forecast
-when there is one. Beyond the roadmap: verified nightly backups with a rehearsed
+when there is one. Milestone 6 is done: sorting a day by route over OSRM,
+with locked stops and three profiles, and the finished order opening in Google
+Maps — off by default, because there is no public routing service to lean on.
+Beyond the roadmap: verified nightly backups with a rehearsed
 restore, the itinerary as a printable document, and the admin surface — which
 finally gives `GlobalRole.ADMIN` something to grant and removes the "no password
 reset" limit README had stated since the beginning. See the roadmap in README.md.

@@ -1,11 +1,22 @@
 <!-- `print-document` is what the print stylesheet keys off; see styles.css. The
      max-width is a paper column rather than the app's usual wide layout, so what
      is on screen is close to what comes out of the printer. -->
-<div class="print-document mx-auto max-w-3xl px-4 py-8">
+<div class="print-document mx-auto max-w-3xl px-4 py-8"
+     [class.one-day-per-page]="onePagePerDay()">
   <!-- Screen only: a toolbar has no business on paper. -->
-  <div class="print-hide mb-6 flex flex-wrap items-center gap-2">
+  <div class="print-hide mb-6 flex flex-wrap items-center gap-3">
     <a [routerLink]="['/trips', tripId()]" class="btn-ghost text-sm">Back to the trip</a>
     <button type="button" class="btn-primary text-sm" (click)="print()">Print or save as PDF</button>
+    <label class="flex items-center gap-2 text-sm">
+      <input type="checkbox" class="size-4 accent-accent" [checked]="onePagePerDay()"
+             (change)="onePagePerDay.set(!onePagePerDay())" />
+      <span>One page per day</span>
+    </label>
+    <label class="flex items-center gap-2 text-sm">
+      <input type="checkbox" class="size-4 accent-accent" [checked]="showPhotos()"
+             (change)="showPhotos.set(!showPhotos())" />
+      <span>Print photos</span>
+    </label>
     @if (savedAt()) {
       <span class="text-xs text-muted">Showing a saved copy — it may be out of date.</span>
     }
@@ -18,14 +29,36 @@
       {{ message }}
     </p>
   } @else if (trip(); as trip) {
-    <header class="border-b border-border pb-4">
+    <!-- The cover, and the document's only title. It breaks after itself on
+         paper (see styles.css) so the itinerary starts on a fresh sheet; on
+         screen it is simply the header it grew out of. Not a
+         `section.print-block`: a day is what that means everywhere else on this
+         page. -->
+    <header class="print-cover border-b border-border pb-4">
       <h1 class="text-2xl font-semibold tracking-tight">{{ trip.name }}</h1>
       <p class="mt-1 text-sm text-muted">
         @if (trip.destination) {
           {{ trip.destination }} ·
         }
         {{ dayHeading(trip.startDate) }} – {{ dayHeading(trip.endDate) }}
+        · {{ trip.dayCount }} {{ trip.dayCount === 1 ? 'day' : 'days' }}
       </p>
+
+      @if (travellers() || totalSpent()) {
+        <dl class="mt-4 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-sm">
+          @if (travellers(); as people) {
+            <dt class="text-muted">Travellers</dt>
+            <dd>{{ people }}</dd>
+          }
+          @if (totalSpent(); as total) {
+            <!-- The server's own total, not a sum of the day figures below: an
+                 expense's date is not range-checked against the trip, so the
+                 flight bought in March belongs to the total and to no day. -->
+            <dt class="text-muted">Total spent</dt>
+            <dd>{{ total }}</dd>
+          }
+        </dl>
+      }
     </header>
 
     @if (bookingsOutsideTheTrip().length) {
@@ -63,11 +96,20 @@
     }
 
     @for (day of days(); track day.date) {
-      <!-- print-block keeps a day off a page boundary where it fits on one. -->
-      <section class="print-block mt-6">
+      <!-- print-block keeps a day off a page boundary where it fits on one;
+           print-day is the hook the "one page per day" toggle breaks on. -->
+      <section class="print-day print-block mt-6">
         <h2 class="border-b border-border pb-1 text-base font-semibold">
           Day {{ day.index }}
           <span class="font-normal text-muted">· {{ dayHeading(day.date) }}</span>
+          @if (dayCost(day); as cost) {
+            <!-- Null rather than zero all the way from the server, so a day
+                 nobody spent anything on says nothing rather than "0.00". The
+                 leading `&ngsp;` is load-bearing: Angular drops a
+                 whitespace-only text node between an element and a block, so
+                 without it the date and the figure run together. -->
+            <span class="font-normal text-muted">&ngsp;· {{ cost }}</span>
+          }
         </h2>
 
         @if (day.note) {
@@ -101,19 +143,33 @@
         @if (day.places.length) {
           <ol class="mt-2 grid gap-2">
             @for (place of day.places; track place.id) {
-              <li class="print-block">
-                <p class="text-sm font-medium">
-                  @if (place.startsAt) {
-                    <span class="text-muted">{{ placeTime(place.startsAt) }}</span>
+              <li class="print-block flex items-start gap-3">
+                @if (showPhotos() && place.photoThumbUrl) {
+                  <!-- The credit under the picture, not in a tooltip: a Commons
+                       image is licensed per image and there is nothing to hover
+                       on paper. `Place.setPhoto` guarantees both halves of it. -->
+                  <figure class="print-photo-block w-24 shrink-0">
+                    <img [src]="place.photoThumbUrl" [alt]="'Photo of ' + place.name"
+                         class="print-photo size-24 rounded-control object-cover" />
+                    <figcaption class="mt-1 text-[0.5625rem] leading-tight text-muted">
+                      {{ photoCredit(place) }}
+                    </figcaption>
+                  </figure>
+                }
+                <div class="min-w-0 flex-1">
+                  <p class="text-sm font-medium">
+                    @if (place.startsAt) {
+                      <span class="text-muted">{{ placeTime(place.startsAt) }}</span>
+                    }
+                    {{ place.name }}
+                  </p>
+                  @if (place.address) {
+                    <p class="text-sm text-muted">{{ place.address }}</p>
                   }
-                  {{ place.name }}
-                </p>
-                @if (place.address) {
-                  <p class="text-sm text-muted">{{ place.address }}</p>
-                }
-                @for (note of place.notes; track $index) {
-                  <p class="whitespace-pre-line text-sm">{{ note }}</p>
-                }
+                  @for (note of place.notes; track $index) {
+                    <p class="whitespace-pre-line text-sm">{{ note }}</p>
+                  }
+                </div>
               </li>
             }
           </ol>
