@@ -2,7 +2,25 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>wander</title>
+  <title>wander · collaborative travel planner</title>
+  <!-- A crawler sees this file and nothing else. Every route but the sign-in
+       form is default-deny, and Angular renders into an empty <app-root>, so
+       these tags are the only text in the document that does not require
+       JavaScript to appear. Without them a search result is the bare word
+       "wander" with no description under it, and a link pasted into a chat
+       previews as nothing at all. -->
+  <meta name="description" content="A self-hostable, collaborative travel planner: shared itineraries on a map, expenses with splits and balances, packing lists, bookings and offline reading.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="wander">
+  <meta property="og:title" content="wander · collaborative travel planner">
+  <meta property="og:description" content="A self-hostable, collaborative travel planner: shared itineraries on a map, expenses with splits and balances, packing lists, bookings and offline reading.">
+  <!-- Relative on purpose, though the Open Graph specification asks for an
+       absolute URL. Nothing operator-configurable is compiled into this app,
+       and a hostname here would bake one instance's address into every fork's
+       build - the same argument that makes the basemap and the source link
+       settings. Crawlers resolve it against the page they found it on. -->
+  <meta property="og:image" content="/icon-512.png">
+  <meta name="twitter:card" content="summary">
   <base href="/">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <!-- SVG first, and browsers that understand it never ask for the .ico. It is

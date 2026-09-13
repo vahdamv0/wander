@@ -1,0 +1,24 @@
+# Served from web/public/, which angular.json copies to the root of the build,
+# so this lands at /robots.txt inside the jar like the manifest and the icons.
+#
+# There is almost nothing here to crawl and that is by design: SecurityConfig
+# authenticates everything except an explicit allow-list, so every path below
+# answers a signed-out crawler with the sign-in page. The point of this file is
+# the two Disallow rules that matter rather than any invitation to index.
+
+User-agent: *
+
+# A reset or an invitation token is the whole credential - anybody holding one
+# can set a password or join somebody's trip. The Caddyfile already keeps them
+# out of the access log for that reason; this keeps them out of a search index
+# if one is ever pasted somewhere public.
+Disallow: /reset/
+Disallow: /invite/
+Disallow: /forgot
+
+# JSON, and none of it readable without a session anyway.
+Disallow: /api/
+
+# No Sitemap: line. That directive takes an absolute URL, which would mean
+# compiling one instance's hostname into every fork's build. Submit the two
+# real URLs through Search Console instead - there are only two.
