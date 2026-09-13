@@ -29,6 +29,7 @@ import { TripChange, TripSyncService } from '../../core/trip-sync';
 import { GeoRepo } from '../../repo/geo.repo';
 import { InviteRepo } from '../../repo/invite.repo';
 import { MemberRepo } from '../../repo/member.repo';
+import { RouteProfile, RouteRepo } from '../../repo/route.repo';
 import { TripRepo } from '../../repo/trip.repo';
 import { WeatherRepo } from '../../repo/weather.repo';
 import { PlaceRepo } from '../../repo/place.repo';
@@ -53,6 +54,21 @@ const SEARCH_DEBOUNCE_MS = 400;
  */
 const REFRESH_ATTEMPTS = 4;
 const REFRESH_BACKOFF_MS = 500;
+
+/**
+ * Origin, destination and nine waypoints — the most a `maps/dir/?api=1` URL
+ * carries. Past that Google keeps the ones it can and drops the rest silently,
+ * which is exactly the sort of quiet loss this application refuses elsewhere,
+ * so the link says what it is doing instead.
+ */
+const MAPS_MAX_STOPS = 11;
+
+/** Google's own words for the three profiles. "bicycling", not "cycling". */
+const GOOGLE_TRAVEL_MODES: Record<RouteProfile, string> = {
+  WALKING: 'walking',
+  DRIVING: 'driving',
+  CYCLING: 'bicycling',
+};
 
 /**
  * One trip: its derived days, top to bottom, with the places on each.
@@ -87,6 +103,7 @@ export class TripPage {
   private readonly sync = inject(TripSyncService);
   private readonly trips = inject(TripRepo);
   private readonly weather = inject(WeatherRepo);
+  private readonly routes = inject(RouteRepo);
   private readonly destroyRef = inject(DestroyRef);
 
   /** Bound from the route, as a string — coerced once here. */
@@ -271,6 +288,9 @@ export class TripPage {
     this.destroyRef.onDestroy(() => this.sync.stop());
     // Otherwise the next trip opens showing this one's temperatures for a moment.
     this.destroyRef.onDestroy(() => this.weather.clear());
+    // A proposal is about one day of one trip, and it is stale the moment the
+    // day changes. Leaving the page is the clearest such moment.
+    this.destroyRef.onDestroy(() => this.routes.clear());
   }
 
   /**
@@ -293,6 +313,13 @@ export class TripPage {
       // list it lands on is its own explanation.
       await this.router.navigate(['/trips']);
       return;
+    }
+
+    if (change.kind === 'ITINERARY') {
+      // Somebody else moved, added or removed a place, so a proposal held on
+      // screen is about a day that no longer exists in that shape — and the
+      // server would refuse it anyway, its id set no longer matching the day.
+      this.routes.clear();
     }
 
     if (change.kind === 'MEMBERS') {
@@ -741,6 +768,135 @@ export class TripPage {
     if (code >= 95) return 'storm';
     if (code >= 51) return 'rain';
     return 'cloud';
+  }
+
+  // -- routes -------------------------------------------------------------
+
+  /**
+   * Sorting a day by how long it takes to get between its stops.
+   *
+   * Only offered when the operator has stood a routing engine up: false until
+   * `/api/config` says otherwise, which inverts this store's usual optimism
+   * for booking import's reason — a button that appears and then answers 503
+   * is worse than one that appears a beat late.
+   */
+  protected readonly routingEnabled = this.config.routingEnabled;
+  protected readonly routePreview = this.routes.preview;
+  protected readonly previewing = this.routes.previewing;
+
+  /**
+   * Walking, driving or cycling. One choice for the page rather than one per
+   * day: it is a fact about how this trip is being got around, and setting it
+   * eight times on an eight-day trip is eight chances to leave one wrong.
+   */
+  protected readonly routeProfile = signal<RouteProfile>('WALKING');
+  protected readonly routeProfiles: RouteProfile[] = ['WALKING', 'DRIVING', 'CYCLING'];
+
+  /** "On foot", not "WALKING": the enum is the wire, this is the label. */
+  protected profileLabel(profile: RouteProfile): string {
+    return profile === 'WALKING' ? 'On foot' : profile === 'DRIVING' ? 'Driving' : 'Cycling';
+  }
+
+  /** A day is worth sorting when at least two of its stops have coordinates. */
+  protected canSort(day: TripDay): boolean {
+    return this.canEdit() && this.routingEnabled() && this.locatedIn(day).length >= 2;
+  }
+
+  /** The proposal, if the one being held is for this day. */
+  protected proposalFor(day: TripDay) {
+    const preview = this.routePreview();
+    return preview && preview.dayDate === day.date ? preview : null;
+  }
+
+  protected async proposeRoute(day: TripDay): Promise<void> {
+    await this.guard(async () => {
+      this.routes.clear();
+      await this.routes.propose(this.numericTripId(), day.date, this.routeProfile());
+    });
+  }
+
+  protected async applyProposal(day: TripDay): Promise<void> {
+    const preview = this.proposalFor(day);
+    if (!preview) {
+      return;
+    }
+    await this.guard(async () => {
+      await this.repo.reorderDay(this.numericTripId(), day.date,
+        preview.stops.map((stop) => stop.placeId));
+      this.routes.clear();
+    });
+  }
+
+  protected discardProposal(): void {
+    this.routes.clear();
+  }
+
+  /** "24 min", "1 h 05". Rounded, because a routed estimate is not a timetable. */
+  protected travelLabel(seconds: number): string {
+    const minutes = Math.round(seconds / 60);
+    if (minutes < 60) {
+      return `${minutes} min`;
+    }
+    return `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, '0')}`;
+  }
+
+  /** What the proposal saves, as words, or null when it saves nothing worth saying. */
+  protected savingLabel(): string | null {
+    const preview = this.routePreview();
+    if (!preview || !preview.changed) {
+      return null;
+    }
+    const saved = preview.currentSeconds - preview.proposedSeconds;
+    return saved > 0 ? `${this.travelLabel(saved)} less travelling` : null;
+  }
+
+  /**
+   * The day's stops, in their current order, as a Google Maps directions link.
+   *
+   * Built here from coordinates rather than fetched from the server, the way a
+   * single place's Directions menu is: wander proxies nothing to Google, and
+   * the URL is the documented `api=1` form that will not rot.
+   *
+   * Google's URL API takes nine waypoints between the origin and the
+   * destination. A day with more stops than that links the first eleven and
+   * says so, which beats a link that silently drops the afternoon.
+   */
+  protected mapsLink(day: TripDay): string | null {
+    const points = this.locatedIn(day).map((place) => `${place.latitude},${place.longitude}`);
+    if (points.length < 2) {
+      return null;
+    }
+    const capped = points.slice(0, MAPS_MAX_STOPS);
+    const origin = capped[0];
+    const destination = capped[capped.length - 1];
+    const between = capped.slice(1, -1);
+    const url = new URLSearchParams({
+      api: '1',
+      origin,
+      destination,
+      travelmode: GOOGLE_TRAVEL_MODES[this.routeProfile()],
+    });
+    if (between.length) {
+      url.set('waypoints', between.join('|'));
+    }
+    return `https://www.google.com/maps/dir/?${url.toString()}`;
+  }
+
+  protected mapsTitle(day: TripDay): string {
+    const stops = this.locatedIn(day).length;
+    return stops > MAPS_MAX_STOPS
+      ? `Open the first ${MAPS_MAX_STOPS} stops in Google Maps — it takes no more`
+      : 'Open this day in Google Maps';
+  }
+
+  /** Credit for whatever engine answered, shown while a proposal is on screen. */
+  protected readonly routeCredit = computed(() => {
+    const preview = this.routePreview();
+    return preview && preview.attribution ? preview : null;
+  });
+
+  private locatedIn(day: TripDay): PlaceView[] {
+    return day.places.filter((place) => place.latitude != null && place.longitude != null);
   }
 
   protected savedLabel(savedAt: number): string {

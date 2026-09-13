@@ -9,10 +9,11 @@ import com.wander.config.WanderProperties;
 /**
  * How much of this instance's upstream budget one signed-in person may spend.
  *
- * Four endpoints reach somebody else's service on a caller's behalf — place
- * search, place enrichment, the forecast and an exchange rate — and every one of
- * them runs on donated capacity that belongs to the *instance* rather than to a
- * user. `.env.example` names that as the reason self-signup is off by default: an
+ * Five endpoints reach somebody else's service on a caller's behalf — place
+ * search, place enrichment, the forecast, an exchange rate and sorting a day by
+ * route — and every one of them runs on capacity that belongs to the *instance*
+ * rather than to a user; donated, in four cases, or the operator's own machine
+ * in the routing engine's. `.env.example` names that as the reason self-signup is off by default: an
  * open sign-up form on a public hostname hands Nominatim, Wikimedia, Open-Meteo
  * and Frankfurter to whoever finds the address. This is the counter that makes
  * opening it survivable.
@@ -45,6 +46,7 @@ public class UpstreamQuota {
     private final int enrichments;
     private final int forecasts;
     private final int rates;
+    private final int routes;
 
     public UpstreamQuota(WanderProperties properties) {
         WanderProperties.Quota quota = properties.quota();
@@ -53,6 +55,7 @@ public class UpstreamQuota {
         this.enrichments = quota.enrichmentsPerWindow();
         this.forecasts = quota.forecastsPerWindow();
         this.rates = quota.ratesPerWindow();
+        this.routes = quota.routesPerWindow();
     }
 
     /** A place search. The loosest of the four — it is a typeahead. */
@@ -80,6 +83,19 @@ public class UpstreamQuota {
      */
     public void rate(Long userId) {
         spend("x:" + userId, rates, "Too many exchange rate lookups. Wait a few minutes and try again.");
+    }
+
+    /**
+     * Auto-sorting one day.
+     *
+     * One click is one matrix, which is the heaviest single question this
+     * application asks anything, and the answer cannot be cached — the key
+     * would be an ordered set of coordinates that changes the moment a place
+     * moves. So the counter is the only thing standing between a stuck button
+     * and a routing engine.
+     */
+    public void route(Long userId) {
+        spend("o:" + userId, routes, "Too many route lookups. Wait a few minutes and try again.");
     }
 
     /**

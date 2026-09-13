@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
@@ -14,7 +15,9 @@ import com.wander.day.DayNote;
 import com.wander.day.DayNoteRepository;
 import com.wander.expense.ExpenseRepository;
 import com.wander.place.dto.CreatePlaceRequest;
+import com.wander.place.dto.LockPlaceRequest;
 import com.wander.place.dto.MovePlaceRequest;
+import com.wander.place.dto.ReorderDayRequest;
 import com.wander.place.dto.PlaceView;
 import com.wander.place.dto.TripDay;
 import com.wander.place.dto.TripItinerary;
@@ -151,6 +154,68 @@ public class PlaceService {
         if (!from.equals(to)) {
             renumber(target);
         }
+        changes.itineraryChanged(tripId, userId);
+        return PlaceView.of(place);
+    }
+
+    /**
+     * The whole of one day, in the order given.
+     *
+     * This is how a route proposal is applied, and it deliberately knows
+     * nothing about routes: it takes ids and assigns ranks, so there is one
+     * place in this application that decides what order a day is in, whether
+     * the order came from a drag, an arrow key or an optimiser.
+     *
+     * The id set must match the day exactly. A list missing one of them would
+     * need a rule for where the missing place goes, and any such rule turns a
+     * half-applied reorder into something that looks like it worked — so it is
+     * a 400 instead. It also means a proposal made against a day somebody else
+     * has since added a place to is refused rather than silently dropping
+     * their place to the end.
+     *
+     * A locked place must still be where it was. Locking is what tells an
+     * optimiser to leave a stop alone, so a client that ignored it and posted
+     * the order anyway would make the lock a suggestion; a person who wants it
+     * elsewhere drags it, which unlocks nothing and needs no permission.
+     */
+    @Transactional
+    public List<PlaceView> reorderDay(Long userId, Long tripId, LocalDate dayDate,
+            ReorderDayRequest request) {
+        access.requireRole(tripId, userId, CAN_EDIT);
+
+        List<Place> day = mutableDay(tripId, dayDate);
+        Map<Long, Place> byId = day.stream()
+                .collect(Collectors.toMap(Place::getId, place -> place));
+        List<Long> wanted = request.placeIds();
+        if (wanted.size() != day.size() || !byId.keySet().equals(Set.copyOf(wanted))) {
+            throw new IllegalArgumentException(
+                    "The order must list every place on this day exactly once."
+                            + " Reload the day and try again.");
+        }
+
+        List<Place> reordered = wanted.stream().map(byId::get).toList();
+        for (int i = 0; i < reordered.size(); i++) {
+            Place place = reordered.get(i);
+            if (place.isLocked() && place.getSortOrder() != i) {
+                throw new IllegalArgumentException(
+                        "\"" + place.getName() + "\" is locked to its position.");
+            }
+        }
+        renumber(reordered);
+        changes.itineraryChanged(tripId, userId);
+        return reordered.stream().map(PlaceView::of).toList();
+    }
+
+    /**
+     * Locking, on its own endpoint for the reason ticking a packing item has
+     * one: it is a single flag, and carrying the rest of the place along to
+     * flip it lets a lock undo somebody's rename.
+     */
+    @Transactional
+    public PlaceView setLocked(Long userId, Long tripId, Long placeId, LockPlaceRequest request) {
+        access.requireRole(tripId, userId, CAN_EDIT);
+        Place place = require(tripId, placeId);
+        place.setLocked(request.locked());
         changes.itineraryChanged(tripId, userId);
         return PlaceView.of(place);
     }

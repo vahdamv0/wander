@@ -53,6 +53,20 @@ public class UpstreamGates {
     }
 
     /**
+     * OSRM, for auto-sorting a day. Its own gate, and the one most likely to be
+     * pointed at a machine in the next rack — {@code wander.routing.base-url}
+     * defaults to localhost, because there is no public routing service anybody
+     * is entitled to build on. Gated anyway: a matrix is the most expensive
+     * question this application asks of anything, and a self-hosted engine is
+     * still somebody's CPU.
+     */
+    @Bean
+    public RateGate osrmGate(WanderProperties properties) {
+        WanderProperties.Routing config = properties.routing();
+        return new RateGate(config.minIntervalMillis(), config.maxWaitMillis());
+    }
+
+    /**
      * Frankfurter, for exchange rates. Its own gate again.
      *
      * The least-used of the four by a wide margin, and deliberately still gated.

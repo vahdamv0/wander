@@ -5,7 +5,7 @@ container, one Postgres.
 
 > **Status: usable.** The roadmap below is done — accounts, trips, the itinerary,
 > sharing with roles and invitation links, live sync, expenses, packing, bookings,
-> offline reading, and verified backups. One thing is left out on purpose rather
+> route sorting, offline reading, and verified backups. One thing is left out on purpose rather
 > than unfinished: an offline *write* queue, which would force the conflict
 > resolution live sync was deliberately designed not to need.
 
@@ -520,6 +520,34 @@ the routing app they actually use. So the panel offers Google Maps and
 OpenStreetMap as plain links out, in that order, and sends nothing to either
 beyond the coordinates in the URL the user chose to open.
 
+**A day can be sorted by route, and the sort proposes rather than applies.**
+Point `WANDER_ROUTING_URL` at an OSRM — off by default, because unlike the
+geocoder and the forecast there is no routing service anybody is *entitled* to
+lean on, and OSRM over a Geofabrik extract is a `docker run`. FOSSGIS do run
+public instances at `routing.openstreetmap.de`, and their terms permit this
+shape of use: one request a second — so raise `WANDER_ROUTING_MIN_INTERVAL_MS`
+to 1000, its default of 200 being written for an engine in the next rack — a
+User-Agent that names the application, which wander sends, and the
+OpenStreetMap credit with a link to fixthemap. `.env.example` carries the four
+lines to copy. It stays a documented option rather than the default for three
+reasons: access is revocable without notice, pointing every instance at one
+donated server is the aggregate those terms exist to prevent, and each profile
+lives behind its own path prefix there while wander has a single base URL — so
+all three profiles answer from whichever graph you name, and asking for driving
+would quietly return walking times. wander asks it for one matrix of travel
+times between the day's stops, runs nearest-neighbour then 2-opt over it, and
+shows the result as a **proposal** with what it saves: 30 minutes of walking
+down to 16. Nothing is written until somebody says so, which is the same
+bargain booking import makes, and applying it goes through the ordinary reorder
+— so there is one thing on the server that decides what order a day is in,
+whether the order came from a drag or an optimiser. A stop can be **locked** to
+its position (the hotel to start from, the table booked for eight) and the rest
+are fitted around it; a place with no coordinates is locked implicitly, because
+moving a stop the engine was never told about is rearranging a plan around a
+guess. Nothing is inferred from a place's category: an anchor is something you
+say, not something the geocoder decides. Then the finished order opens in
+Google Maps.
+
 **Two writes are optimistic, and for the same reason.** Every other write
 re-reads and lets the server's answer win. But a drag has already moved the row
 under the user's finger and a tick has already moved the checkbox, so waiting for
@@ -615,6 +643,10 @@ tables under a running instance. Don't lower a gate to land a change.
    never needed, and that stays a decision rather than a gap. Installing it is done too ✅ —
    a manifest, an icon and a standalone window, plus the piece that only matters
    once there is no reload button: a prompt when a new build is waiting.
+6. **Routes.** ✅ Sorting a day by how long it takes to get between its stops,
+   over an OSRM you point wander at, on foot, driving or cycling — proposed
+   rather than applied, with locked stops staying where they are, and the
+   finished order handed to Google Maps.
 
 ## Licence
 

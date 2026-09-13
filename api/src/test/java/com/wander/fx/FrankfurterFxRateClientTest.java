@@ -30,7 +30,7 @@ class FrankfurterFxRateClientTest {
         // Only the base URL is read in the constructor, and nothing in these
         // tests makes a request.
         return new WanderProperties("test", "", "", false, "EUR", null, null, null, null, null,
-                null, null, null, null, new WanderProperties.Fx(true, "http://localhost",
+                null, null, null, null, null, new WanderProperties.Fx(true, "http://localhost",
                         24, "", "", 0, 1000),
                 null, null);
     }

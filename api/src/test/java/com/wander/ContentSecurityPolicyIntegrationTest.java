@@ -33,7 +33,8 @@ class ContentSecurityPolicyIntegrationTest extends IntegrationTestBase {
         assertThat(policy).isNotNull();
 
         assertThat(policy).contains(
-                "connect-src 'self' https://upload.wikimedia.org https://tiles.example.org https://raster.example.net");
+                "connect-src 'self' https://upload.wikimedia.org https://thumb.wikimedia.org"
+                        + " https://tiles.example.org https://raster.example.net");
         // The raster URL's {z}/{x}/{y} is not a legal URI, which is why the
         // origin is taken with a regex rather than parsed — if that ever
         // regresses, this host goes missing and the map stops loading tiles.
@@ -74,8 +75,12 @@ class ContentSecurityPolicyIntegrationTest extends IntegrationTestBase {
         String policy = shell().getHeaders().getFirst("Content-Security-Policy");
 
         assertThat(policy).contains("worker-src 'self' blob:");
-        assertThat(policy).contains("img-src 'self' data: blob: https://upload.wikimedia.org");
-        assertThat(policy).contains("connect-src 'self' https://upload.wikimedia.org");
+        // Both Commons hosts: the original is on `upload`, and the thumbnail —
+        // which is what a row and the printout draw — is now on `thumb`.
+        assertThat(policy).contains("img-src 'self' data: blob: https://upload.wikimedia.org"
+                + " https://thumb.wikimedia.org");
+        assertThat(policy).contains("connect-src 'self' https://upload.wikimedia.org"
+                + " https://thumb.wikimedia.org");
     }
 
     /**

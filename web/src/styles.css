@@ -375,6 +375,37 @@
     break-inside: avoid;
   }
 
+  /* The cover gets a sheet to itself — that is the whole difference between a
+     cover and a banner. The rule is on the wrapper rather than on its `h1`,
+     which the rule below deliberately forbids breaking after. */
+  .print-cover {
+    page-break-after: always;
+    break-after: page;
+  }
+
+  /* Optional, and remembered per browser: a sheet per day, so the trip can be
+     dealt out on a table or handed round a day at a time. Adjacent forced
+     breaks collapse into one, so the cover's own break does not leave a blank
+     sheet in front of day one. */
+  .print-document.one-day-per-page .print-day {
+    page-break-before: always;
+    break-before: page;
+  }
+
+  /* A kept place photo, when the reader asked for photos. Sized in millimetres
+     rather than in the template's pixels, because this is the one place in the
+     application whose output is measured in paper. It is an `<img>`, so it
+     survives a reader who has printing of background graphics switched off —
+     a CSS background would not. */
+  .print-photo {
+    width: 26mm;
+    height: 26mm;
+  }
+
+  .print-photo-block {
+    width: 26mm;
+  }
+
   /* A heading stranded at the foot of a page is the classic printing defect. */
   h1,
   h2 {

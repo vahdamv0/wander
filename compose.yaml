@@ -111,6 +111,7 @@ services:
       WANDER_QUOTA_ENRICHMENTS: ${WANDER_QUOTA_ENRICHMENTS:-60}
       WANDER_QUOTA_FORECASTS: ${WANDER_QUOTA_FORECASTS:-60}
       WANDER_QUOTA_RATES: ${WANDER_QUOTA_RATES:-40}
+      WANDER_QUOTA_ROUTES: ${WANDER_QUOTA_ROUTES:-40}
       WANDER_QUOTA_WINDOW_MINUTES: ${WANDER_QUOTA_WINDOW_MINUTES:-5}
       # The Content-Security-Policy, built from the map settings below.
       WANDER_CSP_ENABLED: ${WANDER_CSP_ENABLED:-true}
@@ -127,6 +128,20 @@ services:
       WANDER_FX_URL: ${WANDER_FX_URL:-https://api.frankfurter.dev}
       WANDER_FX_ATTRIBUTION: ${WANDER_FX_ATTRIBUTION:-Exchange rates via Frankfurter}
       WANDER_FX_ATTRIBUTION_URL: ${WANDER_FX_ATTRIBUTION_URL:-https://frankfurter.dev/}
+      # Sorting a day by route, over OSRM. Off by default and it has to be:
+      # there is no public routing service to point at, so this only works once
+      # you run one — `docker run -p 5000:5000 osrm/osrm-backend` over an
+      # extract of wherever you are going.
+      WANDER_ROUTING_ENABLED: ${WANDER_ROUTING_ENABLED:-false}
+      WANDER_ROUTING_URL: ${WANDER_ROUTING_URL:-http://localhost:5000}
+      WANDER_ROUTING_MAX_STOPS: ${WANDER_ROUTING_MAX_STOPS:-12}
+      WANDER_ROUTING_ATTRIBUTION: ${WANDER_ROUTING_ATTRIBUTION:-Routing by OSRM · map data © OpenStreetMap contributors}
+      WANDER_ROUTING_ATTRIBUTION_URL: ${WANDER_ROUTING_ATTRIBUTION_URL:-https://project-osrm.org/}
+      # One request a second is what a shared OSRM allows; 200ms is for one you
+      # run yourself. Passed through here because a value set only in .env
+      # reaches nothing — the WANDER_LOGIN_* mistake, and the symptom is the
+      # same: no failure, and a limit quietly exceeded.
+      WANDER_ROUTING_MIN_INTERVAL_MS: ${WANDER_ROUTING_MIN_INTERVAL_MS:-200}
       WANDER_MAP_ENABLED: ${WANDER_MAP_ENABLED:-true}
       # A MapLibre vector style, which is what lets the map be labelled in the
       # reader's language. Blank falls back to the raster tile URL below.

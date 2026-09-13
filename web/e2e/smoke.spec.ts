@@ -2418,6 +2418,13 @@ test('the itinerary prints as a document, with its bookings on the right days', 
   await page.goto(`${tripUrl}/print`);
   await expect(page.getByRole('heading', { name: 'Tokyo' })).toBeVisible();
 
+  // The cover: who is coming and how long for. The trip's name is deliberately
+  // printed once — the cover *is* the document's header — so the heading
+  // locator above stays unambiguous.
+  const cover = page.locator('.print-cover');
+  await expect(cover).toContainText('Print Tester');
+  await expect(cover).toContainText('3 days');
+
   // The place, its note, and the booking folded onto its own day rather than
   // sitting in a separate list.
   await expect(page.getByText('Senso-ji')).toBeVisible();
@@ -2448,6 +2455,13 @@ test('the itinerary prints as a document, with its bookings on the right days', 
   await expect(page.locator('header.print-hide')).toBeHidden();
   await expect(page.getByRole('heading', { name: 'Tokyo' })).toBeVisible();
   await page.emulateMedia({ media: 'screen' });
+
+  // A sheet per day is opt-in, and the toggle is the only thing Playwright can
+  // see of it: whether the break lands is the print engine's business, and no
+  // browser exposes where it put one.
+  await expect(page.locator('.print-document.one-day-per-page')).toHaveCount(0);
+  await page.getByText('One page per day').click();
+  await expect(page.locator('.print-document.one-day-per-page')).toHaveCount(1);
 
   expect(consoleErrors, 'unexpected console errors').toEqual([]);
 });
@@ -2735,5 +2749,149 @@ test('an expense in another currency converts at a typed rate and keeps both fig
   await expect(page.locator('input[name=amount]')).toHaveValue('8000');
   await expect(page.locator('select[name=currency]')).toHaveValue('JPY');
 
+  expect(consoleErrors).toEqual([]);
+});
+
+/**
+ * Sorting a day by route, and locking a stop out of it.
+ *
+ * Both upstreams are stubbed and that is not a shortcut: the geocoder is
+ * stubbed everywhere in this suite, and a routing engine is something an
+ * operator stands up — an instance running this test almost certainly has
+ * `wander.routing.enabled=false`, which is the shipped default. So `/api/config`
+ * is patched to say the feature is on, and the preview endpoint answers with a
+ * proposal built from the day's real place ids.
+ *
+ * Applying it is **not** stubbed. That half goes to the real server, which is
+ * the half worth testing: it renumbers the day, refuses to move a locked stop,
+ * and has to survive a reload.
+ */
+test('a day can be sorted by route, and a locked stop stays put', async ({ page }) => {
+  const consoleErrors: string[] = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error' && !message.text().includes('401')) {
+      consoleErrors.push(message.text());
+    }
+  });
+  page.on('pageerror', (error) => consoleErrors.push(error.message));
+
+  // Three real places in Kyoto, handed out one per search so each Add picks a
+  // different one.
+  const stops = [
+    { ref: 'way/1', name: 'Nijo Castle', address: 'Nijo Castle, Kyoto', latitude: 35.0117, longitude: 135.7481 },
+    { ref: 'way/2', name: 'Gion', address: 'Gion, Kyoto', latitude: 35.0037, longitude: 135.7788 },
+    { ref: 'way/3', name: 'Kiyomizu-dera', address: 'Kiyomizu-dera, Kyoto', latitude: 34.9949, longitude: 135.785 },
+  ];
+  await page.route('**/api/geo/search**', async (route) => {
+    const query = decodeURIComponent(new URL(route.request().url()).search);
+    const hit = stops.find((stop) => query.toLowerCase().includes(stop.name.slice(0, 4).toLowerCase()));
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(hit ? [{ ...hit, category: 'attraction' }] : []),
+    });
+  });
+
+  // The instance almost certainly has no routing engine. Patch the one boolean
+  // the client gates the button on, leaving the rest of the operator's config
+  // exactly as this instance reports it.
+  await page.route('**/api/config', async (route) => {
+    const response = await route.fetch();
+    await route.fulfill({
+      response,
+      json: { ...(await response.json()), routingEnabled: true },
+    });
+  });
+
+  await page.goto('/login');
+  await page.getByText('Create one').click();
+  await page.locator('input[name=email]').fill(`e2e-route-${Date.now()}@example.com`);
+  await page.locator('input[name=displayName]').fill('Route Tester');
+  await page.locator('input[name=password]').fill('correct-horse-battery');
+  await page.locator('button[type=submit]').click();
+
+  await page.getByRole('button', { name: 'Plan your first trip' }).click();
+  await page.locator('input[name=name]').fill('Kyoto');
+  await page.locator('input[name=startDate]').fill('2027-04-05');
+  await page.locator('input[name=endDate]').fill('2027-04-07');
+  await page.getByRole('button', { name: 'Create trip' }).click();
+  await page.getByRole('link', { name: /Kyoto/ }).click();
+
+  const day1 = page.locator('ol > li.card').first();
+  // The form stays open between adds — three places on one day is the common
+  // case — so it is opened once and submitted three times.
+  await day1.getByRole('button', { name: 'Add place' }).click();
+  for (const stop of stops) {
+    await day1.locator('input[name=name]').fill(stop.name.slice(0, 5));
+    await day1.getByRole('button', { name: new RegExp(stop.name) }).click();
+    await day1.getByRole('button', { name: 'Add place', exact: true }).last().click();
+    await expect(day1.getByRole('button', { name: stop.name, exact: true })).toBeVisible();
+  }
+  await day1.getByRole('button', { name: 'Done' }).click();
+
+  const names = () => day1.locator('ol > li button.font-medium');
+  await expect(names()).toHaveText(['Nijo Castle', 'Gion', 'Kiyomizu-dera']);
+
+  // Lock the first stop, through the panel — the row shows an indicator, and
+  // the control lives where there is room to explain it.
+  await day1.getByRole('button', { name: 'Nijo Castle', exact: true }).click();
+  // `exact`, or "Lock" also matches the "Locked" the same button becomes.
+  await page.getByRole('button', { name: 'Lock', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Locked', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
+
+  // The day's real ids, so the stubbed proposal is one the server will accept.
+  const tripId = page.url().split('/trips/')[1];
+  const itinerary = await (await page.request.get(`/api/trips/${tripId}/itinerary`)).json();
+  const places: { id: number; name: string; locked: boolean }[] = itinerary.days[0].places;
+  expect(places.map((place) => place.name)).toEqual(['Nijo Castle', 'Gion', 'Kiyomizu-dera']);
+  expect(places[0].locked, 'the lock reached the server').toBe(true);
+
+  const proposed = [places[0], places[2], places[1]];
+  await page.route('**/api/trips/*/days/*/route/preview**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        dayDate: '2027-04-05',
+        profile: 'WALKING',
+        stops: proposed.map((place) => ({
+          placeId: place.id,
+          name: place.name,
+          pinned: place.locked,
+          locked: place.locked,
+          located: true,
+        })),
+        currentSeconds: 1800,
+        proposedSeconds: 900,
+        proposedMetres: 4200,
+        changed: true,
+        attribution: 'Routing by OSRM',
+        attributionUrl: 'https://project-osrm.org/',
+      }),
+    });
+  });
+
+  await day1.getByRole('button', { name: 'Sort day 1 by route' }).click();
+
+  // A proposal, not a change: the day underneath is still in its own order.
+  await expect(day1.getByText('A shorter order')).toBeVisible();
+  await expect(day1.getByText('15 min less travelling')).toBeVisible();
+  await expect(names()).toHaveText(['Nijo Castle', 'Gion', 'Kiyomizu-dera']);
+  // The engine that worked it out is credited, like the weather and the tiles.
+  await expect(page.getByRole('link', { name: 'Routing by OSRM' })).toBeVisible();
+
+  await day1.getByRole('button', { name: 'Use this order' }).click();
+  await expect(names()).toHaveText(['Nijo Castle', 'Kiyomizu-dera', 'Gion']);
+
+  // Reloaded, because the ranks are the server's and only a reload proves they
+  // were written — and the locked stop is still first and still locked.
+  await page.reload();
+  const reloaded = page.locator('ol > li.card').first();
+  await expect(reloaded.locator('ol > li button.font-medium'))
+    .toHaveText(['Nijo Castle', 'Kiyomizu-dera', 'Gion']);
+  await expect(reloaded.getByText('Locked in place')).toHaveCount(1);
+
+  await expect(page.locator('[role=alert]')).toHaveCount(0);
   expect(consoleErrors).toEqual([]);
 });

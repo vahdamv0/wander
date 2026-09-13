@@ -30,6 +30,9 @@ class UpstreamGatesTest {
     @Autowired
     private WikiEnrichmentClient enrichmentClient;
 
+    @Autowired
+    private com.wander.route.OsrmRouteClient routeClient;
+
     @Test
     void thereIsExactlyOneNominatimGateAndBothCallersHoldIt() {
         assertThat(nominatimGate).as("the shared gate is a bean").isNotNull();
@@ -46,6 +49,21 @@ class UpstreamGatesTest {
         // Separate services with their own, far more generous limits: an
         // enrichment should not wait behind somebody's typeahead.
         assertThat(fieldOf(enrichmentClient, "wikimediaGate")).isNotSameAs(nominatimGate);
+    }
+
+    /**
+     * The routing engine is usually a machine the operator runs themselves, so
+     * its budget has nothing to do with Nominatim's — sharing a gate would make
+     * a place search wait a second behind somebody sorting a day, and would
+     * halve the rate each of them believes it has.
+     */
+    @Test
+    void routingHasItsOwnGateToo() {
+        assertThat(fieldOf(routeClient, "gate"))
+                .as("the routing client does not share the geocoder's gate")
+                .isNotSameAs(nominatimGate);
+        assertThat(fieldOf(routeClient, "gate"))
+                .isNotSameAs(fieldOf(enrichmentClient, "wikimediaGate"));
     }
 
     private static Object fieldOf(Object target, String name) {

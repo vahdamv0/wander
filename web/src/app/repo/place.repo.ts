@@ -11,6 +11,8 @@ import {
   getItinerary,
   movePlace,
   putDayNote,
+  reorderDay,
+  setPlaceLocked,
   updatePlace,
 } from '../api';
 import { Connectivity } from '../core/connectivity';
@@ -90,6 +92,32 @@ export class PlaceRepo {
   async saveDayNote(tripId: number, date: string, note: string): Promise<void> {
     await this.write(tripId, () =>
       this.api.invoke(putDayNote, { tripId, date, body: { note } }),
+    );
+  }
+
+  /**
+   * A whole day, in the order given — how a route proposal is applied.
+   *
+   * Not optimistic, unlike `move`. The exception `move` makes exists because
+   * the row has already moved under the user's finger; here nothing has moved
+   * yet, and the server may refuse the order outright (a locked stop, or a
+   * place somebody else added since the proposal was made), in which case the
+   * day on screen is the truth and should stay as it is.
+   */
+  async reorderDay(tripId: number, date: string, placeIds: number[]): Promise<void> {
+    await this.write(tripId, () =>
+      this.api.invoke(reorderDay, { tripId, date, body: { placeIds } }),
+    );
+  }
+
+  /**
+   * Pinning a place so an auto-sort leaves it alone. One field, its own call —
+   * sending the whole place to flip it would let a lock undo a rename that
+   * arrived in between.
+   */
+  async setLocked(tripId: number, placeId: number, locked: boolean): Promise<void> {
+    await this.write(tripId, () =>
+      this.api.invoke(setPlaceLocked, { tripId, placeId, body: { locked } }),
     );
   }
 

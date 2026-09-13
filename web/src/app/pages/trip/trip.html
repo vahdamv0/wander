@@ -250,6 +250,24 @@
       }
     </ul>
   } @else {
+    @if (canEdit() && routingEnabled()) {
+      <!-- One choice for the page, not one per day: how you are getting around
+           is a fact about the trip, and setting it on each of eight days is
+           eight chances to leave one wrong. It picks both what an auto-sort
+           optimises for and what Google Maps opens with. -->
+      <div class="mb-3 flex items-center justify-end gap-2">
+        <label class="flex items-center gap-2 text-xs text-muted">
+          Getting around
+          <select class="field py-0.5 text-xs" name="routeProfile"
+                  [ngModel]="routeProfile()" (ngModelChange)="routeProfile.set($event)">
+            @for (profile of routeProfiles; track profile) {
+              <option [value]="profile">{{ profileLabel(profile) }}</option>
+            }
+          </select>
+        </label>
+      </div>
+    }
+
     <ol class="grid grid-cols-1 gap-3" cdkDropListGroup>
       @for (day of days(); track day.date) {
         <li class="card p-5">
@@ -324,6 +342,62 @@
                   {{ day.places.length }} {{ day.places.length === 1 ? 'place' : 'places' }}
                 </span>
               }
+              @if (mapsLink(day); as directions) {
+                <!-- Built here from the day's own coordinates, like a single
+                     place's Directions menu: wander proxies nothing to Google,
+                     and this is the documented api=1 form. -->
+                <a [href]="directions" target="_blank" rel="noopener noreferrer"
+                   class="btn-ghost px-1.5" [title]="mapsTitle(day)">
+                  <span class="sr-only">Open day {{ day.index }} in Google Maps</span>
+                  <!-- An external-link mark, not a map pin: a pin already means
+                       "show this on the map beside the list" on every row, and
+                       two meanings for one glyph on one card is one too many. -->
+                  <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                       stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
+                       aria-hidden="true">
+                    <path d="M14 4h6v6" />
+                    <path d="M20 4 11 13" />
+                    <path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />
+                  </svg>
+                </a>
+              }
+              @if (canSort(day)) {
+                <!-- Sorting is offered only where it can work: an editor, an
+                     instance with a routing engine, and a day with two stops
+                     the engine can be told about. -->
+                <button type="button" class="btn-ghost px-1.5"
+                        [disabled]="saving() || previewing() === day.date"
+                        [attr.aria-busy]="previewing() === day.date ? 'true' : null"
+                        [title]="previewing() === day.date
+                          ? 'Working out a shorter order for day ' + day.index + '…'
+                          : 'Suggest a shorter order for day ' + day.index"
+                        (click)="proposeRoute(day)">
+                  <!-- A spinner rather than the disabled state alone. This is a
+                       round trip to a routing engine that is somebody else's
+                       machine and is gated to one request a second, so it can
+                       take seconds — and a greyed-out ghost icon is very nearly
+                       the same picture as a live one. The sr-only name changes
+                       with it, or the only announcement of the wait is a button
+                       that has gone quiet. -->
+                  @if (previewing() === day.date) {
+                    <span class="sr-only">Working out a shorter order for day {{ day.index }}</span>
+                    <svg class="size-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-opacity="0.25" stroke-width="3" />
+                      <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
+                    </svg>
+                  } @else {
+                    <span class="sr-only">Sort day {{ day.index }} by route</span>
+                    <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
+                         aria-hidden="true">
+                      <path d="M4 7h11M4 17h7" />
+                      <path d="M15 14l3 3-3 3" />
+                      <path d="M18 17H11" />
+                      <path d="M17 4l3 3-3 3" />
+                    </svg>
+                  }
+                </button>
+              }
               @if (canEdit()) {
                 <!-- The note belongs to the day, so its control sits in the day's
                      header rather than among the places below it. -->
@@ -367,6 +441,58 @@
             <p class="mt-3 whitespace-pre-line rounded-control bg-surface-2 px-3 py-2 text-sm">
               {{ day.note }}
             </p>
+          }
+
+          @if (proposalFor(day); as proposal) {
+            <!-- A proposal, not a change: nothing has been written, and
+                 discarding it costs nothing. The order is listed rather than
+                 applied to the list below, so what is on screen stays the day
+                 as it actually is until somebody agrees. -->
+            <div class="mt-3 rounded-control border border-accent bg-accent-soft px-3 py-2"
+                 role="group" aria-label="Suggested order">
+              @if (proposal.changed) {
+                <p class="text-sm font-medium">
+                  A shorter order
+                  @if (savingLabel(); as saved) {
+                    <span class="font-normal text-muted">· {{ saved }}</span>
+                  }
+                </p>
+                <ol class="mt-1 grid gap-0.5 text-sm">
+                  @for (stop of proposal.stops; track stop.placeId) {
+                    <li class="flex items-baseline gap-2">
+                      <span class="text-xs text-muted">{{ $index + 1 }}</span>
+                      <span class="min-w-0 flex-1 truncate">{{ stop.name }}</span>
+                      @if (stop.locked) {
+                        <span class="text-[0.625rem] uppercase tracking-wide text-muted">locked</span>
+                      } @else if (!stop.located) {
+                        <!-- It was never sent to the engine, so it kept its
+                             place. Saying so is the difference between a
+                             disappointing answer and a mysterious one. -->
+                        <span class="text-[0.625rem] uppercase tracking-wide text-muted">no location</span>
+                      }
+                    </li>
+                  }
+                </ol>
+                <div class="mt-2 flex items-center gap-2">
+                  <button type="button" class="btn-primary text-xs" [disabled]="saving()"
+                          (click)="applyProposal(day)">Use this order</button>
+                  <button type="button" class="btn-ghost text-xs"
+                          (click)="discardProposal()">Discard</button>
+                  <span class="text-xs text-muted">
+                    {{ travelLabel(proposal.currentSeconds) }} → {{ travelLabel(proposal.proposedSeconds) }}
+                  </span>
+                </div>
+              } @else {
+                <!-- An honest answer, and the reason there is no Apply here: a
+                     button that changes nothing is worse than a sentence. -->
+                <p class="text-sm">
+                  This is already the shortest order I can find
+                  <span class="text-muted">· {{ travelLabel(proposal.currentSeconds) }} of travelling</span>
+                </p>
+                <button type="button" class="btn-ghost mt-1 text-xs"
+                        (click)="discardProposal()">Close</button>
+              }
+            </div>
           }
 
           <!-- One connected drop list per day, rendered even when the day is empty:
@@ -423,6 +549,21 @@
                                  bg-accent-soft text-[0.6875rem] font-semibold text-accent">
                       {{ place.position + 1 }}
                     </span>
+                    @if (place.locked) {
+                      <!-- An indicator, not a seventh button: `.row-actions` is
+                           already six icons wide and stays on permanently where
+                           there is no hover. Locking and unlocking live in the
+                           panel, where there is room to say what it means. -->
+                      <span class="mt-1 shrink-0 text-muted" title="Locked — an auto-sort leaves this where it is">
+                        <span class="sr-only">Locked in place</span>
+                        <svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                             stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
+                             aria-hidden="true">
+                          <rect x="5" y="11" width="14" height="9" rx="2" />
+                          <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+                        </svg>
+                      </span>
+                    }
                     @if (place.photoThumbUrl) {
                       <!-- A kept photo, with its credit reachable: a Commons image
                            is licensed per image, so the attribution travels with
@@ -670,6 +811,17 @@
          data — an operator pointing wander at their own weather service changes
          one setting and the credit follows, exactly as the tile attribution does.
          Shown only when there is a forecast on screen to credit. -->
+    @if (routeCredit(); as credit) {
+      <!-- Shown while a proposal is: the answer is about to rearrange somebody's
+           day, so it should say what worked it out. Travels with the data like
+           every other credit here, so an operator's own engine gets its own
+           line. -->
+      <p class="mt-3 text-right text-[0.6875rem] text-muted">
+        <a [href]="credit.attributionUrl" target="_blank" rel="noopener noreferrer"
+           class="hover:text-fg">{{ credit.attribution }}</a>
+      </p>
+    }
+
     @if (weatherCredit(); as credit) {
       <p class="mt-3 text-right text-[0.6875rem] text-muted">
         <a [href]="credit.attributionUrl" target="_blank" rel="noopener noreferrer"
