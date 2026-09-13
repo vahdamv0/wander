@@ -57,11 +57,21 @@ public class ContentSecurityPolicy {
 
     /**
      * Where a Commons photograph actually lives. The enrichment offers URLs on
-     * this host and {@code Place.setPhoto} stores them, so it is not an
-     * operator's choice the way the map is — it is where the feature's own data
-     * comes from.
+     * these hosts and {@code Place.setPhoto} stores them, so they are not an
+     * operator's choice the way the map is — they are where the feature's own
+     * data comes from.
+     *
+     * <p><b>Two hosts, not one.</b> The original file is on
+     * {@code upload.wikimedia.org}, but Wikimedia now answers {@code imageinfo}
+     * with a {@code thumburl} on {@code thumb.wikimedia.org} — so a photograph
+     * kept before that change renders and one kept after it is refused, which
+     * is exactly as confusing as it sounds. The thumbnail is the one the
+     * itinerary draws in a row and on paper, so leaving it out breaks the
+     * common case while the detail panel, which had the original, keeps
+     * working.
      */
-    private static final String COMMONS_MEDIA = "https://upload.wikimedia.org";
+    private static final String COMMONS_MEDIA =
+            "https://upload.wikimedia.org https://thumb.wikimedia.org";
 
     private final String policy;
     private final boolean enabled;
