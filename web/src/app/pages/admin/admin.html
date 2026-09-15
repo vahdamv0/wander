@@ -193,14 +193,30 @@
                   </span>
                   <span class="text-muted">from {{ reset.createdByName }}</span>
                   @if (reset.status === 'PENDING') {
-                    <button
-                      type="button"
-                      class="btn-ghost text-xs text-danger"
-                      [disabled]="saving()"
-                      (click)="revokeReset(account.id, reset.id)"
-                    >
-                      Revoke
-                    </button>
+                    @if (confirmingRevoke() === reset.id) {
+                      <span class="flex items-center gap-1" role="alert">
+                        <span class="text-danger">Revoke it?</span>
+                        <button type="button" class="btn-ghost text-xs text-danger"
+                                aria-label="Yes, revoke this reset link"
+                                [disabled]="saving()" (click)="revokeReset(account.id, reset.id)">
+                          Revoke
+                        </button>
+                        <button type="button" class="btn-ghost text-xs"
+                                aria-label="Keep this reset link"
+                                [disabled]="saving()" (click)="cancelRevokeReset()">
+                          Keep it
+                        </button>
+                      </span>
+                    } @else {
+                      <button
+                        type="button"
+                        class="btn-ghost text-xs text-danger"
+                        [disabled]="saving()"
+                        (click)="askRevokeReset(reset.id)"
+                      >
+                        Revoke
+                      </button>
+                    }
                   }
                 </li>
               }

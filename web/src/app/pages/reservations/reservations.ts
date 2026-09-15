@@ -177,6 +177,7 @@ export class ReservationsPage {
 
   protected openNew(): void {
     this.error.set(null);
+    this.confirmingRemoval.set(null);
     this.draftKind.set('FLIGHT');
     this.draftTitle.set('');
     this.draftConfirmation.set('');
@@ -291,6 +292,7 @@ export class ReservationsPage {
 
   protected openEdit(booking: ReservationView): void {
     this.error.set(null);
+    this.confirmingRemoval.set(null);
     this.draftKind.set(booking.kind);
     this.draftTitle.set(booking.title);
     this.draftConfirmation.set(booking.confirmation ?? '');
@@ -353,7 +355,27 @@ export class ReservationsPage {
     });
   }
 
+  /**
+   * Which booking's × has been pressed once and is waiting to be meant.
+   *
+   * The same argument as a place row and an expense: the × sits beside Edit,
+   * removing takes the notes and the confirmation reference with it, there is
+   * no undo, and live sync puts it on everybody else's screen within the
+   * second. One id rather than a set — asking about two at once is not a state
+   * worth having.
+   */
+  protected readonly confirmingRemoval = signal<number | null>(null);
+
+  protected askRemove(booking: ReservationView): void {
+    this.confirmingRemoval.set(booking.id);
+  }
+
+  protected cancelRemove(): void {
+    this.confirmingRemoval.set(null);
+  }
+
   protected async remove(booking: ReservationView): Promise<void> {
+    this.confirmingRemoval.set(null);
     await this.guard(() => this.repo.remove(this.id(), booking.id));
   }
 

@@ -123,7 +123,16 @@ export class TripMembers {
     this.copied.set(false);
   }
 
+  protected askRevokeInvite(inviteId: number): void {
+    this.confirmingRevoke.set(inviteId);
+  }
+
+  protected cancelRevokeInvite(): void {
+    this.confirmingRevoke.set(null);
+  }
+
   protected async revokeInvite(inviteId: number): Promise<void> {
+    this.confirmingRevoke.set(null);
     await this.guard(() => this.invites.revoke(this.tripId(), inviteId));
   }
 
@@ -159,19 +168,81 @@ export class TripMembers {
     });
   }
 
+  /**
+   * A handing-over of the trip that has been chosen and is waiting to be meant.
+   *
+   * The only control in this application that gives something away from a
+   * `<select>`: one change demotes the caller to EDITOR in the same
+   * transaction, and the only way back is the new owner handing it back. So it
+   * asks, and while it is asking the select has to keep *showing* OWNER —
+   * hence `shownRole`, which is what puts the menu back where it was when the
+   * answer is no. A plain one-way binding would not: the model never changed,
+   * so Angular has nothing to write back over the choice the user made.
+   */
+  protected readonly confirmingTransfer = signal<number | null>(null);
+  /** Which member's × has been pressed once and is waiting to be meant. */
+  protected readonly confirmingRemoval = signal<number | null>(null);
+  /** Whether "Leave trip" has been pressed once and is waiting to be meant. */
+  protected readonly confirmingLeave = signal(false);
+  /** Which invitation link's Revoke has been pressed once. */
+  protected readonly confirmingRevoke = signal<number | null>(null);
+
+  protected shownRole(member: TripMemberView): TripRole {
+    return this.confirmingTransfer() === member.userId ? 'OWNER' : (member.role as TripRole);
+  }
+
   protected async changeRole(member: TripMemberView, role: string): Promise<void> {
     if (role === member.role) {
       return;
     }
+    // Giving the trip away is the one role change that costs the caller
+    // something, so it is the one that asks. Editor ↔ viewer is undone by
+    // choosing again.
+    if (role === 'OWNER') {
+      this.confirmingRemoval.set(null);
+      this.confirmingTransfer.set(member.userId);
+      return;
+    }
+    await this.applyRole(member, role as TripRole);
+  }
+
+  protected async confirmTransfer(member: TripMemberView): Promise<void> {
+    this.confirmingTransfer.set(null);
+    await this.applyRole(member, 'OWNER');
+  }
+
+  protected cancelTransfer(): void {
+    this.confirmingTransfer.set(null);
+  }
+
+  private async applyRole(member: TripMemberView, role: TripRole): Promise<void> {
     await this.guard(async () => {
-      await this.repo.changeRole(this.tripId(), member.userId, role as TripRole);
+      await this.repo.changeRole(this.tripId(), member.userId, role);
       // A transfer changed our own role too, so the rest of the page is stale.
       this.rolesChanged.emit();
     });
   }
 
+  protected askRemove(member: TripMemberView): void {
+    this.confirmingTransfer.set(null);
+    this.confirmingRemoval.set(member.userId);
+  }
+
+  protected cancelRemove(): void {
+    this.confirmingRemoval.set(null);
+  }
+
   protected async remove(member: TripMemberView): Promise<void> {
+    this.confirmingRemoval.set(null);
     await this.guard(() => this.repo.remove(this.tripId(), member.userId));
+  }
+
+  protected askLeave(): void {
+    this.confirmingLeave.set(true);
+  }
+
+  protected cancelLeave(): void {
+    this.confirmingLeave.set(false);
   }
 
   protected async leave(): Promise<void> {
@@ -179,6 +250,7 @@ export class TripMembers {
     if (me === null) {
       return;
     }
+    this.confirmingLeave.set(false);
     await this.guard(async () => {
       await this.repo.leave(this.tripId(), me);
       this.left.emit();

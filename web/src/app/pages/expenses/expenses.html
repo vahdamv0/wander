@@ -335,8 +335,8 @@
                   </button>
                 }
                 @if (canEdit()) {
-                  <button type="button" class="btn-ghost px-1.5" [disabled]="saving()"
-                          (click)="remove(expense)">
+                  <button type="button" class="btn-ghost px-1.5 text-danger" [disabled]="saving()"
+                          (click)="askRemove(expense)">
                     <span class="sr-only">
                       @if (expense.kind === 'PAYMENT') {
                         Remove payment from {{ expense.paidByName }}
@@ -364,6 +364,37 @@
                   </li>
                 }
               </ul>
+            }
+
+            <!-- Asked below the entry rather than in the button strip, the way a
+                 place row asks: the × sits next to Edit, and removing an entry
+                 is the one thing here that cannot be undone and that moves
+                 somebody else's balance. -->
+            @if (canEdit() && confirmingRemoval() === expense.id) {
+              <div class="mt-3 flex flex-wrap items-center gap-2 rounded-control
+                          bg-danger-soft px-3 py-2" role="alert">
+                <p class="text-sm text-danger">
+                  @if (expense.kind === 'PAYMENT') {
+                    Remove this payment? Everybody's balance moves back.
+                  } @else {
+                    Remove this expense? Its split goes with it and everybody's
+                    balance changes.
+                  }
+                  This cannot be undone.
+                </p>
+                <span class="ml-auto flex gap-1">
+                  <button type="button" class="btn-ghost text-sm text-danger"
+                          [attr.aria-label]="expense.kind === 'PAYMENT'
+                            ? 'Yes, remove payment from ' + expense.paidByName
+                            : 'Yes, remove ' + expense.description"
+                          [disabled]="saving()" (click)="remove(expense)">Remove</button>
+                  <button type="button" class="btn-ghost text-sm"
+                          [attr.aria-label]="expense.kind === 'PAYMENT'
+                            ? 'Keep payment from ' + expense.paidByName
+                            : 'Keep ' + expense.description"
+                          [disabled]="saving()" (click)="cancelRemove()">Keep it</button>
+                </span>
+              </div>
             }
           }
         </li>
