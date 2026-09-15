@@ -142,14 +142,32 @@
                             <path d="M4 20h4l10-10-4-4L4 16v4Z" />
                           </svg>
                         </button>
-                        <button type="button" class="btn-ghost px-1.5" [disabled]="saving()"
-                                (click)="remove(item)">
+                        <button type="button" class="btn-ghost px-1.5 text-danger"
+                                [disabled]="saving()" (click)="askRemove(item)">
                           <span class="sr-only">Remove {{ item.description }}</span>
                           <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
                             <path d="M6 6l12 12M18 6L6 18" />
                           </svg>
                         </button>
+                      </div>
+                    }
+                    <!-- Asked on its own line under the item, never naming it:
+                         a row already carries its subject's name in three
+                         screen-reader labels, and a fourth copy in visible text
+                         is another loose getByText to break. -->
+                    @if (canEdit() && confirmingRemoval() === item.id) {
+                      <div class="flex w-full flex-wrap items-center gap-2 rounded-control
+                                  bg-danger-soft px-3 py-1.5" role="alert">
+                        <p class="text-sm text-danger">Remove this item?</p>
+                        <span class="ml-auto flex gap-1">
+                          <button type="button" class="btn-ghost px-2 py-0.5 text-xs text-danger"
+                                  [attr.aria-label]="'Yes, remove ' + item.description"
+                                  [disabled]="saving()" (click)="remove(item)">Remove</button>
+                          <button type="button" class="btn-ghost px-2 py-0.5 text-xs"
+                                  [attr.aria-label]="'Keep ' + item.description"
+                                  [disabled]="saving()" (click)="cancelRemove()">Keep it</button>
+                        </span>
                       </div>
                     }
                   }
