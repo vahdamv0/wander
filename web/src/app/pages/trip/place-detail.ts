@@ -142,6 +142,7 @@ export class PlaceDetail {
         this.directionsOpen.set(false);
         // A pending "are you sure" belonged to the place that is no longer shown.
         this.confirmingRemoval.set(false);
+        this.confirmingPhotoRemoval.set(false);
       });
     });
   }
@@ -245,11 +246,30 @@ export class PlaceDetail {
     });
   }
 
+  /**
+   * Whether the kept photo's "remove" has been pressed once.
+   *
+   * Recoverable in principle — the candidates are still an enrichment away —
+   * but only for a place that has an `osm_ref` to ask about, and the control is
+   * a four-letter word in a run of credit text, which is a thing you can hit
+   * while reaching for the Commons link beside it.
+   */
+  protected readonly confirmingPhotoRemoval = signal(false);
+
+  protected askRemovePhoto(): void {
+    this.confirmingPhotoRemoval.set(true);
+  }
+
+  protected cancelRemovePhoto(): void {
+    this.confirmingPhotoRemoval.set(false);
+  }
+
   /** Keeps one of the offered photo candidates, or clears the kept one. */
   protected async keepPhoto(
     photo: { url: string; thumbUrl: string; author: string; licence: string; sourceUrl: string }
       | null,
   ): Promise<void> {
+    this.confirmingPhotoRemoval.set(false);
     await this.guard(async () => {
       await this.enrichment.setPhoto(this.tripId(), this.place().id, photo);
       this.changed.emit();

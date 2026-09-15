@@ -538,8 +538,22 @@ Wikidata, Wikipedia and Commons.
   hover, so on a phone it is a live target beside an arrow. The confirmation is
   **inline where the button was**, not a dialog: there is no backdrop to dismiss
   by accident, and it names what goes ("Its note goes with it"), because the notes
-  are the part nobody expects to lose. This is the project's first confirmation of
-  anything; leaving a trip and deleting an expense still do not ask.
+  are the part nobody expects to lose. This was the project's first confirmation of
+  anything, and the shape is now the project's one answer to "are you sure":
+  inline where the control was, naming what actually goes, `Remove` beside a
+  `Keep it`, and the subject's name only in the `aria-label` — a row already
+  carries it in two or three screen-reader labels, and a fourth copy in visible
+  text is another loose `getByText` to break. Everything irreversible asks:
+  a place, an expense or a payment (which moves everybody's balance), a booking
+  (its reference and notes go with it), a packing item, a member removal,
+  leaving a trip, a kept photo, and both kinds of revoke. **Handing over the
+  trip** asks too, and it is the odd one — the only control here that gives
+  something away from a `<select>`, so the confirmation has to put the menu back
+  when the answer is no (`TripMembers.shownRole`): the model never changed, so a
+  one-way binding has nothing to write back over the choice. Disabling an
+  account already asked. The remaining unguarded writes are the ones that undo
+  themselves by being done again — an editor/viewer role change, a tick, a
+  drag.
 - **Name a row control with `aria-label`, not an `sr-only` span.** Both give the
   same accessible name, but an `sr-only` span puts the subject's name into the
   row's *text* a second time, and every loose `getByText('Park Guell')` in the

@@ -96,7 +96,26 @@ export class AdminPage {
     this.copied.set(false);
   }
 
+  /**
+   * Which reset link's Revoke has been pressed once and is waiting to be meant.
+   *
+   * Revoking is the safe direction — the cost of a mistake is minting another
+   * — but the person holding the link is by definition somebody who cannot
+   * sign in, and they are not told it stopped working. It asks for the same
+   * reason disabling an account does, two rows above it.
+   */
+  protected readonly confirmingRevoke = signal<number | null>(null);
+
+  protected askRevokeReset(resetId: number): void {
+    this.confirmingRevoke.set(resetId);
+  }
+
+  protected cancelRevokeReset(): void {
+    this.confirmingRevoke.set(null);
+  }
+
   protected async revokeReset(userId: number, resetId: number): Promise<void> {
+    this.confirmingRevoke.set(null);
     await this.guard(() => this.admin.revokeReset(userId, resetId));
   }
 

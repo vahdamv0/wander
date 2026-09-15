@@ -393,6 +393,7 @@ export class ExpensesPage {
 
   protected openNew(): void {
     this.error.set(null);
+    this.confirmingRemoval.set(null);
     this.paying.set(false);
     this.draftDescription.set('');
     this.draftAmount.set('');
@@ -426,6 +427,7 @@ export class ExpensesPage {
    */
   protected startPayment(suggestion?: SettlementView): void {
     this.error.set(null);
+    this.confirmingRemoval.set(null);
     this.editing.set(null);
     this.payFrom.set(suggestion?.fromUserId ?? this.session.user()?.id ?? null);
     this.payTo.set(suggestion?.toUserId ?? null);
@@ -476,6 +478,7 @@ export class ExpensesPage {
 
   protected openEdit(expense: ExpenseView): void {
     this.error.set(null);
+    this.confirmingRemoval.set(null);
     this.draftDescription.set(expense.description);
     // Reopened in the currency it was entered in, showing what was really paid.
     // Putting the converted figure back in the box would rewrite the expense as
@@ -609,7 +612,27 @@ export class ExpensesPage {
     });
   }
 
+  /**
+   * Which entry's × has been pressed once and is waiting to be meant.
+   *
+   * Removing one is irreversible and it is not a private act: a deleted expense
+   * moves everybody's balance on the trip, and live sync puts that on their
+   * screens within the second. The × also sits beside Edit, so the miss costs
+   * a ledger entry nobody can get back. One id rather than a set, as the place
+   * row does it: asking about two at once is not a state worth having.
+   */
+  protected readonly confirmingRemoval = signal<number | null>(null);
+
+  protected askRemove(expense: ExpenseView): void {
+    this.confirmingRemoval.set(expense.id);
+  }
+
+  protected cancelRemove(): void {
+    this.confirmingRemoval.set(null);
+  }
+
   protected async remove(expense: ExpenseView): Promise<void> {
+    this.confirmingRemoval.set(null);
     await this.guard(() => this.repo.remove(this.id(), expense.id));
   }
 

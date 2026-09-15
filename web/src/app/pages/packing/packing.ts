@@ -125,6 +125,7 @@ export class PackingPage {
 
   protected openEdit(item: PackingItemView): void {
     this.error.set(null);
+    this.confirmingRemoval.set(null);
     this.draftDescription.set(item.description);
     this.editing.set(item.id);
   }
@@ -158,7 +159,27 @@ export class PackingPage {
     );
   }
 
+  /**
+   * Which item's × has been pressed once and is waiting to be meant.
+   *
+   * The smallest of these confirmations, and it is here for position rather
+   * than for stakes: the × is the last of three controls in a row that is one
+   * line high, and `.row-actions` stay on permanently where there is no hover,
+   * so on a phone it sits a few millimetres from the tick everybody is aiming
+   * at.
+   */
+  protected readonly confirmingRemoval = signal<number | null>(null);
+
+  protected askRemove(item: PackingItemView): void {
+    this.confirmingRemoval.set(item.id);
+  }
+
+  protected cancelRemove(): void {
+    this.confirmingRemoval.set(null);
+  }
+
   protected async remove(item: PackingItemView): Promise<void> {
+    this.confirmingRemoval.set(null);
     await this.guard(() => this.repo.remove(this.id(), item.id));
   }
 
