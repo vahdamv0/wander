@@ -54,8 +54,18 @@
              class="underline underline-offset-2">Commons</a>
         }
         @if (canEdit()) {
-          · <button type="button" class="underline underline-offset-2" [disabled]="saving()"
-                    (click)="keepPhoto(null)">remove</button>
+          @if (confirmingPhotoRemoval()) {
+            · <span class="text-danger">Remove the photo?</span>
+            <button type="button" class="ml-1 underline underline-offset-2 text-danger"
+                    aria-label="Yes, remove this photo"
+                    [disabled]="saving()" (click)="keepPhoto(null)">remove</button>
+            <button type="button" class="ml-1 underline underline-offset-2"
+                    aria-label="Keep this photo"
+                    [disabled]="saving()" (click)="cancelRemovePhoto()">keep it</button>
+          } @else {
+            · <button type="button" class="underline underline-offset-2" [disabled]="saving()"
+                      (click)="askRemovePhoto()">remove</button>
+          }
         }
       </figcaption>
     </figure>

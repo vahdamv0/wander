@@ -1031,8 +1031,15 @@ test('share a trip with somebody, who then sees it read-only', async ({ browser 
   await expect(guest.getByText('Read only')).toBeVisible();
   await expect(guest.getByRole('button', { name: 'Add place' })).toHaveCount(0);
 
-  // Leaving is the one membership change a viewer may make.
+  // Leaving is the one membership change a viewer may make, and it asks first:
+  // the trip is a 404 for you the moment it goes through, and only the owner can
+  // put you back.
   await guest.getByRole('button', { name: 'Leave trip' }).click();
+  await guest.getByRole('button', { name: 'Stay on this trip' }).click();
+  await expect(guest.locator('ol > li.card').first().getByText('Vigeland Park')).toBeVisible();
+
+  await guest.getByRole('button', { name: 'Leave trip' }).click();
+  await guest.getByRole('button', { name: 'Yes, leave this trip' }).click();
   await expect(guest).toHaveURL(/\/trips$/);
   await expect(guest.getByText('No trips yet')).toBeVisible();
 
@@ -1167,6 +1174,8 @@ test('one person edits, the other sees it without reloading', async ({ browser }
   // trip on its own, rather than sitting on a stale itinerary.
   const editorRow = owner.locator('li', { hasText: 'Sync Editor' });
   await editorRow.getByRole('button', { name: /^Remove Sync Editor/ }).click();
+  // Taking somebody's access away asks first.
+  await editorRow.getByRole('button', { name: /^Yes, remove Sync Editor/ }).click();
   await expect(editor).toHaveURL(/\/trips$/);
   await expect(editor.getByText('No trips yet')).toBeVisible();
 
@@ -1459,7 +1468,8 @@ test('an expense splits unevenly, adds up, and reaches the other browser', async
   await expect(owner.getByText('Expense Owner pays Expense Editor €15.00')).toBeVisible();
 
   // A viewer's-eye check that deleting cleans up after itself.
-  await owner.getByRole('button', { name: 'Remove Museum' }).click();
+  await owner.getByRole('button', { name: /^Remove Museum/ }).click();
+  await owner.getByRole('button', { name: /^Yes, remove Museum/ }).click();
   await expect(owner.getByText('€10.01 in total')).toBeVisible();
   await expect(editor.getByText('Museum', { exact: true })).toHaveCount(0);
 
@@ -1567,6 +1577,9 @@ test('recording a payment settles the balance and can be undone', async ({ brows
   // Undoing it puts the debt back, so a payment entered by mistake is not a
   // one-way door.
   await owner.getByRole('button', { name: /^Remove payment from Pay Friend/ }).click();
+  // Removing an entry asks first: it moves everybody's balance and there is no
+  // undo.
+  await owner.getByRole('button', { name: /^Yes, remove payment from Pay Friend/ }).click();
   await expect(owner.getByText('is owed €20.00')).toBeVisible();
   await expect(friend.getByText('Pay Friend pays Pay Owner €20.00')).toBeVisible();
 

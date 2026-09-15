@@ -128,12 +128,34 @@
                     <span class="text-muted">· used by {{ invite.acceptedByName }}</span>
                   }
                   @if (invite.status === 'PENDING') {
-                    <button type="button" class="btn-ghost ml-auto px-2 py-0.5 text-xs text-danger"
-                            [attr.aria-label]="'Revoke this ' + roleLabel(invite.role) + ' link'"
-                            [disabled]="saving()"
-                            (click)="revokeInvite(invite.id)">
-                      Revoke
-                    </button>
+                    @if (confirmingRevoke() === invite.id) {
+                      <!-- Asked in the row, not in a dialog. Revoking is the safe
+                           direction — the cost of a mistake is minting another
+                           link — but the person holding this one loses it without
+                           being told, so it is worth one press more. -->
+                      <span class="ml-auto flex items-center gap-1" role="alert">
+                        <span class="text-danger">Revoke it?</span>
+                        <button type="button" class="btn-ghost px-2 py-0.5 text-xs text-danger"
+                                [attr.aria-label]="'Yes, revoke this ' + roleLabel(invite.role) + ' link'"
+                                [disabled]="saving()"
+                                (click)="revokeInvite(invite.id)">
+                          Revoke
+                        </button>
+                        <button type="button" class="btn-ghost px-2 py-0.5 text-xs"
+                                [attr.aria-label]="'Keep this ' + roleLabel(invite.role) + ' link'"
+                                [disabled]="saving()"
+                                (click)="cancelRevokeInvite()">
+                          Keep it
+                        </button>
+                      </span>
+                    } @else {
+                      <button type="button" class="btn-ghost ml-auto px-2 py-0.5 text-xs text-danger"
+                              [attr.aria-label]="'Revoke this ' + roleLabel(invite.role) + ' link'"
+                              [disabled]="saving()"
+                              (click)="askRevokeInvite(invite.id)">
+                        Revoke
+                      </button>
+                    }
                   }
                 </li>
               }
@@ -147,8 +169,8 @@
       } @else {
         <ul class="grid grid-cols-1 gap-2">
           @for (member of members(); track member.userId) {
-            <li class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2
-                       rounded-control bg-surface-2 px-3 py-2">
+            <li class="grid grid-cols-1 gap-2 rounded-control bg-surface-2 px-3 py-2">
+             <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
               <div class="min-w-0">
                 <p class="truncate text-sm font-medium">
                   {{ member.displayName }}
@@ -167,7 +189,7 @@
                   <select class="field py-1 text-xs"
                           [id]="'role-' + member.userId"
                           [disabled]="saving()"
-                          [ngModel]="member.role"
+                          [ngModel]="shownRole(member)"
                           [ngModelOptions]="{ standalone: true }"
                           (ngModelChange)="changeRole(member, $event)">
                     @for (role of rowRoles; track role) {
@@ -176,9 +198,9 @@
                       </option>
                     }
                   </select>
-                  <button type="button" class="btn-ghost px-1.5" [disabled]="saving()"
+                  <button type="button" class="btn-ghost px-1.5 text-danger" [disabled]="saving()"
                           [title]="'Remove ' + member.displayName + ' from this trip'"
-                          (click)="remove(member)">
+                          (click)="askRemove(member)">
                     <span class="sr-only">Remove {{ member.displayName }}</span>
                     <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                          stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
@@ -192,12 +214,70 @@
                   </span>
                   @if (isMe(member) && member.role !== 'OWNER' && !isDemoAccount()) {
                     <button type="button" class="btn-ghost text-xs" [disabled]="saving()"
-                            (click)="leave()">
+                            (click)="askLeave()">
                       Leave trip
                     </button>
                   }
                 }
               </div>
+             </div>
+
+             <!-- The three answers a member row can be waiting for. All asked
+                  under the row rather than in a dialog, the way a place row
+                  asks, and all naming what actually happens: these are the only
+                  controls here whose result the person cannot put back
+                  themselves. -->
+             @if (confirmingTransfer() === member.userId) {
+               <div class="flex flex-wrap items-center gap-2 rounded-control bg-danger-soft
+                           px-3 py-2" role="alert">
+                 <p class="text-sm text-danger">
+                   Hand this trip to {{ member.displayName }}? You become an editor, and only
+                   they can give it back.
+                 </p>
+                 <span class="ml-auto flex gap-1">
+                   <button type="button" class="btn-ghost text-sm text-danger"
+                           [attr.aria-label]="'Yes, hand the trip to ' + member.displayName"
+                           [disabled]="saving()" (click)="confirmTransfer(member)">Hand it over</button>
+                   <button type="button" class="btn-ghost text-sm"
+                           [attr.aria-label]="'Stay the owner'"
+                           [disabled]="saving()" (click)="cancelTransfer()">Stay owner</button>
+                 </span>
+               </div>
+             }
+             @if (confirmingRemoval() === member.userId) {
+               <div class="flex flex-wrap items-center gap-2 rounded-control bg-danger-soft
+                           px-3 py-2" role="alert">
+                 <p class="text-sm text-danger">
+                   Remove {{ member.displayName }} from this trip? They lose it straight away.
+                   What they have spent stays in the ledger.
+                 </p>
+                 <span class="ml-auto flex gap-1">
+                   <button type="button" class="btn-ghost text-sm text-danger"
+                           [attr.aria-label]="'Yes, remove ' + member.displayName"
+                           [disabled]="saving()" (click)="remove(member)">Remove</button>
+                   <button type="button" class="btn-ghost text-sm"
+                           [attr.aria-label]="'Keep ' + member.displayName"
+                           [disabled]="saving()" (click)="cancelRemove()">Keep them</button>
+                 </span>
+               </div>
+             }
+             @if (isMe(member) && confirmingLeave()) {
+               <div class="flex flex-wrap items-center gap-2 rounded-control bg-danger-soft
+                           px-3 py-2" role="alert">
+                 <p class="text-sm text-danger">
+                   Leave this trip? You lose it straight away, and only the owner can add
+                   you back.
+                 </p>
+                 <span class="ml-auto flex gap-1">
+                   <button type="button" class="btn-ghost text-sm text-danger"
+                           aria-label="Yes, leave this trip"
+                           [disabled]="saving()" (click)="leave()">Leave</button>
+                   <button type="button" class="btn-ghost text-sm"
+                           aria-label="Stay on this trip"
+                           [disabled]="saving()" (click)="cancelLeave()">Stay</button>
+                 </span>
+               </div>
+             }
             </li>
           }
         </ul>
