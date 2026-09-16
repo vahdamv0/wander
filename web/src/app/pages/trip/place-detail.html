@@ -44,8 +44,21 @@
            actually wants it goes. `photoThumbUrl` is never null when a photo is
            kept: `Place.setPhoto` falls back to the original when Commons
            offered no thumbnail. -->
-      <img [src]="place().photoThumbUrl" [alt]="'Photo of ' + place().name"
+      <img #panelPhoto="wanderPhoto" wanderPhoto
+           [src]="place().photoThumbUrl" [alt]="'Photo of ' + place().name"
+           [hidden]="panelPhoto.failed()"
            class="h-40 w-full rounded-control object-cover" />
+      <!-- Said, not hidden, and the figure stays: the credit and the Remove
+           control below are in this caption, so dropping the figure would take
+           away the one way to be rid of a photograph that no longer loads. It
+           names Commons as where the picture lives, because that is the thing
+           that changed and not anything on this instance. -->
+      @if (panelPhoto.failed()) {
+        <p class="grid h-40 w-full place-items-center rounded-control border border-dashed
+                  border-border px-3 text-center text-xs text-muted">
+          This photo could not be loaded from Wikimedia Commons.
+        </p>
+      }
       <figcaption class="mt-1 text-[0.6875rem] text-muted">
         {{ place().photoAuthor }} · {{ place().photoLicence }}
         @if (place().photoSourceUrl) {

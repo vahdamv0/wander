@@ -19,7 +19,7 @@
           {{ placeCount() }} {{ placeCount() === 1 ? 'place' : 'places' }}
         </p>
       </div>
-      <div class="flex shrink-0 items-center gap-2">
+      <div class="flex shrink-0 flex-wrap items-center justify-end gap-2">
         @if (isOwner() && !editingTrip()) {
           <button type="button" class="btn-ghost px-2 py-1 text-sm" (click)="openTripEdit()">
             <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -38,6 +38,23 @@
           </svg>
           Print
         </a>
+        <!-- A button rather than a link: the file is built here, from the
+             itinerary this page already has. See TripPage.exportGpx. -->
+        <button type="button"
+                class="inline-flex items-center gap-1.5 text-sm text-muted hover:text-fg
+                       disabled:cursor-not-allowed disabled:opacity-55 disabled:hover:text-muted"
+                [disabled]="!canExport()"
+                [title]="canExport()
+                  ? 'Download this trip as a GPX file for OsmAnd, Organic Maps or a GPS'
+                  : 'Nothing to export yet — no place on this trip has a location'"
+                (click)="exportGpx()">
+          <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 3v12M8 11l4 4 4-4" />
+            <path d="M4 17v3h16v-3" />
+          </svg>
+          GPX
+        </button>
         <a [routerLink]="['/trips', tripId(), 'reservations']"
            class="inline-flex items-center gap-1.5 text-sm text-muted hover:text-fg">
           <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -101,6 +118,23 @@
     <p class="mb-4 rounded-control bg-danger-soft px-3 py-2 text-sm text-danger" role="alert">
       {{ error() }}
     </p>
+  }
+
+  <!-- A download says nothing for itself beyond the browser's own chrome, and
+       the half worth reading is what could not go in the file. role="status"
+       rather than "alert": nothing went wrong. -->
+  @if (exportNote(); as note) {
+    <div class="mb-4 flex items-start gap-3 rounded-control bg-surface-2 px-3 py-2 text-sm"
+         role="status">
+      <p class="min-w-0 flex-1">{{ note }}</p>
+      <button type="button" class="btn-ghost shrink-0 px-1.5 py-0" (click)="dismissExportNote()">
+        <span class="sr-only">Dismiss</span>
+        <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <path d="M6 6l12 12M18 6L6 18" />
+        </svg>
+      </button>
+    </div>
   }
 
   @if (editingTrip()) {
@@ -361,6 +395,25 @@
                   </svg>
                 </a>
               }
+              @if (canExportDay(day)) {
+                <!-- A day on its own, because a day is the unit somebody
+                     carries: you follow Tuesday, not the fortnight, and
+                     importing eight days to look at one makes a reader's track
+                     list unusable. Hidden rather than disabled, like the Google
+                     Maps link beside it — one greyed icon in the header can
+                     explain itself, fourteen down the page are just noise. -->
+                <button type="button" class="btn-ghost px-1.5"
+                        [title]="'Download day ' + day.index + ' as a GPX file'"
+                        (click)="exportDayGpx(day)">
+                  <span class="sr-only">Download day {{ day.index }} as a GPX file</span>
+                  <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                       stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
+                       aria-hidden="true">
+                    <path d="M12 3v12M8 11l4 4 4-4" />
+                    <path d="M4 17v3h16v-3" />
+                  </svg>
+                </button>
+              }
               @if (canSort(day)) {
                 <!-- Sorting is offered only where it can work: an editor, an
                      instance with a routing engine, and a day with two stops
@@ -523,7 +576,7 @@
                 >
                   <!-- The gap the row will drop into. -->
                   <div class="place-drop-gap" *cdkDragPlaceholder></div>
-                  <div class="flex items-start gap-3">
+                  <div class="flex flex-wrap items-start gap-3">
                     @if (canEdit()) {
                       <!-- Dragging is handle-only so a touch drag on the row still
                            scrolls the page. -->
@@ -568,9 +621,17 @@
                       <!-- A kept photo, with its credit reachable: a Commons image
                            is licensed per image, so the attribution travels with
                            it wherever it is drawn. -->
-                      <img [src]="place.photoThumbUrl"
+                      <!-- Hidden rather than left broken if it does not load: the
+                           browser's own answer is a glyph with the alt text
+                           spilling out beside it, which at 36px is wider than the
+                           picture and says nothing anybody can act on. The row
+                           simply closes up, as it does for a place with no photo.
+                           See PhotoLoad. -->
+                      <img #rowPhoto="wanderPhoto" wanderPhoto
+                           [src]="place.photoThumbUrl"
                            [alt]="'Photo of ' + place.name"
                            [title]="place.photoAuthor + ' · ' + place.photoLicence"
+                           [hidden]="rowPhoto.failed()"
                            class="mt-0.5 size-9 shrink-0 rounded-control object-cover" />
                     }
                     <div class="min-w-0 flex-1">
@@ -628,7 +689,7 @@
                       <!-- Still the keyboard and screen-reader path for
                            reordering, since a drag has neither. Quiet until the
                            row is hovered or something in it takes focus. -->
-                      <div class="row-actions flex shrink-0 items-center gap-0.5">
+                      <div class="row-actions ml-auto flex shrink-0 items-center gap-0.5">
                         <button type="button" class="btn-ghost px-1.5" title="Move up"
                                 [disabled]="saving() || place.position === 0"
                                 (click)="nudge(place, -1)">

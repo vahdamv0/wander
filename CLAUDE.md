@@ -236,6 +236,13 @@ Java record → springdoc → `api/build/openapi.json` (written by
   started it. Getting this wrong is invisible to whoever has the picture cached
   — the person who chose a photo could see it and nobody else could, and ngsw
   turned the refusal into a synthetic 504 that looks like an upstream outage.
+  **And the worker freezes the policy it was installed under**, because the CSP
+  header is served with `ngsw-worker.js` itself — so adding a host here does not
+  reach anybody whose worker predates the change until that worker updates. The
+  symptom is a 504 on one image in one browser while curl, a fresh profile and
+  the header on `/index.html` all say the host is allowed; the cure is
+  unregistering the worker, and the thing to check first is when the host was
+  added relative to that browser's last update.
   **Commons is two hosts, not one**: the original file is on
   `upload.wikimedia.org`, and `imageinfo`'s `thumburl` now comes back on
   `thumb.wikimedia.org`. Both are in the policy, because the thumbnail is what
@@ -340,6 +347,21 @@ Java record → springdoc → `api/build/openapi.json` (written by
   `border-color` in the components layer loses to `border-border` on the element.
   Reach for a property nothing else sets (an `outline`), or declare the rule
   outside any layer, as the dark-mode tile filter does.
+- **A photograph that does not load must leave nothing behind.** A kept photo is
+  a URL on somebody else's service, and it can stop working with nothing here
+  changing — a Commons file renamed or deleted, a filter in front of the reader,
+  or a service worker frozen under an older CSP answering its own fetch with a
+  504. The browser's answer to all of them is one broken-image glyph with the
+  `alt` text spilling out beside it, which in a 36px row is wider than the
+  picture it replaces and says nothing anybody can act on. `PhotoLoad` is a
+  directive that only *reports* (`failed()`), because the three places that draw
+  a photo want different things: the row drops the image and closes up, the
+  printed page drops the whole figure since a broken picture is only ink, and
+  the detail panel keeps its figure and says so — the credit and the **Remove**
+  control are in that caption, so hiding it would take away the one way to be
+  rid of a photo that no longer loads. It resets on `load`, because the panel is
+  one component showing whichever place is selected and a failure on one must
+  not blank the next.
 - **Drag-and-drop (Angular CDK) rules.** Every day renders its `cdkDropList`
   even when empty, or an empty day cannot be dragged into — the first thing
   anyone tries. Dragging is handle-only, so a touch drag on a row still scrolls
@@ -1549,15 +1571,95 @@ sends nothing but keepalive, and the payload is one small event.
   — are invisible on screen by definition, so a test that only checked content
   would pass on a page that prints a navigation bar across every copy.
 
+## Exporting a trip as GPX
+
+The trip in somebody else's hands: every located place as a waypoint and each
+day as a track, for OsmAnd, Organic Maps or a GPS. Whole trip from the header,
+or **one day at a time** from that day's own card.
+
+- **Built in the client, and it is the printed itinerary's argument word for
+  word.** A GPX file is a reformatting of `TripItinerary` — name, latitude,
+  longitude, order, day — and all of it is already on the device, read through
+  `OfflineCache` like everything else. There is no arithmetic for the server to
+  own the way it owns a split, so an endpoint would re-read the same rows to
+  produce the same bytes, would be dead on the hotel wifi that made somebody
+  want the file, and would put an XML response on a contract whose generated
+  client assumes JSON — the exact class of bug the browser suite exists for.
+  `core/gpx.ts` is pure and its only import is `import type`, so nothing of the
+  generated client comes with it.
+- **Tracks, not routes, and that is compatibility rather than semantics.**
+  `<rte>` is GPX's element for a planned sequence of turn points, which is
+  precisely what a wander day is; `<trk>` describes a path that was travelled.
+  But both target readers draw a `<trk>` and only one can be relied on for a
+  `<rte>`, and a file that opens empty is a worse answer than an imprecise
+  element name. So the honesty moves into the document: a track is named "Day 2
+  — stops in order" and its description says the line between two stops is
+  straight, because **wander does not know the route** — the routing feature
+  asks OSRM for `/table` and never `/route`, so there is no geometry to write
+  down and inventing one would be the `places.category` mistake in another
+  costume.
+- **No `<time>` on a point.** `places.starts_at` is a plain `TIME` with no zone,
+  so turning one into the instant GPX wants would mean choosing a zone for the
+  reader. The clock time goes in the description, where it is plainly a label.
+  The file's only `<time>` is on the metadata and records when it was written —
+  the same fact, for the same reason, as the date in the printout's footer.
+  `places.category` goes in `<type>`, GPX's own "classification of waypoint",
+  and stays as decorative there as it is everywhere else.
+- **A day exports on its own, because a day is the unit somebody carries.** You
+  follow Tuesday, not the fortnight, and importing eight days to look at one is
+  how a reader's track list becomes unusable. `buildDayGpx` is the same builder
+  over a list of one — there is deliberately no second way to write a waypoint,
+  so a day on its own cannot drift from the same day inside the whole trip, and
+  a test asserts the two are byte-identical outside the metadata. Only two
+  things differ, and both are about telling files apart once they are on a
+  phone: the filename takes the **date** (`tokyo-kyoto-2026-08-28.gpx`, appended
+  *after* the length cap, or a long trip name would truncate away the part that
+  distinguishes them) and the document's `<name>` takes the day number, since a
+  reader lists a track by that and two days both called "Tokyo & Kyoto" are two
+  identical rows.
+- **The day control is hidden where it cannot work; the header's is disabled.**
+  Not an inconsistency — a header carries one control that can afford to explain
+  itself, while a fortnight of greyed icons down the page is noise on every day
+  nobody has filled in yet. It is the rule the Google Maps link on the same card
+  already follows. Note the sr-only name ("Download day 1 as a GPX file")
+  contains "GPX", so the browser suite matches the header button with
+  `{ exact: true }` — the same trap as a loose `getByText` on a row.
+- **A place with no coordinates is named, not counted.** It is usually the
+  note-to-self somebody typed rather than searched ("pick up tickets"), it
+  cannot be a waypoint, and `buildGpx` returns the names so the page can say
+  which ones stayed behind — first three then a total, the shape a trip's date
+  refusal already uses. A day with one located stop gets no track either: a
+  single-point `trkseg` draws nothing, and the waypoint already says where it
+  is.
+- **Two silent failures are the whole reason `core/gpx.spec.ts` exists**, and
+  they are the same shape as `money.spec.ts`'s and `zones.spec.ts`'s — wrong
+  here, invisible here. An unescaped `&` or a pasted control character makes a
+  document the reader refuses **whole**, so one note costs the entire trip; and
+  `String(1e-7)` is `1e-7`, a fine JavaScript number and not a decimal any GPX
+  reader accepts, which is why every coordinate goes through `toFixed`. The
+  spec parses what was built rather than matching strings, because a check for
+  `&amp;` passes on a document that double-escaped it.
+- **The download itself is three details that each fail quietly**, which is what
+  the browser test covers and the unit test cannot: the anchor is attached to
+  the document before it is clicked (a detached one is ignored outside
+  Chromium), the object URL is revoked on a later turn (revoking in the same
+  tick cancels the save), and `download` is what makes it a save rather than a
+  navigation that renders XML in the tab and loses the filename.
+- No per-day colour extensions. GPX has no standard colour field, so it would
+  mean a vendor namespace per reader, and both assign their own on import.
+
 ## Unit tests in the client
 
-`cd web && npm run test` (vitest, via `@angular/build:unit-test`). There are
-two specs — `core/money.spec.ts` and `core/zones.spec.ts` — and that is the shape
-to keep: the client is tested through the browser suite, except where a pure
-function deserves better than that. Both qualify for the same reason. Money
-parsing does because "12.345" quietly becoming 12.34 is invisible from the
-outside; `isoDayInZone` does because a wrong answer throws nothing, logs nothing
-and fails no request — a booking keyed by it simply never appears under any day.
+`cd web && npm run test` (vitest, via `@angular/build:unit-test`). The specs all
+sit in `core/` — `money`, `zones`, `errors` and `gpx` — and that is the shape to
+keep: the client is tested through the browser suite, except where a pure
+function deserves better than that. They qualify for one reason. Money parsing
+does because "12.345" quietly becoming 12.34 is invisible from the outside;
+`isoDayInZone` does because a wrong answer throws nothing, logs nothing and
+fails no request — a booking keyed by it simply never appears under any day; and
+`buildGpx` does because wander never reads its own output, so an unescaped
+ampersand or a coordinate in exponential notation is discovered six weeks later
+by a reader that refuses the file whole.
 
 The Angular CLI needs Node ≥ 22.22.3 and the machine's Node may be older; Gradle
 downloads its own at `web/.gradle/nodejs/`, so
@@ -1821,7 +1923,8 @@ when there is one. Milestone 6 is done: sorting a day by route over OSRM,
 with locked stops and three profiles, and the finished order opening in Google
 Maps — off by default, because there is no public routing service to lean on.
 Beyond the roadmap: verified nightly backups with a rehearsed
-restore, the itinerary as a printable document, and the admin surface — which
+restore, the itinerary as a printable document, a GPX export of its places and
+days, and the admin surface — which
 finally gives `GlobalRole.ADMIN` something to grant and removes the "no password
 reset" limit README had stated since the beginning. See the roadmap in README.md.
 Deliberately **out** of scope until asked: plugins, i18n, MCP. Keep v1 small.
