@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { Page, expect, test } from '@playwright/test';
 
 /**
@@ -2366,6 +2367,314 @@ test('an invitation link admits one new account and is then spent', async ({ bro
   await register(stranger, `e2e-stranger-${stamp}@example.com`, 'Late Stranger');
   await expect(stranger.getByText('This invitation has already been used.')).toBeVisible();
   await expect(stranger.getByRole('button', { name: 'Join this trip' })).toHaveCount(0);
+
+  expect(consoleErrors, 'unexpected console errors').toEqual([]);
+});
+
+/**
+ * A kept photograph that does not load.
+ *
+ * It happens for reasons that have nothing to do with this instance: a Commons
+ * file is renamed or deleted upstream, a reader sits behind something that
+ * dislikes the host, or — the case that prompted this — a service worker
+ * installed under an older Content-Security-Policy refuses its own fetch and
+ * answers a synthetic 504. The browser's answer to all of them is the same
+ * broken-image glyph with the `alt` text spilling out beside it, which at 36px
+ * is wider than the picture it replaces and tells the reader nothing.
+ *
+ * The photo is injected into the **real** itinerary response rather than
+ * fabricated, because keeping one properly would need the server to enrich a
+ * place against Wikimedia and this suite stays off the network. Reading the
+ * server's own answer and adding four fields to it means the test still follows
+ * the contract instead of inventing a shape that can drift from it.
+ */
+test('a photo that fails to load leaves no broken picture behind', async ({ page }) => {
+  const consoleErrors: string[] = [];
+  page.on('console', (message) => {
+    const text = message.text();
+    // The failed image itself is the point of the test, so its own console
+    // entry is not an unexpected error.
+    const isThePhoto = text.includes('wikimedia') || text.includes('Failed to load resource');
+    if (message.type() === 'error' && !text.includes('401') && !isThePhoto) {
+      consoleErrors.push(text);
+    }
+  });
+  page.on('pageerror', (error) => consoleErrors.push(error.message));
+
+  const PHOTO = 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/0e/Gone.jpg/640px-Gone.jpg';
+
+  // Deleted upstream, a filter in the way, a stale worker: all the same to the
+  // browser, and all the same to the page.
+  await page.route('https://upload.wikimedia.org/**', (route) => route.abort('failed'));
+
+  await page.route('**/api/geo/search**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([{
+        ref: 'way/34633854', name: 'Fushimi Inari-taisha',
+        address: 'Fushimi Ward, Kyoto, Japan',
+        latitude: 34.9671, longitude: 135.7727, category: 'attraction',
+      }]),
+    }));
+
+  await page.route('**/api/trips/*/itinerary', async (route) => {
+    const response = await route.fetch();
+    const itinerary = await response.json();
+    const place = itinerary.days?.[0]?.places?.[0];
+    if (place) {
+      place.photoThumbUrl = PHOTO;
+      place.photoUrl = PHOTO;
+      place.photoSourceUrl = 'https://commons.wikimedia.org/wiki/File:Gone.jpg';
+      // Both halves, because Place.setPhoto refuses a photo without them and the
+      // page draws the credit from them.
+      place.photoAuthor = 'A Photographer';
+      place.photoLicence = 'CC BY-SA 4.0';
+    }
+    await route.fulfill({ response, json: itinerary });
+  });
+
+  await page.goto('/login');
+  await page.getByText('Create one').click();
+  await page.locator('input[name=email]').fill(`e2e-photo-${Date.now()}@example.com`);
+  await page.locator('input[name=displayName]').fill('Photo Tester');
+  await page.locator('input[name=password]').fill('correct-horse-battery');
+  await page.locator('button[type=submit]').click();
+
+  await page.getByRole('button', { name: 'Plan your first trip' }).click();
+  await page.locator('input[name=name]').fill('Kyoto');
+  await page.locator('input[name=startDate]').fill('2027-04-05');
+  await page.locator('input[name=endDate]').fill('2027-04-06');
+  await page.getByRole('button', { name: 'Create trip' }).click();
+  await page.getByRole('link', { name: /Kyoto/ }).click();
+
+  const day1 = page.locator('ol > li.card').first();
+  await day1.getByRole('button', { name: 'Add place' }).click();
+  await day1.locator('input[name=name]').fill('fushimi');
+  await day1.getByRole('button', { name: /Fushimi Inari-taisha/ }).click();
+  await day1.getByRole('button', { name: 'Add place' }).click();
+  await expect(day1.getByText('Fushimi Inari-taisha', { exact: true })).toBeVisible();
+  await day1.getByRole('button', { name: 'Done' }).click();
+
+  // The stub lands on the next read of the itinerary.
+  await page.reload();
+  const row = day1.locator('ol > li').first();
+  const rowPhoto = row.locator('img');
+
+  // Present in the DOM — it has to be, to have failed — and drawn nowhere.
+  await expect(rowPhoto).toHaveCount(1);
+  await expect(rowPhoto).toBeHidden();
+  // The row closed up rather than reserving space for a picture that is not
+  // there: 36px plus its gap is a visible hole beside a two-line row.
+  const box = await rowPhoto.boundingBox();
+  expect(box, 'a hidden image occupies no space').toBeNull();
+
+  // The panel says so instead of hiding it, because the credit and the Remove
+  // control live in that caption — hiding the figure would take away the only
+  // way to be rid of a photo that no longer loads.
+  // Exact: the row's controls are all named after the place too.
+  await row.getByRole('button', { name: 'Fushimi Inari-taisha', exact: true }).click();
+  // Scoped to the figure rather than the panel: the panel is an <aside> nested
+  // in sectioning content, which the accessibility tree demotes to a generic
+  // element, so there is no `complementary` role to reach for.
+  const figure = page.getByRole('figure');
+  await expect(figure.getByText('This photo could not be loaded from Wikimedia Commons'))
+    .toBeVisible();
+  // The credit and the way to be rid of it survive — which is the reason this
+  // one says so rather than hiding, unlike the row and the printed page.
+  await expect(figure.getByText('A Photographer · CC BY-SA 4.0')).toBeVisible();
+  await expect(figure.getByRole('button', { name: 'remove' })).toBeVisible();
+
+  expect(consoleErrors, 'unexpected console errors').toEqual([]);
+});
+
+/**
+ * The trip as a GPX file, for OsmAnd, Organic Maps or a GPS.
+ *
+ * The document itself is pinned by `core/gpx.spec.ts`, which can parse what was
+ * produced; what no unit test can reach is the wiring — that the button is
+ * there, that a click actually produces a *download* rather than navigating away
+ * or rendering XML in the tab, and that the file the browser saves is the file
+ * the builder made. Each of those fails silently in its own way: an anchor that
+ * is never attached to the document is simply ignored, and an object URL revoked
+ * a tick too early cancels the save with nothing logged.
+ *
+ * It also pins the half of the feature that is an admission. A place typed by
+ * hand has no coordinates and cannot be a waypoint, so the page has to say which
+ * ones were left behind — being told "these have no location" is the difference
+ * between a disappointing answer and a mysterious one.
+ */
+test('a trip exports as a GPX file, and says what could not go in it', async ({ page }) => {
+  const consoleErrors: string[] = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error' && !message.text().includes('401')) {
+      consoleErrors.push(message.text());
+    }
+  });
+  page.on('pageerror', (error) => consoleErrors.push(error.message));
+
+  // Two located suggestions, always both offered, so each place can be picked by
+  // name and the day has a real line through it rather than two stops at one
+  // point.
+  await page.route('**/api/geo/search**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([
+        {
+          ref: 'way/34633854',
+          name: 'Basílica de la Sagrada Família',
+          address: 'Carrer de Mallorca, Barcelona, Spain',
+          latitude: 41.4034984,
+          longitude: 2.1744573,
+          category: 'church',
+        },
+        {
+          ref: 'way/34385769',
+          name: 'Park Güell',
+          address: 'Carrer d\'Olot, Barcelona, Spain',
+          latitude: 41.4144948,
+          longitude: 2.1526945,
+          category: 'park',
+        },
+        {
+          ref: 'way/229640',
+          name: 'Girona Cathedral',
+          address: 'Plaça de la Catedral, Girona, Spain',
+          latitude: 41.9874,
+          longitude: 2.8259,
+          category: 'cathedral',
+        },
+      ]),
+    }),
+  );
+
+  await page.goto('/login');
+  await page.getByText('Create one').click();
+  await page.locator('input[name=email]').fill(`e2e-gpx-${Date.now()}@example.com`);
+  await page.locator('input[name=displayName]').fill('Export Tester');
+  await page.locator('input[name=password]').fill('correct-horse-battery');
+  await page.locator('button[type=submit]').click();
+
+  await page.getByRole('button', { name: 'Plan your first trip' }).click();
+  await page.locator('input[name=name]').fill('Barcelona & Girona');
+  await page.locator('input[name=startDate]').fill('2027-11-03');
+  await page.locator('input[name=endDate]').fill('2027-11-04');
+  await page.getByRole('button', { name: 'Create trip' }).click();
+  await page.getByRole('link', { name: /Barcelona/ }).click();
+
+  // Exact: the day headers carry "Download day 1 as a GPX file", which a loose
+  // name match finds too — the same trap as a loose getByText on a row.
+  const exportButton = page.getByRole('button', { name: 'GPX', exact: true });
+
+  // Nothing is located yet, so there is nothing to write. The button says so
+  // rather than handing over an empty document.
+  await expect(exportButton).toBeDisabled();
+
+  const day1 = page.locator('ol > li.card').first();
+  await day1.getByRole('button', { name: 'Add place' }).click();
+  await day1.locator('input[name=name]').fill('sagrada');
+  await day1.getByRole('button', { name: /Basílica de la Sagrada Família/ }).click();
+  await day1.getByRole('button', { name: 'Add place' }).click();
+  // Waited for before typing the next one: adding clears the form when the
+  // server answers, which otherwise wipes the name mid-keystroke.
+  await expect(day1.getByText('Basílica de la Sagrada Família', { exact: true })).toBeVisible();
+
+  await day1.locator('input[name=name]').fill('park');
+  await day1.getByRole('button', { name: /Park Güell/ }).click();
+  await day1.getByRole('button', { name: 'Add place' }).click();
+  await expect(day1.getByText('Park Güell', { exact: true })).toBeVisible();
+
+  // Typed rather than searched, so it has no coordinates — the note-to-self that
+  // cannot become a waypoint.
+  await day1.locator('input[name=name]').fill('Pick up tickets');
+  await day1.getByRole('button', { name: 'Add place' }).click();
+  await expect(day1.getByText('Pick up tickets', { exact: true })).toBeVisible();
+  await day1.getByRole('button', { name: 'Done' }).click();
+
+  // A located stop on the second day, so "just this day" is narrower than "the
+  // whole trip" and the difference is visible in the file.
+  const day2 = page.locator('ol > li.card').nth(1);
+  await day2.getByRole('button', { name: 'Add place' }).click();
+  await day2.locator('input[name=name]').fill('girona');
+  await day2.getByRole('button', { name: /Girona Cathedral/ }).click();
+  await day2.getByRole('button', { name: 'Add place' }).click();
+  await expect(day2.getByText('Girona Cathedral', { exact: true })).toBeVisible();
+  await day2.getByRole('button', { name: 'Done' }).click();
+
+  await expect(exportButton).toBeEnabled();
+
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    exportButton.click(),
+  ]);
+
+  // The trip's own name, made safe for a filesystem — the "&" among other things.
+  expect(download.suggestedFilename()).toBe('barcelona-girona.gpx');
+
+  const saved = await download.path();
+  const gpx = await readFile(saved, 'utf8');
+
+  // Parsed in the browser rather than matched with a regex: the assertion worth
+  // making is that a reader can read it, and a string check would pass on a
+  // document with an unescaped ampersand halfway through.
+  const summary = await page.evaluate((text) => {
+    const doc = new DOMParser().parseFromString(text, 'application/xml');
+    return {
+      failed: doc.querySelector('parsererror') !== null,
+      root: doc.documentElement.tagName,
+      name: doc.querySelector('metadata > name')?.textContent ?? null,
+      waypoints: [...doc.querySelectorAll('wpt > name')].map((n) => n.textContent),
+      tracks: [...doc.querySelectorAll('trk > name')].map((n) => n.textContent),
+      trackPoints: [...doc.querySelectorAll('trkpt > name')].map((n) => n.textContent),
+      firstLat: doc.querySelector('wpt')?.getAttribute('lat') ?? null,
+    };
+  }, gpx);
+
+  expect(summary.failed, 'the document must parse').toBe(false);
+  expect(summary.root).toBe('gpx');
+  // The ampersand survived as itself, which is the whole of the escaping rule.
+  expect(summary.name).toBe('Barcelona & Girona');
+  expect(summary.waypoints)
+    .toEqual(['Basílica de la Sagrada Família', 'Park Güell', 'Girona Cathedral']);
+  // Only day 1 gets a line: day 2 has a single located stop, and a one-point
+  // track draws nothing.
+  expect(summary.tracks).toEqual(['Day 1 — stops in order']);
+  // In the order of the day, which is the only thing a track asserts.
+  expect(summary.trackPoints).toEqual(['Basílica de la Sagrada Família', 'Park Güell']);
+  expect(summary.firstLat).toBe('41.4034984');
+
+  // The place with no location is named, not just counted.
+  const note = page.getByRole('status');
+  await expect(note).toContainText('barcelona-girona.gpx');
+  await expect(note).toContainText('3 places, and 1 day as a track');
+  await expect(note).toContainText('Pick up tickets');
+
+  // And one day on its own, which is the unit somebody actually carries. The
+  // control is on the day's own header, and it is hidden — not disabled — on a
+  // day with nothing located, so a fortnight of empty days stays quiet.
+  const [dayFile] = await Promise.all([
+    page.waitForEvent('download'),
+    day1.getByRole('button', { name: 'Download day 1 as a GPX file' }).click(),
+  ]);
+  expect(dayFile.suggestedFilename()).toBe('barcelona-girona-2027-11-03.gpx');
+
+  const dayGpx = await readFile(await dayFile.path(), 'utf8');
+  const daySummary = await page.evaluate((text) => {
+    const doc = new DOMParser().parseFromString(text, 'application/xml');
+    return {
+      failed: doc.querySelector('parsererror') !== null,
+      name: doc.querySelector('metadata > name')?.textContent ?? null,
+      waypoints: [...doc.querySelectorAll('wpt > name')].map((n) => n.textContent),
+    };
+  }, dayGpx);
+
+  expect(daySummary.failed, 'the day document must parse').toBe(false);
+  // Named so two days are not two identical rows in a reader's track list.
+  expect(daySummary.name).toBe('Barcelona & Girona — Day 1');
+  // Day 1 only: the second day's stop stayed behind.
+  expect(daySummary.waypoints).toEqual(['Basílica de la Sagrada Família', 'Park Güell']);
+  await expect(note).toContainText('2 places, drawn as a track');
 
   expect(consoleErrors, 'unexpected console errors').toEqual([]);
 });

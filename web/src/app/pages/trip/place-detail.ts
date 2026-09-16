@@ -2,6 +2,7 @@ import { Component, computed, effect, inject, input, output, signal, untracked }
 import { FormsModule } from '@angular/forms';
 import { PlaceView } from '../../api';
 import { messageOf } from '../../core/errors';
+import { PhotoLoad } from '../../core/photo-load';
 import { EnrichmentRepo } from '../../repo/enrichment.repo';
 import { PlaceRepo } from '../../repo/place.repo';
 
@@ -24,7 +25,7 @@ import { PlaceRepo } from '../../repo/place.repo';
  */
 @Component({
   selector: 'app-place-detail',
-  imports: [FormsModule],
+  imports: [FormsModule, PhotoLoad],
   templateUrl: './place-detail.html',
   // Escape closes the directions menu wherever the focus is. The panel itself
   // has no Escape handler, so this cannot swallow one.
