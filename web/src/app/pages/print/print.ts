@@ -4,6 +4,7 @@ import { PlaceView, ReservationView, TripDay } from '../../api';
 import { messageOf } from '../../core/errors';
 import { formatMoney } from '../../core/money';
 import { isoDayInZone, timeInZone, zoneAbbreviation } from '../../core/zones';
+import { PhotoLoad } from '../../core/photo-load';
 import { ExpenseRepo } from '../../repo/expense.repo';
 import { MemberRepo } from '../../repo/member.repo';
 import { PlaceRepo } from '../../repo/place.repo';
@@ -51,7 +52,7 @@ const PHOTOS_KEY = 'wander.print.photos';
  */
 @Component({
   selector: 'app-print',
-  imports: [RouterLink],
+  imports: [PhotoLoad, RouterLink],
   templateUrl: './print.html',
 })
 export class PrintPage {

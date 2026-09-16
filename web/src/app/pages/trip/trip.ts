@@ -23,9 +23,11 @@ import { Router, RouterLink } from '@angular/router';
 import { PlaceSuggestion, PlaceView, TripDay } from '../../api';
 import { InstanceConfigStore } from '../../core/instance-config.store';
 import { ageLabel, messageOf } from '../../core/errors';
+import { buildDayGpx, buildGpx } from '../../core/gpx';
 import { formatMoney } from '../../core/money';
 import { SessionStore } from '../../core/session.store';
 import { TripChange, TripSyncService } from '../../core/trip-sync';
+import { PhotoLoad } from '../../core/photo-load';
 import { GeoRepo } from '../../repo/geo.repo';
 import { InviteRepo } from '../../repo/invite.repo';
 import { MemberRepo } from '../../repo/member.repo';
@@ -85,6 +87,7 @@ const GOOGLE_TRAVEL_MODES: Record<RouteProfile, string> = {
     CdkDropList,
     CdkDropListGroup,
     FormsModule,
+    PhotoLoad,
     RouterLink,
     PlaceDetail,
     TripMap,
@@ -209,6 +212,15 @@ export class TripPage {
   protected readonly draftNotes = signal('');
 
   protected readonly error = signal<string | null>(null);
+
+  /**
+   * What the last GPX export produced, or null.
+   *
+   * A status line rather than an error: a download gives no feedback of its own
+   * beyond the browser's own chrome, and the interesting half is what could
+   * *not* go in the file.
+   */
+  protected readonly exportNote = signal<string | null>(null);
 
   /** Set when the draft came from a search hit, so its point is saved with it. */
   protected readonly draftLocation = signal<PlaceSuggestion | null>(null);
@@ -889,6 +901,70 @@ export class TripPage {
       : 'Open this day in Google Maps';
   }
 
+  /**
+   * Whether there is anything to put in a GPX file.
+   *
+   * A place typed by hand has no coordinates and cannot be a waypoint, so a trip
+   * of nothing but those would export a valid, empty and baffling document. The
+   * button says so in advance instead.
+   */
+  protected readonly canExport = computed(() => this.mappedCount() > 0);
+
+  /**
+   * The trip as a GPX file, built here and handed to the browser.
+   *
+   * No endpoint, no dependency and no request — the same argument as the printed
+   * itinerary and the Google Maps link. Everything the file needs is in the
+   * itinerary this page already holds, which is read through the offline cache
+   * like everything else, so the export still works on the wifi that made
+   * somebody want the file in the first place.
+   */
+  protected exportGpx(): void {
+    const trip = this.trip();
+    if (!trip) {
+      return;
+    }
+    const result = buildGpx(trip, this.days());
+    download(result.filename, result.xml);
+    this.exportNote.set(exportSummary(result));
+  }
+
+  /**
+   * One day as its own file.
+   *
+   * Offered because a day is the unit somebody carries: you follow Tuesday, you
+   * do not follow the fortnight, and importing eight days to look at one is how
+   * a reader's track list becomes unusable. It goes through the same builder
+   * over a list of one, so there is no second way to write a waypoint and a day
+   * on its own cannot disagree with the same day inside the whole trip.
+   */
+  protected exportDayGpx(day: TripDay): void {
+    const trip = this.trip();
+    if (!trip) {
+      return;
+    }
+    const result = buildDayGpx(trip, day);
+    download(result.filename, result.xml);
+    this.exportNote.set(exportSummary(result, true));
+  }
+
+  /**
+   * Whether a day has anything to write down.
+   *
+   * Hidden rather than disabled, unlike the trip-level button, and the
+   * difference is how many of them there are: the header carries one control
+   * that should say why it cannot be used, while a fortnight's worth of greyed
+   * icons down the page is noise on every day somebody has not filled in yet.
+   * It is the rule the Google Maps link on this same card already follows.
+   */
+  protected canExportDay(day: TripDay): boolean {
+    return this.locatedIn(day).length > 0;
+  }
+
+  protected dismissExportNote(): void {
+    this.exportNote.set(null);
+  }
+
   /** Credit for whatever engine answered, shown while a proposal is on screen. */
   protected readonly routeCredit = computed(() => {
     const preview = this.routePreview();
@@ -911,4 +987,54 @@ export class TripPage {
       this.error.set(messageOf(err, 'That did not work. Try again.'));
     }
   }
+}
+
+/**
+ * Hand a file to the browser.
+ *
+ * Three details here are each the difference between a download and nothing at
+ * all, and none of them report a fault when they are wrong. The anchor goes into
+ * the document before it is clicked, because a detached one is ignored outside
+ * Chromium. The object URL is revoked on a later turn rather than immediately,
+ * since revoking it in the same tick can cancel the save that was just started.
+ * And `download` is what makes this a save instead of a navigation — without it
+ * the browser is free to render the XML and lose the filename.
+ */
+function download(filename: string, contents: string): void {
+  const url = URL.createObjectURL(new Blob([contents], { type: 'application/gpx+xml' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.style.display = 'none';
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url));
+}
+
+/**
+ * What went into the file, and what did not.
+ *
+ * The omissions are named rather than counted, first three and then a total —
+ * the shape a trip's date refusal uses on the server, and for the same reason: a
+ * message that only counts them says there is a problem without saying where to
+ * look.
+ */
+function exportSummary(result: ReturnType<typeof buildGpx>, oneDay = false): string {
+  const places = `${result.waypoints} ${result.waypoints === 1 ? 'place' : 'places'}`;
+  const days = result.tracks === 1 ? '1 day' : `${result.tracks} days`;
+  // The days are only counted for a whole trip. On a single day that count can
+  // only ever be one and saying so reads like a computer talking; what is worth
+  // saying is whether a line was drawn at all, which needs two located stops.
+  const drawn = oneDay
+    ? (result.tracks ? ', drawn as a track.' : '.')
+    : (result.tracks ? `, and ${days} as ${result.tracks === 1 ? 'a track' : 'tracks'}.` : '.');
+  let summary = `Saved ${result.filename} — ${places}${drawn}`;
+  if (result.skipped.length) {
+    const named = result.skipped.slice(0, 3).join(', ');
+    const rest = result.skipped.length > 3 ? `, and ${result.skipped.length - 3} more` : '';
+    summary += ` ${result.skipped.length} ${result.skipped.length === 1 ? 'place has' : 'places have'}`
+      + ` no location and could not be included (${named}${rest}).`;
+  }
+  return summary;
 }

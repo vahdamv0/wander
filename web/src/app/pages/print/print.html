@@ -148,8 +148,12 @@
                   <!-- The credit under the picture, not in a tooltip: a Commons
                        image is licensed per image and there is nothing to hover
                        on paper. `Place.setPhoto` guarantees both halves of it. -->
-                  <figure class="print-photo-block w-24 shrink-0">
-                    <img [src]="place.photoThumbUrl" [alt]="'Photo of ' + place.name"
+                  <!-- The whole figure goes if the picture does not load: a
+                       broken glyph and a credit for a photograph nobody can see
+                       is just ink. -->
+                  <figure class="print-photo-block w-24 shrink-0" [hidden]="printPhoto.failed()">
+                    <img #printPhoto="wanderPhoto" wanderPhoto
+                         [src]="place.photoThumbUrl" [alt]="'Photo of ' + place.name"
                          class="print-photo size-24 rounded-control object-cover" />
                     <figcaption class="mt-1 text-[0.5625rem] leading-tight text-muted">
                       {{ photoCredit(place) }}
