@@ -8,6 +8,29 @@
       </p>
     </div>
 
+    <!-- The only prose a search engine can read. Every route but this one is
+         default-deny, so a crawler renders the app, is bounced here by
+         authGuard, and finds whatever this page says - which was the mark, a
+         password hint and "Just looking?". Google reported the instance as
+         duplicates with no user-selected canonical: the tag in index.html
+         answered which URL is the original, and this is the other half, there
+         being nothing to index once it had.
+
+         Hardcoded rather than a setting, like the description and og: tags in
+         index.html and for the same reason - it describes wander rather than
+         anybody's deployment, so there is no value an operator could set that
+         would be more correct. That is the opposite of the Source link below,
+         which is a setting precisely because a fork's must differ.
+
+         Login mode only: on the register form the reader has already decided. -->
+    @if (mode() === 'login') {
+      <p class="mb-6 text-center text-sm text-balance text-muted">
+        Plan a trip together - shared itineraries on a map, expenses split and
+        balanced, packing lists and bookings, all in one place and readable
+        offline. Self-hostable and open source.
+      </p>
+    }
+
     <div class="card p-6">
       <form class="grid gap-4" (ngSubmit)="submit()">
         <label class="label">
