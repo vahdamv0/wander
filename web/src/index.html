@@ -21,6 +21,7 @@
        settings. Crawlers resolve it against the page they found it on. -->
   <meta property="og:image" content="/icon-512.png">
   <meta name="twitter:card" content="summary">
+  <link rel="canonical" href="/">
   <base href="/">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <!-- SVG first, and browsers that understand it never ask for the .ico. It is
@@ -35,6 +36,31 @@
   <link rel="manifest" href="manifest.webmanifest">
   <!-- iOS reads no manifest icon, and composites transparency onto black. -->
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <!-- Structured data, so a crawler classifies this as an application rather
+       than inferring what it can from a login form. Not executed: a script
+       element whose type is not a JavaScript MIME type is a data block, which
+       is also why script-src 'self' has nothing to say about it - but that is
+       reasoning rather than measurement, so the browser suite is what confirms
+       it, every one of those tests asserting on console errors.
+
+       No url, for the reason og:image is relative: a hostname here would bake
+       one instance's address into every fork's build. And deliberately no
+       offers or aggregateRating, which is what Google wants for a rich result
+       - inventing a rating to earn one is a number presented as fact that came
+       from nothing that knows, the mistake places.category is kept decorative
+       to avoid. Classification is what this is for. -->
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "wander",
+      "applicationCategory": "TravelApplication",
+      "operatingSystem": "Any modern web browser",
+      "description": "A self-hostable, collaborative travel planner: shared itineraries on a map, expenses with splits and balances, packing lists, bookings and offline reading.",
+      "license": "https://www.gnu.org/licenses/agpl-3.0.html",
+      "isAccessibleForFree": true
+    }
+  </script>
 </head>
 <body>
   <app-root></app-root>
