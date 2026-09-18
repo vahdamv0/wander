@@ -126,6 +126,55 @@ caveat above about migrations, which do not roll back with the image.
 | `wander` | The application: Spring Boot with the Angular build inside the jar. Bound to loopback, reached over the compose network. |
 | `db` | Postgres 17. No published port — it is not on the network at all. |
 | `backup` | A dump into `./backups` daily, read back with `pg_restore --list` before it is published, newest thirty kept. |
+| `alloy` | Only with `--profile monitoring`. Grafana Alloy: scrapes Caddy's metrics and tails its access log, and pushes both to Grafana Cloud. See "Monitoring" below. |
+
+## Monitoring
+
+Off unless asked for, and one container rather than a stack:
+
+```sh
+echo 'COMPOSE_PROFILES=monitoring' >> .env   # once
+./monitoring/geoip-update.sh                 # once, before the first start
+docker compose up -d --no-build
+```
+
+`COMPOSE_PROFILES` goes in `.env` rather than being typed as `--profile
+monitoring`, because `update.sh` ends with a plain `docker compose up -d` that
+selects no profiles: with the flag on the command line instead, every update
+would restart the four services and leave Alloy on the image it started with,
+still filling the dashboards, quietly a release behind.
+
+Grafana Cloud hosts the Grafana, the Prometheus and the Loki. It cannot reach
+into this machine, though, and publishing Caddy's metrics port or its access log
+so a SaaS could pull from them would be a worse trade than one more container —
+so Alloy collects here and pushes out. Five values in `.env` point it at your
+stack; `.env.example` says which page of Grafana Cloud each one is on.
+
+Two dashboards, because no single source answers both questions:
+
+- **Traffic, latency, errors.** Import [dashboard 22870](https://grafana.com/grafana/dashboards/22870-caddy/)
+  from grafana.com against your Prometheus data source.
+- **Which country.** Import `monitoring/wander-countries.json` against your Loki
+  data source. It is a separate dashboard because it has to be: Caddy's
+  Prometheus metrics carry `server`, `handler`, `code` and `method` and nothing
+  geographic, so the country comes out of the access log instead, looked up by
+  Alloy before the line leaves the machine.
+
+The country database wants refreshing monthly — addresses get reassigned between
+countries, and a stale one does not fail, it just gets quietly wronger:
+
+```sh
+0 4 1 * * cd /path/to/wander && ./monitoring/geoip-update.sh
+```
+
+Two things to know before switching it on. Your access log **leaves this
+machine**: Alloy redacts the client address from every line first, so the
+country survives and the visitor does not, but the paths, status codes and
+timings land on Grafana Labs' servers under their retention rather than yours —
+comment out one stage in `monitoring/config.alloy` if you would rather keep the
+addresses too. And the countries are **approximate by nature**: a VPN, a
+corporate egress or a mobile carrier's national gateway each answer with
+somewhere the person is not, and no database fixes that.
 
 ## If you put your own proxy in front
 
