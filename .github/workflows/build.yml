@@ -15,16 +15,16 @@ permissions:
 
 env:
   GRADLE_USER_HOME: ${{ github.workspace }}/.gradle
-  GRADLE_OPTS: -Dorg.gradle.daemon=false
-  DS_DISABLED_RESOLUTION_JOBS: gradle
+  GRADLE_OPTS: "-Dorg.gradle.daemon=false"
+  DS_DISABLED_RESOLUTION_JOBS: "gradle"
 
   GHCR_IMAGE: ghcr.io/vahdamv0/wander
 
 jobs:
 
-  # ------------------------------------------------------------
+  # ============================================================
   # Test
-  # ------------------------------------------------------------
+  # ============================================================
   test:
     name: Test
     runs-on: ubuntu-latest
@@ -84,9 +84,9 @@ jobs:
           retention-days: 7
 
 
-  # ------------------------------------------------------------
+  # ============================================================
   # API client drift
-  # ------------------------------------------------------------
+  # ============================================================
   api-client-drift:
     name: API Client Drift
     runs-on: ubuntu-latest
@@ -123,8 +123,7 @@ jobs:
             | sort -z \
             | xargs -0 sha256sum > /tmp/api-client.before
 
-      # Force regeneration. Without --rerun Gradle may consider
-      # apiGen UP-TO-DATE and the drift check would be meaningless.
+      # Force regeneration.
       - name: Regenerate API client
         run: ./gradlew :web:apiGen --rerun
 
@@ -169,16 +168,27 @@ jobs:
           esac
 
 
-  # ------------------------------------------------------------
+  # ============================================================
   # Container image
-  # ------------------------------------------------------------
+  # ============================================================
   container-image:
     name: Build Container Image
+
+    # This is the important dependency.
+    # The container image will NOT start until both verification
+    # jobs have completed successfully.
+    needs:
+      - test
+      - api-client-drift
+
     runs-on: ubuntu-latest
 
     # Only build/publish images for:
+    #
     #   - the default branch
     #   - version tags
+    #
+    # Pull requests and other branches run verification only.
     if: |
       github.event_name == 'push' &&
       (
@@ -187,8 +197,13 @@ jobs:
       )
 
     steps:
+
       - name: Checkout
         uses: actions/checkout@v4
+
+      # ----------------------------------------------------------
+      # Multi-platform build support
+      # ----------------------------------------------------------
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -198,6 +213,10 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # ----------------------------------------------------------
+      # GitHub Container Registry
+      # ----------------------------------------------------------
+
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -205,35 +224,49 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # ----------------------------------------------------------
+      # Determine image tags
+      # ----------------------------------------------------------
+
       - name: Determine image tags
         id: meta
         shell: bash
         run: |
           TAGS=""
 
-          # Always publish latest for the default branch and releases.
+          # Always publish latest.
           TAGS="${TAGS} --tag ${GHCR_IMAGE}:latest"
 
-          if [ -n "${GITHUB_REF_TYPE}" ] && [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+
             TAG="${GITHUB_REF_NAME}"
+
             TAGS="${TAGS} --tag ${GHCR_IMAGE}:${TAG}"
 
             VERSION="${TAG#v}"
 
             echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
             echo "image=${GHCR_IMAGE}:${TAG}" >> "$GITHUB_OUTPUT"
+
           else
+
             TAG="${GITHUB_SHA::7}"
+
             TAGS="${TAGS} --tag ${GHCR_IMAGE}:${TAG}"
 
             echo "version=" >> "$GITHUB_OUTPUT"
             echo "image=${GHCR_IMAGE}:${TAG}" >> "$GITHUB_OUTPUT"
+
           fi
 
           echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
 
           echo "Image tags:"
           echo "${TAGS}"
+
+      # ----------------------------------------------------------
+      # Build and publish
+      # ----------------------------------------------------------
 
       - name: Build and push multi-platform image
         shell: bash
@@ -255,6 +288,10 @@ jobs:
 
           echo "${{ steps.meta.outputs.image }}" > image-ref.txt
 
+      # ----------------------------------------------------------
+      # Save image reference
+      # ----------------------------------------------------------
+
       - name: Upload image reference
         uses: actions/upload-artifact@v4
         with:
@@ -263,7 +300,7 @@ jobs:
           retention-days: 7
 
       # ----------------------------------------------------------
-      # Validate deployment bundle inside the actual image
+      # Validate published image
       # ----------------------------------------------------------
 
       - name: Pull published image
