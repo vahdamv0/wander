@@ -205,13 +205,87 @@ services:
       # rate limit is five per hostname per week.
       - caddy-data:/data
       - caddy-config:/config
+      # The JSON access log, for the monitoring profile to tail. Mounted
+      # unconditionally although only Alloy reads it: a volume that appears when
+      # a profile is enabled would change the proxy's own definition, and
+      # recreating the TLS terminator is not something switching monitoring on
+      # should do. Caddy rolls it at 10MiB and keeps 3, so the cost of it being
+      # here on an instance that never looks at it is bounded.
+      - caddy-logs:/var/log/caddy
     ports:
       - "${WANDER_HTTP_PORT:-80}:80"
       - "${WANDER_HTTPS_PORT:-443}:443"
       # HTTP/3, which Caddy serves on the same port over UDP.
       - "${WANDER_HTTPS_PORT:-443}:443/udp"
 
+
+  # Monitoring, and the only part of it that runs here.
+  #
+  # Grafana Cloud hosts the Grafana, the Prometheus and the Loki. It cannot
+  # reach this machine, though — Caddy's metrics port and its access log are
+  # both on this network, and publishing either so a SaaS could pull from it
+  # would be a far worse trade than one more container. So Alloy collects
+  # locally and pushes out: metrics for the Caddy dashboard, and the access log
+  # with a country looked up per request, which is the half no Prometheus metric
+  # can answer.
+  #
+  # Behind a profile, so `docker compose up -d` starts the four services it
+  # always did and this one needs asking for:
+  #
+  #   docker compose --profile monitoring up -d
+  #
+  # See .env.example and monitoring/config.alloy.
+  alloy:
+    image: grafana/alloy:v1.11.3
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    depends_on:
+      - proxy
+    command:
+      - run
+      - --storage.path=/var/lib/alloy/data
+      # Bound to loopback inside the container, which is the default and is
+      # restated because it is load-bearing: Alloy's UI shows the running
+      # configuration, and that configuration holds a Grafana Cloud token.
+      - --server.http.listen-addr=127.0.0.1:12345
+      - /etc/alloy/config.alloy
+    environment:
+      # The stack's own endpoints and one token, from .env.
+      #
+      # Restated with empty defaults rather than `${VAR:?...}`, and that is not
+      # a style choice: Compose interpolates the *whole file* before it works
+      # out which profiles are active, so a required-variable marker here would
+      # fail `docker compose up -d` on every instance that has never heard of
+      # Grafana Cloud — the four services would stop starting because of a
+      # fifth nobody asked for. Left empty, Alloy refuses its own configuration
+      # and says which endpoint is missing in `docker compose logs alloy`,
+      # which is loud enough and lands on the person who turned this on.
+      GRAFANA_CLOUD_PROM_URL: ${GRAFANA_CLOUD_PROM_URL:-}
+      GRAFANA_CLOUD_PROM_USER: ${GRAFANA_CLOUD_PROM_USER:-}
+      GRAFANA_CLOUD_LOKI_URL: ${GRAFANA_CLOUD_LOKI_URL:-}
+      GRAFANA_CLOUD_LOKI_USER: ${GRAFANA_CLOUD_LOKI_USER:-}
+      GRAFANA_CLOUD_TOKEN: ${GRAFANA_CLOUD_TOKEN:-}
+      # What every series and every log line is tagged with. Defaults to the
+      # site address because that is the one thing already distinguishing one
+      # wander from another, and a dashboard fed by two instances both calling
+      # themselves "wander" is a dashboard adding up two sets of traffic.
+      WANDER_MONITORING_INSTANCE: ${WANDER_MONITORING_INSTANCE:-${WANDER_SITE_ADDRESS:-wander}}
+    volumes:
+      - ./monitoring/config.alloy:/etc/alloy/config.alloy:ro
+      # Read-only, and the country database is read from the host rather than
+      # baked in: it is refreshed monthly by monitoring/geoip-update.sh and
+      # Alloy re-reads it, so keeping it outside the container is what makes the
+      # refresh not a rebuild.
+      - ./monitoring/geoip:/etc/alloy/geoip:ro
+      - caddy-logs:/var/log/caddy:ro
+      # Where Alloy remembers how far through the log file it has read. Without
+      # it a restart re-sends the whole file, which is double-counted traffic on
+      # the dashboard and billed ingest on the way there.
+      - alloy-data:/var/lib/alloy/data
+
 volumes:
   db-data:
   caddy-data:
   caddy-config:
+  caddy-logs:
+  alloy-data:

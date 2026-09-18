@@ -13,6 +13,35 @@
 # there. It is the one thing this file cannot decide for you, because it is the
 # application that sets the cookie.
 
+# Metrics collection is off until this is switched on, and the switch is
+# separate from serving them: this line makes Caddy *gather* the counters, and
+# the `metrics` handler in the block at the bottom is what hands them to a
+# scraper. Gathering costs a little memory per server and nothing else.
+{
+	metrics
+
+	# Name the metrics listener, so the series it generates can be told apart
+	# from real traffic and thrown away before they leave the machine.
+	#
+	# Caddy counts requests to *every* server it runs, the metrics endpoint
+	# included, and the Caddy dashboard (grafana.com id 22870) groups by `job`
+	# and `instance` only — it never filters on `server`. So without this, a
+	# scrape every 30s is 2,880 requests a day added to "Total requests", which
+	# on a personal instance is most of the graph. Alloy drops
+	# `server="metrics_only"` on the way out; see monitoring/config.alloy.
+	#
+	# Naming it rather than dropping `srv0` is the point. Caddy numbers unnamed
+	# servers by sorting their listen addresses as strings, so `:2020` happens to
+	# come before `:443` and `:80` and happens to be `srv0` — a coincidence of
+	# lexical ordering that would silently reverse if anything about the
+	# addresses changed, and reversing it means dropping the real traffic and
+	# keeping the synthetic. The address below is a literal in this file, so a
+	# name attached to it is deterministic.
+	servers :2020 {
+		name metrics_only
+	}
+}
+
 {$WANDER_SITE_ADDRESS::80} {
 	# WebSockets need no configuration here: Caddy passes an Upgrade request
 	# through reverse_proxy untouched, which is what live sync rides on. It is
@@ -59,4 +88,44 @@
 		output stderr
 		format console
 	}
+
+	# A second access logger over the same requests, in JSON, to a file that
+	# Grafana Alloy tails. Two loggers rather than one reformatted: `docker
+	# compose logs proxy` is how anybody looks at this stack by hand, and a wall
+	# of JSON there would make the console log useless to get a machine-readable
+	# one. They cost one extra write per request.
+	#
+	# `log_skip` above applies to the *request*, not to a logger, so the
+	# invitation tokens that are kept out of the console log are kept out of this
+	# one too — which matters more here, because this file leaves the machine.
+	# Do not add a logger expecting it to be exempt.
+	#
+	# Rolled at 10MiB and kept 3 deep. This file is a buffer for something that
+	# ships it elsewhere, not an archive: if Alloy is down for a day the oldest
+	# lines are lost rather than the disk filling, which is the right way round
+	# on a box whose other job is holding the database.
+	log access_json {
+		output file /var/log/caddy/access.log {
+			roll_size 10MiB
+			roll_keep 3
+		}
+		format json
+	}
 }
+
+# Prometheus metrics, on a port nothing publishes.
+#
+# Caddy already serves /metrics on its admin API, but that API can also *rewrite
+# the running configuration*, so reaching it from another container would mean
+# putting a remote-control socket on the compose network to read some counters.
+# This is a plain site block with one handler on it: it serves metrics and can
+# do nothing else, and compose does not map the port, so it is reachable from
+# the other containers and from nowhere on the host or the internet.
+:2020 {
+	metrics
+
+	# Nothing of value, and every scrape would write a line into the file that
+	# ships to Grafana Cloud.
+	log_skip
+}
+

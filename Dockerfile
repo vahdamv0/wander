@@ -135,6 +135,7 @@ RUN sh /app/os-notices.sh >> /app/THIRD-PARTY-jar.txt && \
 # alongside the image it runs — there is no second copy to drift.
 COPY compose.yaml Caddyfile .env.example /app/deploy/
 COPY backup/backup.sh /app/deploy/backup/
+COPY monitoring/config.alloy monitoring/geoip-update.sh monitoring/wander-countries.json /app/deploy/monitoring/
 COPY deploy/DEPLOY.md deploy/update.sh /app/deploy/
 COPY deploy/entrypoint.sh /app/entrypoint.sh
 

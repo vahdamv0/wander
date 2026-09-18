@@ -155,6 +155,9 @@ container-image:
     - test -f /tmp/bundle/.env.example
     - test -x /tmp/bundle/update.sh
     - test -f /tmp/bundle/backup/backup.sh
+    - test -f /tmp/bundle/monitoring/config.alloy
+    - test -f /tmp/bundle/monitoring/wander-countries.json
+    - test -x /tmp/bundle/monitoring/geoip-update.sh
   rules:
     # A tag is a release: it publishes :<tag> alongside :latest, and it is the
     # only thing that gives the image a version rather than "dev".

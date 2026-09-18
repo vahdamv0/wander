@@ -1,0 +1,5 @@
+# The database itself is fetched, not committed: 8MB that changes every month
+# and that geoip-update.sh can always get again. Committing it would put a
+# monthly 8MB binary into the history for no gain.
+*.mmdb
+.partial-*
