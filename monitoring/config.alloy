@@ -1,0 +1,188 @@
+// Grafana Alloy: the only piece of the monitoring stack that runs here.
+//
+// Grafana Cloud hosts the Grafana, the Prometheus and the Loki, but it cannot
+// reach into this machine — Caddy's metrics port and its access log are both on
+// the compose network, and publishing either to the internet so a SaaS could
+// pull from it would be a worse trade than this container. So collection is
+// local and everything is pushed out.
+//
+// Two pipelines, and they are independent. Metrics answer "how much traffic,
+// how fast, how many errors" and feed the Caddy dashboard (grafana.com id
+// 22870). Logs answer "from where", because Caddy's Prometheus metrics carry
+// the labels server/handler/code/method and nothing geographic — a counter per
+// country is not something Caddy exports, so the country has to come out of the
+// access log, where the client IP is.
+
+logging {
+	level  = "info"
+	format = "logfmt"
+}
+
+// ---------------------------------------------------------------------------
+// Metrics: scrape Caddy, push to Grafana Cloud Prometheus
+// ---------------------------------------------------------------------------
+
+prometheus.scrape "caddy" {
+	targets = [{
+		__address__ = "proxy:2020",
+		job         = "caddy",
+		instance    = sys.env("WANDER_MONITORING_INSTANCE"),
+	}]
+
+	metrics_path = "/metrics"
+
+	// The free tier counts active series, not scrapes, so a shorter interval
+	// costs nothing there. 30s is chosen against the dashboard instead: 22870's
+	// rate() panels use a 5m window, and an interval longer than a third of that
+	// makes the lines jagged for reasons that are about scraping rather than
+	// about traffic.
+	scrape_interval = "30s"
+
+	forward_to = [prometheus.relabel.drop_self.receiver]
+}
+
+// Throw away Caddy's measurements of the metrics endpoint itself before they are
+// pushed. Caddy counts requests to every server it runs, and dashboard 22870
+// groups by job and instance without ever filtering on `server`, so a scrape
+// every 30s would arrive as 2,880 requests a day of traffic that is this
+// container talking to itself — on a personal instance, most of the graph.
+//
+// The Caddyfile names that listener `metrics_only` precisely so this can be a
+// name rather than a guess at whether it ended up as srv0 or srv1. Dropped here
+// rather than filtered in the dashboard's queries, because a panel is something
+// somebody edits and there are 25 of them.
+prometheus.relabel "drop_self" {
+	rule {
+		source_labels = ["server"]
+		regex         = "metrics_only"
+		action        = "drop"
+	}
+
+	forward_to = [prometheus.remote_write.grafana_cloud.receiver]
+}
+
+prometheus.remote_write "grafana_cloud" {
+	endpoint {
+		url = sys.env("GRAFANA_CLOUD_PROM_URL")
+
+		basic_auth {
+			// The numeric stack id from the Prometheus "Details" page, not an
+			// email address. Getting this wrong answers 401 on every push and
+			// nothing else looks wrong: the container stays up and the
+			// dashboard stays empty.
+			username = sys.env("GRAFANA_CLOUD_PROM_USER")
+			password = sys.env("GRAFANA_CLOUD_TOKEN")
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Logs: tail Caddy's JSON access log, look the country up, push to Loki
+// ---------------------------------------------------------------------------
+
+local.file_match "caddy" {
+	path_targets = [{
+		__path__ = "/var/log/caddy/access.log",
+		job      = "caddy",
+		instance = sys.env("WANDER_MONITORING_INSTANCE"),
+	}]
+}
+
+loki.source.file "caddy" {
+	targets    = local.file_match.caddy.targets
+	forward_to = [loki.process.geoip.receiver]
+}
+
+loki.process "geoip" {
+	// Caddy's JSON access log nests the client address under `request`, and
+	// `remote_ip` is already the real client: the Caddyfile overwrites
+	// X-Forwarded-For with {remote_host} on the way to the app, and Caddy itself
+	// is the edge, so there is no proxy in front of it whose header we would have
+	// to trust. `client_ip` exists too but is only populated when trusted_proxies
+	// is configured, which it is not — so it would be empty, and an empty source
+	// makes the lookup silently produce no country rather than failing.
+	stage.json {
+		expressions = {
+			remote_ip = "request.remote_ip",
+			status    = "status",
+		}
+	}
+
+	stage.geoip {
+		source  = "remote_ip"
+		db      = "/etc/alloy/geoip/country.mmdb"
+		db_type = "country"
+	}
+
+	// A private or unroutable address is not in the database, so the lookup
+	// yields no field at all — healthchecks from the compose network, mostly,
+	// and anything arriving over IPv6 if the database has no entry for it. Loki
+	// drops an empty label rather than storing it, so without this those lines
+	// would land in a series with no country at all and simply not appear on the
+	// dashboard: present in the log, absent from every panel, which is the
+	// failure mode that looks like everything working. `stage.template` runs
+	// whether or not the field exists, which is why it is this and not
+	// `stage.replace`.
+	stage.template {
+		source   = "geoip_country_name"
+		template = "{{ if .Value }}{{ .Value }}{{ else }}Unknown{{ end }}"
+	}
+
+	stage.template {
+		source   = "geoip_country_code"
+		template = "{{ if .Value }}{{ .Value }}{{ else }}XX{{ end }}"
+	}
+
+	// Redact the address from the line now that the country has been taken out
+	// of it, because this is the point where it stops being a local file and
+	// becomes something on somebody else's servers with a retention period this
+	// machine does not control.
+	//
+	// The country is what was wanted and the country survives — it is a label,
+	// set above, from a lookup that has already happened. What goes is the
+	// ability to pick one visitor out and follow them around the site, which is
+	// a different thing from knowing where people are, and not a thing this
+	// application needs. It is the same bargain made everywhere else here: the
+	// invitation token is a SHA-256 because the nightly dumps leave the machine,
+	// and an uploaded confirmation is deleted in a `finally` because it holds a
+	// booking reference.
+	//
+	// Comment this stage out to keep the addresses — which is a reasonable thing
+	// to want if you are looking at abuse rather than at geography. Nothing else
+	// changes if you do; the dashboard is identical either way.
+	//
+	// Both fields go: `client_ip` is a copy of `remote_ip` in this configuration
+	// (there is no trusted proxy in front of Caddy), so redacting one and not the
+	// other would redact nothing.
+	stage.replace {
+		expression = "\"(?:remote_ip|client_ip)\":\\s*\"([^\"]+)\""
+		replace    = "redacted"
+	}
+
+	// Only the two country fields become labels, and this stage comes last for
+	// that reason: a label is read from the extracted field at the moment it is
+	// set, so anything that fills in a default has to have run already. A Loki
+	// label is an index, and the cost of one is its number of distinct values —
+	// ~250 countries is fine, a URL path is not. `status` stays an extracted
+	// field, queryable with `| json` at read time, which is where per-request
+	// detail belongs.
+	stage.labels {
+		values = {
+			country_code = "geoip_country_code",
+			country      = "geoip_country_name",
+		}
+	}
+
+	forward_to = [loki.write.grafana_cloud.receiver]
+}
+
+loki.write "grafana_cloud" {
+	endpoint {
+		url = sys.env("GRAFANA_CLOUD_LOKI_URL")
+
+		basic_auth {
+			username = sys.env("GRAFANA_CLOUD_LOKI_USER")
+			password = sys.env("GRAFANA_CLOUD_TOKEN")
+		}
+	}
+}
