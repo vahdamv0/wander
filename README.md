@@ -3,11 +3,32 @@
 A self-hostable, collaborative travel planner. Spring Boot 4 + Angular 22, one
 container, one Postgres.
 
-> **Status: usable.** The roadmap below is done - accounts, trips, the itinerary,
-> sharing with roles and invitation links, live sync, expenses, packing, bookings,
-> route sorting, offline reading, and verified backups. One thing is left out on purpose rather
-> than unfinished: an offline *write* queue, which would force the conflict
-> resolution live sync was deliberately designed not to need.
+**A self-hosted, collaborative travel planner.**
+
+Plan trips together, organize itineraries, manage bookings, expenses, and packing lists — while keeping control of your data.
+
+[![Website](https://img.shields.io/badge/Website-meridianx.co.in-blue)](https://meridianx.co.in)
+
+## Why Wander?
+
+Wander is an open-source travel planner designed for people who want a collaborative travel-planning experience without giving up control of their data.
+
+- Self-hosted
+- Collaborative trip planning
+- Real-time synchronization
+- Itineraries and activities
+- Bookings
+- Expenses
+- Packing lists
+- Sharing and invitation-based access
+- Offline reading
+- Backup support
+- Progressive Web App (PWA)
+
+## Try Wander
+
+Visit **[meridianx.co.in](https://meridianx.co.in)** to learn more about Wander and explore the application.
+
 
 ## Features
 
