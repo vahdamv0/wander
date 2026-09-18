@@ -86,30 +86,39 @@
         },
         "layers": [
           {
-            "type": "geojson",
+            "type": "markers",
             "name": "Countries",
-            "config": {
-              "src": "public/maps/countries.geojson",
-              "rules": [],
-              "style": {
-                "color": {
-                  "field": "Value #A",
-                  "fixed": "#2c3235"
-                },
-                "opacity": 0.75,
-                "size": {
-                  "fixed": 5
-                },
-                "symbol": {
-                  "fixed": "img/icons/marker/circle.svg",
-                  "mode": "fixed"
-                }
-              }
-            },
             "location": {
               "mode": "lookup",
               "lookup": "country_code",
               "gazetteer": "public/gazetteer/countries.json"
+            },
+            "config": {
+              "style": {
+                "color": {
+                  "field": "Value #A",
+                  "fixed": "dark-green"
+                },
+                "opacity": 0.8,
+                "size": {
+                  "field": "Value #A",
+                  "fixed": 5,
+                  "min": 6,
+                  "max": 36
+                },
+                "symbol": {
+                  "fixed": "img/icons/marker/circle.svg",
+                  "mode": "fixed"
+                },
+                "textConfig": {
+                  "fontSize": 12,
+                  "offsetX": 0,
+                  "offsetY": 0,
+                  "textAlign": "center",
+                  "textBaseline": "middle"
+                }
+              },
+              "showLegend": false
             },
             "tooltip": true
           }
@@ -185,29 +194,7 @@
           "unit": "short"
         },
         "overrides": []
-      },
-      "transformations": [
-        {
-          "id": "labelsToFields",
-          "options": {
-            "mode": "columns"
-          }
-        },
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Time": true,
-              "country_code": true
-            },
-            "renameByName": {
-              "country": "Country",
-              "Value #A": "Requests",
-              "Value": "Requests"
-            }
-          }
-        }
-      ]
+      }
     },
     {
       "type": "table",
