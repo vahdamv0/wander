@@ -1,0 +1,89 @@
+{
+  "__inputs": [
+    { "name": "DS_LOKI", "label": "Loki", "type": "datasource", "pluginId": "loki", "description": "The Grafana Cloud Loki that Alloy pushes wander's access log to" }
+  ],
+  "title": "wander — where visitors are",
+  "description": "The half that dashboard 22870 cannot show. Caddy's Prometheus metrics carry server/handler/code/method and nothing geographic, so the country comes out of the access log, looked up by Alloy before the line leaves the machine. Accuracy is country-level and approximate: a VPN, a corporate egress or a carrier gateway all answer with somewhere the person is not. IP geolocation by DB-IP (https://db-ip.com), CC BY 4.0.",
+  "tags": ["wander", "caddy", "geoip"],
+  "timezone": "browser",
+  "editable": true,
+  "schemaVersion": 39,
+  "refresh": "5m",
+  "time": { "from": "now-7d", "to": "now" },
+  "templating": {
+    "list": [
+      { "name": "datasource", "type": "datasource", "query": "loki", "label": "Loki", "current": {} },
+      { "name": "instance", "type": "query", "datasource": "${datasource}", "label": "Instance",
+        "query": { "label": "instance", "stream": "{job=\"caddy\"}", "type": "labelValues", "refId": "instance" },
+        "refresh": 2, "includeAll": true, "current": {} }
+    ]
+  },
+  "panels": [
+    {
+      "type": "geomap", "title": "Requests by country", "id": 1,
+      "description": "Choropleth over the country code label. A country with no requests in the window is absent rather than zero.",
+      "gridPos": { "h": 13, "w": 16, "x": 0, "y": 0 },
+      "datasource": { "type": "loki", "uid": "${datasource}" },
+      "targets": [ { "refId": "A", "queryType": "instant", "editorMode": "code",
+        "expr": "sum by (country_code) (count_over_time({job=\"caddy\", instance=~\"$instance\"} [$__range]))" } ],
+      "options": {
+        "view": { "id": "zero", "lat": 20, "lon": 0, "zoom": 1.4 },
+        "basemap": { "type": "default", "name": "Basemap" },
+        "layers": [ { "type": "geojson", "name": "Countries",
+          "config": { "src": "public/maps/countries.geojson", "rules": [],
+            "style": { "color": { "field": "Value", "fixed": "dark-green" }, "opacity": 0.6,
+              "size": { "fixed": 5 }, "symbol": { "fixed": "img/icons/marker/circle.svg", "mode": "fixed" } } },
+          "location": { "mode": "lookup", "lookup": "country_code", "gazetteer": "public/gazetteer/countries.json" },
+          "tooltip": true } ],
+        "controls": { "showZoom": true, "showAttribution": true },
+        "tooltip": { "mode": "details" }
+      },
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "continuous-BlYlRd" } }, "overrides": [] }
+    },
+    {
+      "type": "piechart", "title": "Share of traffic", "id": 2,
+      "gridPos": { "h": 13, "w": 8, "x": 16, "y": 0 },
+      "datasource": { "type": "loki", "uid": "${datasource}" },
+      "targets": [ { "refId": "A", "queryType": "instant", "editorMode": "code",
+        "expr": "topk(10, sum by (country) (count_over_time({job=\"caddy\", instance=~\"$instance\"} [$__range])))" } ],
+      "options": { "legend": { "displayMode": "table", "placement": "right", "values": ["value", "percent"] },
+        "pieType": "donut", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] }
+    },
+    {
+      "type": "table", "title": "Countries, most requests first", "id": 3,
+      "description": "\"Unknown\" is an address the database has no entry for — container healthchecks and anything unrouted. It is kept rather than dropped so the totals here add up to the totals on dashboard 22870.",
+      "gridPos": { "h": 11, "w": 12, "x": 0, "y": 13 },
+      "datasource": { "type": "loki", "uid": "${datasource}" },
+      "targets": [ { "refId": "A", "queryType": "instant", "editorMode": "code",
+        "expr": "sort_desc(sum by (country, country_code) (count_over_time({job=\"caddy\", instance=~\"$instance\"} [$__range])))" } ],
+      "transformations": [
+        { "id": "labelsToFields", "options": { "mode": "columns" } },
+        { "id": "organize", "options": { "excludeByName": { "Time": true },
+          "renameByName": { "country": "Country", "country_code": "Code", "Value": "Requests" } } }
+      ],
+      "options": { "showHeader": true, "sortBy": [ { "displayName": "Requests", "desc": true } ] },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] }
+    },
+    {
+      "type": "timeseries", "title": "Requests per minute, by country", "id": 4,
+      "description": "Top five only. Everything else would be a legend nobody reads.",
+      "gridPos": { "h": 11, "w": 12, "x": 12, "y": 13 },
+      "datasource": { "type": "loki", "uid": "${datasource}" },
+      "targets": [ { "refId": "A", "editorMode": "code", "legendFormat": "{{country}}",
+        "expr": "topk(5, sum by (country) (rate({job=\"caddy\", instance=~\"$instance\"} [$__auto])))" } ],
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" } },
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "fillOpacity": 12, "lineWidth": 1, "showPoints": "never" } }, "overrides": [] }
+    },
+    {
+      "type": "logs", "title": "Recent requests", "id": 5,
+      "description": "The client address is redacted by Alloy before the line is pushed — see the stage.replace in monitoring/config.alloy, and comment it out if you need the addresses.",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 24 },
+      "datasource": { "type": "loki", "uid": "${datasource}" },
+      "targets": [ { "refId": "A", "editorMode": "code",
+        "expr": "{job=\"caddy\", instance=~\"$instance\"} | json | line_format \"{{.country}} {{.status}} {{.request_method}} {{.request_uri}}\"" } ],
+      "options": { "showTime": true, "wrapLogMessage": true, "sortOrder": "Descending", "enableLogDetails": true }
+    }
+  ]
+}

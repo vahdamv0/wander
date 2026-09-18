@@ -3,11 +3,78 @@
 A self-hostable, collaborative travel planner. Spring Boot 4 + Angular 22, one
 container, one Postgres.
 
-> **Status: usable.** The roadmap below is done — accounts, trips, the itinerary,
+> **Status: usable.** The roadmap below is done - accounts, trips, the itinerary,
 > sharing with roles and invitation links, live sync, expenses, packing, bookings,
 > route sorting, offline reading, and verified backups. One thing is left out on purpose rather
 > than unfinished: an offline *write* queue, which would force the conflict
 > resolution live sync was deliberately designed not to need.
+
+## Features
+
+**Plan the trip**
+
+- **Days are derived from the date range**, never stored - and moving the dates
+  carries the itinerary with them rather than stranding it
+- Places on a day: add, rename, annotate and **drag into order** - within a day
+  or into another one, with buttons as the equal keyboard path
+- A note on each day, **what the day cost**, and the forecast when there is one
+- **Place search over Nominatim**, proxied and cached, so a place keeps the
+  coordinates of the candidate you actually picked
+- A **vector map** beside the itinerary, so a place abroad is labelled in your
+  language *and* as it appears on the signs
+- **Place enrichment** from OpenStreetMap, Wikidata, Wikipedia and Commons -
+  description, hours, website and photographs, each with its source and licence
+
+**Go together**
+
+- Members by email, **owner / editor / viewer** roles, and handing the trip over
+- **Invitation links** for people with no account here: single-use, expiring,
+  revocable, delivered by whatever you already use to talk to them
+- **Live sync** over a WebSocket - two people on one trip see each other's edits
+  without reloading
+- A **packing list** of shared and per-person items, ticked off live
+
+**Money, without a rounding bug**
+
+- **Integer minor units everywhere**, equal or exact splits, balances, and
+  who-owes-whom reduced to the fewest payments - plus recording those payments
+- Pay in **another currency** and it converts once at the rate of that day, then
+  **frozen on the expense**, so editing it later cannot move anybody's balance
+
+**Bookings**
+
+- Flights, trains, hotels and tables stored as an **instant plus the zone** they
+  were booked in - a flight keeps London time for departure and Tokyo time for
+  arrival - and the list is ordered by when things really happen
+- **Read a booking out of a confirmation**: email, PDF, HTML, calendar
+  attachment or Apple Wallet pass, via KDE's KItinerary. It fills in the form and
+  **saves nothing until you do**
+
+**Take it with you**
+
+- **Sort a day by travel time** over an OSRM you point wander at, with locked
+  stops - proposed, never applied behind your back - then open the finished
+  order in Google Maps
+- **Print it, or save a PDF**: a day-by-day document with bookings, references
+  and phone numbers folded onto the days they happen on
+- **Export GPX**, the whole trip or one day, for OsmAnd, Organic Maps or a GPS
+- **Offline reading** - a trip you have opened stays readable with no signal,
+  honestly labelled with how old the copy is
+- **Installable** to a home screen or a dock, in its own window
+
+**Run it yourself**
+
+- **One container**: the Angular app ships inside the boot jar, beside one Postgres
+- **No API keys anywhere.** OpenFreeMap, Nominatim, Open-Meteo and Frankfurter
+  all work as shipped, and each is a setting you can point elsewhere
+- Session-cookie auth with CSRF and **sessions in Postgres**, so a restart signs
+  nobody out; self-signup off by default, and password guessing throttled
+- An **admin surface**: see the accounts, take one out of service, promote
+  somebody, and mint a single-use password-reset link - or let people request one
+  themselves once you give it an SMTP relay
+- **Nightly backups, verified** by reading each dump back, with a restore
+  procedure that has actually been run
+- Light / dark / follow-the-OS theming, all driven by design tokens
 
 ## What it looks like
 
@@ -19,7 +86,7 @@ so places abroad are labelled in your language *and* as they appear on the signs
 
 Open a place and wander asks OpenStreetMap, Wikidata, Wikipedia and Commons about
 it. Every photograph carries its photographer and its licence, because a Commons
-image is licensed *per image* — one without its credit is a picture this project
+image is licensed *per image* - one without its credit is a picture this project
 has no right to draw.
 
 ![A place panel showing a credited photograph, a Wikipedia description, a phone number and directions](docs/screenshots/place-detail.png)
@@ -32,7 +99,7 @@ been paid back.
 ![The expenses page, showing balances, a settle-up suggestion, an exact split and a recorded payment](docs/screenshots/expenses.png)
 
 Bookings are stored as an instant *plus* the zone they were booked in, so a
-flight keeps London time for its departure and Tokyo time for its arrival — and
+flight keeps London time for its departure and Tokyo time for its arrival - and
 the list is ordered by when things really happen.
 
 ![The bookings page, showing a flight that departs in BST and lands in GMT+9](docs/screenshots/bookings.png)
@@ -41,78 +108,11 @@ More: [the trip list](docs/screenshots/trips.png) ·
 [packing](docs/screenshots/packing.png) ·
 [the printable itinerary](docs/screenshots/print.png)
 
-## What works today
-
-- Register / sign in / sign out, session-cookie auth with CSRF, sessions stored in
-  Postgres so a restart does not sign everybody out. Self-signup is off by
-  default and an invitation link admits its holder anyway, so a closed instance
-  is still one people can be let into; guessing a password is throttled
-- Administering the instance: an admin sees the accounts on it, can take one out
-  of service (which signs it out everywhere, at once), can make somebody else an
-  administrator or step down themselves, and can send somebody a single-use link
-  to set a new password — the recovery for a forgotten one; with SMTP configured,
-  people can also request that link themselves from the sign-in page
-- Create, rename and reschedule trips, scoped to the people who are members of them
-- A trip's days are derived from its date range, never stored — and moving the
-  dates carries the itinerary with it rather than stranding it
-- Places on a day: add, rename, annotate, delete, and drag into order — within a
-  day or into another one, with buttons as the keyboard equivalent. Deleting asks
-  first, because it takes the notes on the place with it and there is no undo
-- What each day cost, on the day itself, and the weather forecast for it when one
-  exists — Open-Meteo, no API key, and honestly blank beyond the forecast horizon
-- A note on each day, and place search over Nominatim, proxied and cached, so a
-  place keeps its coordinates
-- A map beside the itinerary: a pin per located place, numbered by day, labelled
-  on hover and opening the place's panel when clicked — drawn from vector tiles,
-  so a place abroad is labelled in your language *and* as it appears on the signs
-- Share a trip: members by email, owner / editor / viewer roles, and handing the
-  trip over to somebody else
-- Invitation links for people with no account here: single-use, expiring,
-  revocable, and delivered by whatever you already use to talk to them
-- Live sync over a WebSocket, so two people on one trip see each other's edits
-  without reloading
-- Expenses in one currency per trip: equal or exact splits, balances, who-owes-whom
-  reduced to the fewest payments, and recording those payments
-- Pay for something in another currency and it converts once, at the rate of the
-  day it was spent, which is then **frozen on the expense** — so editing it later
-  cannot move anybody's balance. Both figures are kept, because the one on the
-  receipt is the one you can check a bank statement against. Rates come from
-  Frankfurter, which needs no API key, and you can type the rate your card
-  actually charged instead — which is also what an instance with no outbound
-  network does
-- A packing list per trip: shared items and per-person ones, ticked off live, with
-  a note of who packed each shared thing
-- Bookings — flights, trains, hotels, tables — stored as instants with the zone
-  they were booked in, so a flight keeps London time for its departure and Tokyo
-  time for its arrival, and the list is ordered by when things really happen.
-  Each one can carry a phone number, shown as typed and dialable in a tap
-- Reading a booking out of a confirmation file — an email, a PDF, an HTML page,
-  a calendar attachment or an Apple Wallet pass. It fills in the booking form and
-  saves nothing until you do, so a misread file costs a correction rather than a
-  wrong entry on everybody's trip; a confirmation with two legs offers both.
-  Behind it is KDE's KItinerary, which knows several hundred airlines, railways
-  and hotel chains, and reads the timezone of an airport code — plus a plain
-  iCalendar reader for the small hotel nobody has written an extractor for
-- Place enrichment: opening a place shows what OpenStreetMap, Wikidata, Wikipedia
-  and Commons know about it — a description, opening hours, a website and
-  photographs you can keep — each with its source and licence shown, plus
-  directions in Google Maps or OpenStreetMap
-- Offline reading: open a trip once and its days, places, bookings and packing
-  list stay readable with no connection, labelled with how old the copy is
-- Installable: add it to a phone's home screen or a desktop dock and it opens in
-  its own window, with the same offline cache behind it
-- Print or save the itinerary as a PDF — a day-by-day document with bookings,
-  confirmation references and phone numbers folded onto the days they happen on
-- Nightly database backups that are verified before they are kept, with a restore
-  procedure that has actually been run
-- Light / dark / follow-the-OS theming, all driven by design tokens
-- The Angular app and the API ship as a single jar
-
 ## Try it without installing anything
 
-Turn on the demo and wander seeds a worked example trip — an itinerary with
+Turn on the demo and wander seeds a worked example trip - an itinerary with
 photographs and a map, two people splitting expenses unevenly, a packing list,
-and a flight that lands in another timezone — plus a **read-only** account to
+and a flight that lands in another timezone - plus a **read-only** account to
 look at it with. The sign-in page then offers it, credentials and all.
 
 ```bash
@@ -120,7 +120,7 @@ WANDER_DEMO_ENABLED=true docker compose up -d
 ```
 
 The published account is a *viewer* on that trip, which the server enforces the
-same way it would for anybody else — the READ ONLY badge you will meet is the
+same way it would for anybody else - the READ ONLY badge you will meet is the
 real thing, not a demo mode. It re-seeds on every boot, so restarting the
 container resets the demo and re-dates the trip; it needs that, because a
 forecast only exists about sixteen days out.
@@ -143,13 +143,13 @@ Open <http://localhost:8080>.
 **Sign-ups are off by default.** The first admin comes from that log line; anybody
 else joins by opening an invitation link, which admits its holder even with
 self-signup switched off. Set `WANDER_REGISTRATION_ENABLED=true` in `.env` for a
-private box you would rather have an open sign-up form on — and note the browser
+private box you would rather have an open sign-up form on - and note the browser
 suite creates its accounts by registering, so an instance you run `npm run e2e`
 against needs it on.
 
 ## Before you put it on the internet
 
-Four things, and none of them is a code change:
+Five things, and none of them is a code change:
 
 1. `POSTGRES_PASSWORD` is not `change-me`.
 2. `WANDER_SITE_ADDRESS` is your hostname and `WANDER_COOKIE_SECURE=true`. They
@@ -164,7 +164,7 @@ Four things, and none of them is a code change:
    person, exactly as an invitation link works. Nobody edits
    `users.password_hash` by hand, and an instance can have more than one
    administrator, so losing one account's password is not losing the instance.
-   The limit is that recovery goes through a human — which pairs with sign-ups
+   The limit is that recovery goes through a human - which pairs with sign-ups
    being off by default, and keeps two facts in step: the people with accounts
    are people you can reach.
 
@@ -173,27 +173,27 @@ Four things, and none of them is a code change:
    on the account. This is what makes self-signup survivable at any size, since
    an instance strangers can join is one where recovery cannot go through you.
    The endpoint answers identically for an address it knows and one it does not
-   — it will never confirm who has an account here — so the page can only say
+   - it will never confirm who has an account here - so the page can only say
    "if that address has an account, a link is on its way". See `.env.example`
    for which relay to pick; **there is no provider in the code**, only SMTP.
 4. The backups are on the same disk as the database. They survive a bad
    migration, a wrong `DELETE` and a corrupted table; they do not survive losing
-   the machine. Copy them off it — see below.
+   the machine. Copy them off it - see below.
 5. **Booking import parses files your members upload.** A confirmation is fed to
-   KItinerary, and behind it poppler for PDFs and ZXing for barcodes — libraries
+   KItinerary, and behind it poppler for PDFs and ZXing for barcodes - libraries
    with a long history of parser bugs, doing exactly the thing they are bad at.
    It runs as a short-lived subprocess with a timeout, as the non-root
    application user, and the upload is never written to persistent storage, so a
    malformed file kills a child process rather than the instance. That is a
    deliberate trade rather than a non-issue: only a signed-in member who can
    already edit that trip can reach it. `WANDER_IMPORT_ENABLED=false` turns it
-   off entirely if you would rather nothing here parsed an upload — the feature
+   off entirely if you would rather nothing here parsed an upload - the feature
    simply stops being offered.
 
 `/api/auth/login` throttles guesses on its own: failed sign-ins are counted per
 account and per client address and refused with a 429 past ten and forty of them
 in a quarter of an hour, and any success clears both counts. It is not a lockout,
-deliberately — see point 3 for why one would be unrecoverable.
+deliberately - see point 3 for why one would be unrecoverable.
 
 ### If you turn sign-ups on
 
@@ -206,8 +206,8 @@ default; the settings are in `.env.example`.
   spends a bcrypt round on every call, so an unmetered one is both a way to burn
   the machine's CPU and a way to fill its user table.
 - **The upstreams are metered per person.** Place search, place enrichment and
-  the forecast all run on somebody else's donated capacity, and that — rather
-  than anything about accounts — is the real reason self-signup is off by
+  the forecast all run on somebody else's donated capacity, and that - rather
+  than anything about accounts - is the real reason self-signup is off by
   default. Authentication alone stops nothing here once anybody can register.
 - **Passwords are checked against a list of the ones that get guessed.** Ten
   characters was the whole policy before, and `password12` is ten characters.
@@ -223,8 +223,8 @@ hosts so that pointing at your own tile server does not blank the map. See
 ## Deploy it from the registry
 
 A server needs no source checkout and no JDK. CI publishes the image for
-**linux/amd64 and linux/arm64** — so an Ampere or Graviton free-tier box pulls
-the same tag as an x86 one — and **the image carries its own deployment bundle**:
+**linux/amd64 and linux/arm64** - so an Ampere or Graviton free-tier box pulls
+the same tag as an x86 one - and **the image carries its own deployment bundle**:
 
 ```bash
 docker login registry.gitlab.com -u <deploy-token-username>   # scope: read_registry
@@ -237,7 +237,7 @@ docker compose up -d --no-build
 ```
 
 The bundle is `compose.yaml`, the `Caddyfile`, the backup script, `.env.example`
-and a `DEPLOY.md` — the same files this repository tests, copied into the image
+and a `DEPLOY.md` - the same files this repository tests, copied into the image
 at build time rather than kept as a second copy in a deployment repository. That
 is the point: a compose file maintained separately from the image drifts, and the
 symptom of drift is a stack that starts and is quietly wrong.
@@ -245,7 +245,7 @@ symptom of drift is a stack that starts and is quietly wrong.
 ### Cutting a release
 
 `main` publishes `:latest` and `:<short-sha>` on every commit, and those images
-call themselves `dev` — they are builds, not releases. A release is a **tag**:
+call themselves `dev` - they are builds, not releases. A release is a **tag**:
 
 ```bash
 git tag v0.2.0 && git push origin v0.2.0
@@ -253,7 +253,7 @@ git tag v0.2.0 && git push origin v0.2.0
 
 That runs the same pipeline, publishes `:v0.2.0` alongside `:latest`, and is the
 only thing that gives the image a version. The account menu then reads
-`wander v0.2.0 · a1b2c3d` — the tag and the commit it was built from — so
+`wander v0.2.0 · a1b2c3d` - the tag and the commit it was built from - so
 somebody reporting a problem can say what they are running without being asked to
 SSH anywhere.
 
@@ -262,7 +262,7 @@ version by pointing `WANDER_IMAGE` at the commit tag CI pushes alongside
 `latest`, and note that a rollback of the image does not roll back a migration
 Flyway has already applied.
 
-Use a **deploy token** with `read_registry`, not a personal access token — this
+Use a **deploy token** with `read_registry`, not a personal access token - this
 credential lives on an internet-facing machine, and a deploy token can be revoked
 without disturbing your own access.
 
@@ -274,7 +274,7 @@ about your local version.
 
 ```bash
 # 1. Postgres on :5432 with the credentials application.yml defaults to.
-#    (Not `docker compose up -d db` — that one publishes no host port on
+#    (Not `docker compose up -d db` - that one publishes no host port on
 #    purpose, so the production stack keeps its database off the network.)
 docker run -d --name wander-dev-db -p 5432:5432 \
   -e POSTGRES_DB=wander -e POSTGRES_USER=wander -e POSTGRES_PASSWORD=wander \
@@ -306,7 +306,7 @@ Tests need a Docker daemon: they run against a real Postgres via Testcontainers,
 never H2, because the migrations use Postgres-specific SQL.
 
 **Thinking of contributing?** [CONTRIBUTING.md](CONTRIBUTING.md) is the short
-version — what to install, what CI gates on, and the one rule people trip over
+version - what to install, what CI gates on, and the one rule people trip over
 (the API client under `web/src/app/api/` is generated and committed; never edit
 it by hand). [CLAUDE.md](CLAUDE.md) is the long version, and it is where the
 *reasons* live: why days have no rows, why money is integer minor units, why a
@@ -317,7 +317,7 @@ codebase.
 
 `docker compose up -d` starts a backup sidecar alongside the database. It writes
 a compressed `pg_dump` into `./backups` once a day, keeps the newest thirty, and
-**reads each dump back with `pg_restore --list` before publishing it** — a dump
+**reads each dump back with `pg_restore --list` before publishing it** - a dump
 nobody has ever read is a file, not a backup. It writes under a temporary name
 and renames, so a copy job never picks up a half-written file, and retention only
 runs after a successful dump, so a run of failures cannot rotate away the good
@@ -326,7 +326,7 @@ copies that came before.
 Restoring, which is the half worth rehearsing before you need it:
 
 ```bash
-# Into a scratch database first — always. Restoring over a live one is how a
+# Into a scratch database first - always. Restoring over a live one is how a
 # bad backup becomes a lost database.
 docker compose exec db psql -U wander -d postgres -c "CREATE DATABASE restore_check OWNER wander;"
 docker compose exec backup pg_restore --no-owner --dbname=restore_check /backups/wander-<stamp>.dump
@@ -342,8 +342,8 @@ code fails at boot rather than quietly later. To promote it, stop the app, renam
 the databases, and start again.
 
 **These dumps do not protect you from losing the machine.** They sit on the same
-host as the database they came from, so anything that takes the host — a failed
-disk, a provider reclaiming the instance, a compromise — takes the database and
+host as the database they came from, so anything that takes the host - a failed
+disk, a provider reclaiming the instance, a compromise - takes the database and
 every backup of it in one go. Thirty dumps on one box is one copy in disguise.
 
 The other half is one line, run **from the other machine**:
@@ -360,6 +360,89 @@ at them. And it **pulls rather than the server pushing**: a machine that has bee
 taken over cannot reach into a destination it holds no credentials for, whereas a
 server that pushes can be made to delete what it previously sent.
 
+## Monitoring, and where visitors are
+
+Off unless you ask for it, and asking is a compose profile:
+
+```sh
+echo 'COMPOSE_PROFILES=monitoring' >> .env    # once
+./monitoring/geoip-update.sh                  # once, before the first start
+docker compose up -d
+```
+
+The profile lives in `.env` rather than on the command line because `update.sh`
+ends with a bare `docker compose up -d`, which selects none: passed as a flag,
+every update would leave Alloy running on the image it started with — still
+filling the dashboards, quietly a release behind, with nothing failing.
+
+That adds **one** container. Grafana Cloud hosts the Grafana, the Prometheus and
+the Loki, so none of those run here — but Cloud cannot reach into the machine,
+and publishing Caddy's metrics port or its access log so a hosted service could
+pull from them would be a far worse trade than a fifth container. So
+[Grafana Alloy](https://grafana.com/docs/alloy/) collects locally and pushes
+out. Five values in `.env` point it at your stack.
+
+Two dashboards, and the split is not arbitrary:
+
+| | Source | Dashboard |
+|---|---|---|
+| Traffic, latency, status codes | Caddy's Prometheus metrics | [22870](https://grafana.com/grafana/dashboards/22870-caddy/) from grafana.com |
+| Which country | Caddy's access log, with the country looked up | `monitoring/wander-countries.json` |
+
+The second exists because the first cannot answer it. Caddy's Prometheus metrics
+carry the labels `server`, `handler`, `code` and `method` and nothing
+geographic — a counter per country is not something Caddy exports, and it is not
+something a dashboard can derive. The country has to come out of the access log,
+where the address is, which means a log pipeline rather than a metrics one.
+
+### Decisions in it worth knowing
+
+- **The lookup happens here, not in the cloud.** Loki does not enrich on ingest,
+  so the database sits on this machine either way. `monitoring/geoip-update.sh`
+  fetches DB-IP's free country database — CC BY 4.0, no account, one `curl`,
+  which matters because this file goes stale silently. Addresses get reassigned
+  between countries; a database nobody refreshed does not fail, it gets quietly
+  wronger. Refresh it monthly from cron. The licence asks for attribution, which
+  the dashboard carries.
+- **The address is redacted before the line is pushed, and the country is not.**
+  The country is a label, set by a lookup that has already happened on this
+  machine; what goes is the ability to pick one visitor out and follow them
+  around the site. That is a different thing from knowing where people are, and
+  it is not a thing this application needs. Same bargain as hashing the
+  invitation token because the nightly dumps leave the machine, and deleting an
+  uploaded confirmation in a `finally` because it holds a booking reference. One
+  commented-out stage in `monitoring/config.alloy` reverses it, which is a
+  reasonable thing to want if you are looking at abuse rather than geography.
+- **Caddy's own metrics endpoint is not counted as traffic.** Caddy counts
+  requests to every server it runs, including the one serving `/metrics`, and
+  dashboard 22870 groups by `job` and `instance` without ever filtering on
+  `server`. Left alone, a scrape every 30 seconds arrives as 2,880 requests a day
+  — on a personal instance, most of the graph. So the Caddyfile *names* that
+  listener `metrics_only` and Alloy drops it. Naming rather than dropping `srv0`
+  is the point: Caddy numbers unnamed servers by sorting their listen addresses
+  as strings, so `:2020` is `srv0` by a coincidence of lexical ordering that
+  would reverse silently, and reversing it means discarding the real traffic and
+  keeping the synthetic.
+- **Metrics are served on their own port, not from the admin API.** Caddy already
+  exposes `/metrics` on its admin API, but that API can also rewrite the running
+  configuration — reaching it from another container would mean putting a
+  remote-control socket on the compose network to read some counters. `:2020` is
+  a plain site block with one handler on it, and compose publishes nothing.
+- **Two access loggers, not one reformatted.** `docker compose logs proxy` is how
+  anybody looks at this stack by hand, and a wall of JSON there would make the
+  console log useless in order to get a machine-readable one. `log_skip` applies
+  to the request rather than to a logger, so the invitation tokens kept out of
+  one are kept out of both — which matters more for the JSON one, because that
+  file leaves the machine.
+- **The countries are approximate, and that is inherent.** A VPN, a corporate
+  egress or a mobile carrier's national gateway each answer with somewhere the
+  person is not, and no database fixes it. This is "roughly where my visitors
+  are", not a fact about anybody.
+- **Your access log leaves the machine.** Redacted of addresses, but the paths,
+  status codes and timings land on Grafana Labs' servers with a retention you do
+  not set. That is a different trade from self-hosting Loki, and it is the one
+  being made here.
+
 ## How it fits together
 
 ```
@@ -370,7 +453,7 @@ Angular component → repo (web/src/app/repo) → generated client → /api → 
 
 **The Java code is the contract.** springdoc renders the OpenAPI document,
 `OpenApiSpecExportTest` writes it to `api/build/openapi.json`, and
-`ng-openapi-gen` turns it into `web/src/app/api`. No DTO is written twice — edit
+`ng-openapi-gen` turns it into `web/src/app/api`. No DTO is written twice - edit
 the Java record and the TypeScript type follows.
 
 The generated client **is committed**, so a fresh clone and the Docker build need
@@ -378,7 +461,7 @@ no database to produce a spec first. CI regenerates it and fails the pipeline on
 any drift, so it cannot quietly diverge.
 
 Components never call HTTP directly; they go through a repo. That seam is what
-let offline reading land without touching a single component — `OfflineCache`
+let offline reading land without touching a single component - `OfflineCache`
 sits inside the repos, and a page only has to ask how old the copy it is showing
 is. A write queue could land the same way; it deliberately has not.
 
@@ -388,8 +471,8 @@ is. A write queue could land the same way; it deliberately has not.
 an httpOnly cookie cannot be read by XSS and there is no refresh-token dance.
 Angular's `HttpClient` handles the `XSRF-TOKEN` cookie with no code.
 
-**Money is integers.** Amounts are stored and sent as minor units — `1234` is
-12.34 — in one currency per trip, fixed when the trip is created. No floating
+**Money is integers.** Amounts are stored and sent as minor units - `1234` is
+12.34 - in one currency per trip, fixed when the trip is created. No floating
 point touches money in either language, an uneven split spreads its remainder to
 the penny rather than losing it, and the balances arrive computed from the server
 so there is only ever one implementation of the arithmetic.
@@ -397,23 +480,23 @@ so there is only ever one implementation of the arithmetic.
 **Sessions live in Postgres, not in the heap.** Spring Session JDBC, with its two
 tables owned by Flyway like everything else. Because the session *is* the
 credential here, an in-memory store would mean every restart signs out every
-user — on a self-hosted instance that is a deploy logging out the household, and
+user - on a self-hosted instance that is a deploy logging out the household, and
 live sync coming back from it asking people to log in again instead of
 reconnecting. It also means a second instance behind a load balancer needs no
 sticky sessions.
 
 **Multi-tenant from the first migration.** `trip_members` was there before it
 carried anything but an `OWNER` row. Access to a trip is decided by membership and
-nothing else — there is no owner column to fall out of step with it.
+nothing else - there is no owner column to fall out of step with it.
 
 **A closed instance, but not a sealed one.** Self-signup is off by default,
 because the default has to be the safe answer for the deployment that faces the
-internet — an open form there hands this machine's Nominatim, Wikimedia and
+internet - an open form there hands this machine's Nominatim, Wikimedia and
 Open-Meteo budget, donated capacity all of it, to whoever finds the hostname. Off
 would be useless if it also broke invitation links, though: accepting one requires
 an account, and nothing here mails an invitation to make one another way. So a live
 invitation token is accepted by the sign-up form as authorisation in its own
-right. It is checked there and spent later, by the join — the failure worth having
+right. It is checked there and spent later, by the join - the failure worth having
 is an account with no trip, not an invitation burned on the way to a sign-up that
 then failed on a taken email address. A wrong token and no token get the same 403,
 so the form cannot be used to find out which invitations exist.
@@ -421,8 +504,8 @@ so the form cannot be used to find out which invitations exist.
 **The login endpoint counts wrong answers.** Bcrypt alone is not an answer to
 guessing: it makes every attempt expensive for the *server*, so a word list
 becomes an outage rather than a breach. Failures are counted per account and per
-client address — the second catches a spray across many accounts that no single
-account's counter would ever see — and a success clears both, so an ordinary
+client address - the second catches a spray across many accounts that no single
+account's counter would ever see - and a success clears both, so an ordinary
 fumbled password leaves nothing behind. The gate closes in front of the password
 check, not behind it, because the point is to stop spending the hash. It is a
 window, not a lockout: recovering an account here goes through an administrator,
@@ -430,18 +513,18 @@ so a lockout that outlived its window would be a way for a stranger to make
 somebody else's afternoon a support request.
 
 **A non-member gets 404, not 403.** A 403 confirms the trip exists, which lets
-anyone count trips by walking ids. A member with too weak a role does get 403 —
+anyone count trips by walking ids. A member with too weak a role does get 403 -
 they already know it exists.
 
 **One token layer, three theme states.** Every colour comes from a CSS variable
 in `web/src/styles.css`; no component holds a raw colour. The theme follows the OS
-by default and an explicit light/dark choice overrides it in both directions —
+by default and an explicit light/dark choice overrides it in both directions -
 which is why each dark palette is declared twice, once per condition.
 
 **Days are derived, never stored.** A stored day list is a second copy of the
 date range, and moving a trip's dates would then mean keeping two things in step.
 A place therefore carries a plain `day_date` rather than a foreign key, and
-`GET /api/trips/{id}/itinerary` rebuilds the range on every read — empty days
+`GET /api/trips/{id}/itinerary` rebuilds the range on every read - empty days
 included, so the client never reconstructs it.
 
 **Place search is proxied, never called from the browser.** Nominatim's usage
@@ -452,12 +535,12 @@ without any client learning a new address. `GeocodingService` holds the toggle,
 the LRU cache, and the rate gate; `GeocoderClient` is the interface the tests
 replace, so the suite never touches the network or spends a public service's
 budget. Search off (`WANDER_GEOCODING_ENABLED=false`) is a supported
-configuration — the itinerary still works, places are typed by hand and simply
+configuration - the itinerary still works, places are typed by hand and simply
 have no coordinates.
 
 **The client asks the instance what it may do.** `GET /api/config` carries the
 tile URL, its attribution, and whether search works. None of it is compiled into
-the client, because all of it is the operator's decision — an instance pointed at
+the client, because all of it is the operator's decision - an instance pointed at
 its own tile server, or one with no outbound network at all, is a supported
 configuration rather than a broken one.
 
@@ -469,7 +552,7 @@ attribution travels with the URL, because the terms attach to the service, not t
 the code.
 
 **The basemap is vector, and that is what makes it readable abroad.** A raster
-tile is a picture with the local name already painted into it — 東京都, never
+tile is a picture with the local name already painted into it - 東京都, never
 Tokyo, whatever the browser asks for. Vector tiles carry `name`, `name:latin` and
 `name:xx` as data, so the client chooses, and wander draws both lines: the
 reader's language over the local name, because on a trip the useful map is the
@@ -478,7 +561,7 @@ map follows the theme with a dark style rather than a filter over a light one.
 The default is [OpenFreeMap](https://openfreemap.org), which needs no API key and
 no account; `WANDER_MAP_STYLE_URL` points somewhere else, and setting it blank
 falls back to raster tiles from `WANDER_MAP_TILE_URL`, which an instance with its
-own tile server loses nothing by — except the language.
+own tile server loses nothing by - except the language.
 
 **Results come back in the browser's language.** The caller's `Accept-Language`
 is forwarded to the geocoder and keyed into the cache with the query, because a
@@ -497,8 +580,8 @@ with no hover they simply stay visible. Both paths make the same one call.
 
 **The one irreversible action asks first.** Deleting a place takes the notes
 written on it, has no undo, and live sync puts it on everybody else's screen
-within the second. It can be reached two ways — the row's `×` and the detail
-panel — and both now confirm inline, naming what goes with it. The `×` in
+within the second. It can be reached two ways - the row's `×` and the detail
+panel - and both now confirm inline, naming what goes with it. The `×` in
 particular is a small icon directly after "move to next day", permanently visible
 on a device with no hover, which is a mis-tap away from destroying something.
 It is the only confirmation in wander so far. Most of what else can be deleted
@@ -507,7 +590,7 @@ back in needs the owner, and it is the obvious next candidate.
 
 **The map is a view, not a surface for content.** Everything known about a place
 lives in a panel; the pin carries a label and nothing more. That is a lesson
-rather than a preference — the enrichment was built into a Leaflet popup first,
+rather than a preference - the enrichment was built into a Leaflet popup first,
 and a popup computes its size and its auto-pan once, on open, so anything that
 arrives afterwards does not fit. The label is a tooltip for the same family of
 reason: Leaflet positions a popup to fit the *map container* and cannot see the
@@ -521,25 +604,25 @@ OpenStreetMap as plain links out, in that order, and sends nothing to either
 beyond the coordinates in the URL the user chose to open.
 
 **A day can be sorted by route, and the sort proposes rather than applies.**
-Point `WANDER_ROUTING_URL` at an OSRM — off by default, because unlike the
+Point `WANDER_ROUTING_URL` at an OSRM - off by default, because unlike the
 geocoder and the forecast there is no routing service anybody is *entitled* to
 lean on, and OSRM over a Geofabrik extract is a `docker run`. FOSSGIS do run
 public instances at `routing.openstreetmap.de`, and their terms permit this
-shape of use: one request a second — so raise `WANDER_ROUTING_MIN_INTERVAL_MS`
-to 1000, its default of 200 being written for an engine in the next rack — a
+shape of use: one request a second - so raise `WANDER_ROUTING_MIN_INTERVAL_MS`
+to 1000, its default of 200 being written for an engine in the next rack - a
 User-Agent that names the application, which wander sends, and the
 OpenStreetMap credit with a link to fixthemap. `.env.example` carries the four
 lines to copy. It stays a documented option rather than the default for three
 reasons: access is revocable without notice, pointing every instance at one
 donated server is the aggregate those terms exist to prevent, and each profile
-lives behind its own path prefix there while wander has a single base URL — so
+lives behind its own path prefix there while wander has a single base URL - so
 all three profiles answer from whichever graph you name, and asking for driving
 would quietly return walking times. wander asks it for one matrix of travel
 times between the day's stops, runs nearest-neighbour then 2-opt over it, and
 shows the result as a **proposal** with what it saves: 30 minutes of walking
 down to 16. Nothing is written until somebody says so, which is the same
 bargain booking import makes, and applying it goes through the ordinary reorder
-— so there is one thing on the server that decides what order a day is in,
+- so there is one thing on the server that decides what order a day is in,
 whether the order came from a drag or an optimiser. A stop can be **locked** to
 its position (the hotel to start from, the table booked for eight) and the rest
 are fitted around it; a place with no coordinates is locked implicitly, because
@@ -559,14 +642,14 @@ saying by whom.
 
 **The server owns ordering.** Ranks are dense and zero-based, and any move or
 delete renumbers the affected day from scratch inside one transaction. Moving a
-place is one operation — "put it at rank N of day D" — which is what the up/down
+place is one operation - "put it at rank N of day D" - which is what the up/down
 buttons and a drag both send. The client re-reads after a write rather than
 guessing at the new ranks.
 
 **A backup nobody has restored is not a backup.** The sidecar reads every dump
 back with `pg_restore --list` before publishing it, and the documented restore was
 carried out rather than written down from memory: dumped, restored into a scratch
-database, compared row-for-row by checksum against the original, and then booted —
+database, compared row-for-row by checksum against the original, and then booted -
 the application started against the restored copy and Flyway validated all 14
 migrations. Retention only runs after a dump succeeds, so a bad week cannot rotate
 the good copies away. This is the one part of the system whose failure is
@@ -576,12 +659,12 @@ unrecoverable, and it is the one part where "it looked fine" is worth the least.
 digest is stored, so the token is readable exactly once and a leaked backup is
 inert; accepting takes a row lock, so a forwarded link cannot admit two people at
 once; an unknown token is a 404 whatever is wrong with it, so guessing tells you
-nothing. It needs no mail server, which is why it was never really blocked — the
+nothing. It needs no mail server, which is why it was never really blocked - the
 owner sends the link themselves.
 
 **Printing needs no PDF library.** `window.print()` is already a PDF exporter in
 every browser: it honours the reader's paper size, works offline from the cache,
-and needs no endpoint — the printable page is assembled from the two repos the app
+and needs no endpoint - the printable page is assembled from the two repos the app
 already has. What it did need was a stylesheet, and the two things that would ruin
 a printout (the app shell coming along, the toolbar printing itself) are invisible
 on screen, so the browser test asserts them under `emulateMedia({ media: 'print' })`
@@ -590,8 +673,8 @@ rather than trusting them.
 **Installing it needed a manifest, not a framework.** The service worker had
 been there since offline reading landed; what was missing was the file that
 gives a browser a name, an icon and a window to install *with*. The icons come
-from one drawing composited three ways by Playwright's Chromium — the same
-engine that will draw them — rather than by a native image library added to
+from one drawing composited three ways by Playwright's Chromium - the same
+engine that will draw them - rather than by a native image library added to
 render four pictures that change never. Installing is also what made an update
 prompt necessary: ngsw serves a new build on the next *load*, and a standalone
 window has no reload button and stays open for the length of a holiday. It asks
@@ -616,35 +699,35 @@ tables under a running instance. Don't lower a gate to land a change.
 
 ## Roadmap
 
-1. **Milestone 0 — walking skeleton.** ✅ Accounts, trips, contract loop, one container.
+1. **Milestone 0 - walking skeleton.** ✅ Accounts, trips, contract loop, one container.
 2. **Days and places.** ✅ Days from the date range, places with ordering within
    and across days, place search over Nominatim, a Leaflet map, drag ordering,
    and a note on each day.
 3. **Sharing.** ✅ The member list, roles beyond `OWNER`, transferring a trip,
-   live sync, and invitation links — add somebody by email, or send a link to
+   live sync, and invitation links - add somebody by email, or send a link to
    somebody with no account at all, make them an editor or a viewer, hand the trip
    over, and watch each other's edits appear without reloading.
-4. **Money and stuff.** Expenses are done ✅ — one currency per trip, amounts in
+4. **Money and stuff.** Expenses are done ✅ - one currency per trip, amounts in
    integer minor units, equal or exact splits, a "who owes whom" summary reduced
    to the fewest payments, and recording those payments so balances actually
    clear, a packing list grouped by who is bringing what, and bookings kept on a
-   real clock — each time in the zone it happens in. An expense may be paid in
+   real clock - each time in the zone it happens in. An expense may be paid in
    **any** currency: it is converted once on the way in, at the rate of the day,
-   and that rate is stored on the row — so the balances stay arithmetic in one
+   and that rate is stored on the row - so the balances stay arithmetic in one
    currency and a later edit cannot silently re-price a holiday.
    The day card is finished alongside it: the day's own note, **what the day
    cost** (grouped from the expenses, payments excluded), and **the forecast**
-   from Open-Meteo when there is one — no API key, CC BY 4.0, and nothing at all
+   from Open-Meteo when there is one - no API key, CC BY 4.0, and nothing at all
    for a day past the ~16-day horizon rather than a placeholder.
-5. **Offline.** Reads are done ✅ — a service worker for the app shell and
+5. **Offline.** Reads are done ✅ - a service worker for the app shell and
    IndexedDB inside the repos, so a trip you have opened is readable with no
    signal, honestly labelled as a saved copy. Writes are refused rather than
    queued: a replay queue forces conflict resolution that live sync deliberately
-   never needed, and that stays a decision rather than a gap. Installing it is done too ✅ —
+   never needed, and that stays a decision rather than a gap. Installing it is done too ✅ -
    a manifest, an icon and a standalone window, plus the piece that only matters
    once there is no reload button: a prompt when a new build is waiting.
 6. **Routes.** ✅ Sorting a day by how long it takes to get between its stops,
-   over an OSRM you point wander at, on foot, driving or cycling — proposed
+   over an OSRM you point wander at, on foot, driving or cycling - proposed
    rather than applied, with locked stops staying where they are, and the
    finished order handed to Google Maps.
 
@@ -658,7 +741,7 @@ Copyright © 2026 Vivek Madhav and wander contributors.
 The AGPL was chosen over a permissive licence for the reason the AGPL exists:
 wander is software people *run as a service* for other people, and under
 MIT/Apache-2.0 a host could take it, improve it, and offer it back to its users
-with the improvements closed. Section 13 is what closes that gap — modify wander
+with the improvements closed. Section 13 is what closes that gap - modify wander
 and run it for others over a network, and those users are entitled to the source
 of what they are actually using. Self-hosting is the whole point of this project,
 so the licence that protects the people doing the hosting is the right one.
@@ -668,7 +751,7 @@ wrong:
 
 - **Using wander is unrestricted.** Run it, host it for your household, plan
   trips on it. The obligations attach to *distributing* a modified version or
-  *offering a modified version to others over a network* — not to use.
+  *offering a modified version to others over a network* - not to use.
 - **Section 13 wants a source offer in the running app**, and wander ships one.
   There is a **Source** link on the sign-in page and in the account menu. It is
   on the sign-in page as well as behind it on purpose: section 13 owes source to
@@ -677,7 +760,7 @@ wrong:
 
   ![The account menu, showing the build chip and the Source link beside it](docs/screenshots/account-menu.png)
 
-  It is a setting, `WANDER_SOURCE_URL`, not a compiled-in constant — **if you
+  It is a setting, `WANDER_SOURCE_URL`, not a compiled-in constant - **if you
   modify wander, point it at your fork.** Leaving it aimed at upstream is worse
   than removing it, because it looks like compliance while naming code your
   instance is not running. Blanking it hides the link, which is meant for a
@@ -686,7 +769,7 @@ wrong:
 
 ### Third-party notices
 
-wander redistributes other people's code — Angular, Leaflet, MapLibre and rxjs
+wander redistributes other people's code - Angular, Leaflet, MapLibre and rxjs
 in the browser bundle, Spring and its dependencies in the jar, and the whole
 KItinerary, Qt, poppler and ZXing stack in the image. MIT, BSD, ISC and
 Apache-2.0 all require the copyright notice to travel with a **binary**
@@ -699,12 +782,12 @@ docker run --rm --entrypoint sh registry.gitlab.com/vm83043-dev/wander:latest -c
 
 Three parts, because there are three things being redistributed and they are
 generated in two different places. Parts 1 and 2 are the jar's dependency trees
-— the browser bundle and the server's jars — written by `./gradlew
+- the browser bundle and the server's jars - written by `./gradlew
 thirdPartyNotices` to `build/THIRD-PARTY.txt`. **Part 3 is the operating-system
 packages**, appended when the image is built, by `deploy/os-notices.sh` reading
 apk's own database. It has to happen there: the package set belongs to the
 runtime stage rather than the source tree, and it genuinely differs by
-architecture — 233 packages on amd64, and a slightly shorter list on arm64.
+architecture - 233 packages on amd64, and a slightly shorter list on arm64.
 
 All of it is **generated, never committed**, for the same reason the API client
 is: a hand-maintained list goes stale the first time somebody adds a dependency
@@ -713,11 +796,11 @@ most needs to be right.
 
 Part 3 is also where the copyleft components are, and it says so rather than
 burying them: the image contains GPL, LGPL and MPL packages, and the notice
-carries the offer of source for them — Alpine's aports plus each project's
+carries the offer of source for them - Alpine's aports plus each project's
 upstream, since these are Alpine's own unmodified binary packages. None of that
 reaches wander's own licensing. They are separate programs sharing a filesystem,
 not code linked into the application, which talks to KItinerary by running it and
-reading its output — so a GPL-2.0-only utility can sit beside an AGPL-3.0
+reading its output - so a GPL-2.0-only utility can sit beside an AGPL-3.0
 application here without either licence touching the other. **If you rebuild
 this image with your own changes to those packages, that offer of source becomes
 yours to make.**
