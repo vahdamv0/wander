@@ -3,7 +3,7 @@
 Everything here came out of the image, so it matches the version you pulled:
 
 ```bash
-docker run --rm registry.gitlab.com/vm83043-dev/wander:latest bundle | tar x
+docker run --rm ghcr.io/vahdamv0/wander:latest bundle | tar x
 ```
 
 You need Docker with the **Compose v2 plugin** (`docker compose`, two words) and
@@ -14,12 +14,8 @@ as an x86 one.
 ## First run
 
 ```bash
-# 1. The registry is private, so authenticate once. Use a *deploy token*
-#    (GitLab → Settings → Repository → Deploy tokens) with scope read_registry,
-#    not your personal access token: this credential sits on a server.
-docker login registry.gitlab.com -u <deploy-token-username>
 
-# 2. Configure. Every setting is commented in the file.
+# 1. Configure. Every setting is commented in the file.
 cp .env.example .env
 $EDITOR .env
 
@@ -32,7 +28,7 @@ docker compose logs wander      # the generated admin password, printed once
 The four lines in `.env` that decide whether this works:
 
 ```
-WANDER_IMAGE=registry.gitlab.com/vm83043-dev/wander:latest
+WANDER_IMAGE=ghcr.io/vahdamv0/wander:latest
 POSTGRES_PASSWORD=<not change-me>
 WANDER_SITE_ADDRESS=wander.example.com   # or :80 for plain HTTP
 WANDER_COOKIE_SECURE=true                # false with :80 — they move together
@@ -112,7 +108,7 @@ of the previous image untouched.
 pushes and change one line in `.env`:
 
 ```
-WANDER_IMAGE=registry.gitlab.com/vm83043-dev/wander:a1b2c3d
+WANDER_IMAGE=ghcr.io/vahdamv0/wander:a1b2c3d
 ```
 
 Rolling back is then editing that line and running `./update.sh` — with the
