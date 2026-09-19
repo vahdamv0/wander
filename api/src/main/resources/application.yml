@@ -122,7 +122,7 @@ wander:
   # network owes its users the source of the version it is running. If you
   # modify wander, point this at your fork — a link to upstream would name code
   # your instance is not running.
-  source-url: ${WANDER_SOURCE_URL:https://gitlab.com/vm83043-dev/wander}
+  source-url: ${WANDER_SOURCE_URL:https://github.com/vahdamv0/wander}
 
   # Sending mail. Off by default, and the default is the point: this is the only
   # upstream in wander with no working public option — Nominatim, Open-Meteo and
