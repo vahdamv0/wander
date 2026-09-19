@@ -248,9 +248,8 @@ A server needs no source checkout and no JDK. CI publishes the image for
 the same tag as an x86 one - and **the image carries its own deployment bundle**:
 
 ```bash
-docker login registry.gitlab.com -u <deploy-token-username>   # scope: read_registry
 mkdir -p /opt/wander && cd /opt/wander
-docker run --rm registry.gitlab.com/vm83043-dev/wander:latest bundle | tar x
+docker run --rm ghcr.io/vahdamv0/wander:latest bundle | tar x
 
 cp .env.example .env && $EDITOR .env    # WANDER_IMAGE, POSTGRES_PASSWORD, the site address
 docker compose pull
@@ -798,7 +797,7 @@ distribution, and a container image is a binary distribution, so the image
 carries them:
 
 ```bash
-docker run --rm --entrypoint sh registry.gitlab.com/vm83043-dev/wander:latest -c 'cat /app/THIRD-PARTY.txt'
+docker run --rm --entrypoint sh ghcr.io/vahdamv0/wander:latest -c 'cat /app/THIRD-PARTY.txt'
 ```
 
 Three parts, because there are three things being redistributed and they are
