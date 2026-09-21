@@ -198,6 +198,13 @@ services:
       - wander
     environment:
       WANDER_SITE_ADDRESS: ${WANDER_SITE_ADDRESS:-:80}
+      # Who may tell us a visitor's address, and in which header. Passed through
+      # bare, the WANDER_SOURCE_URL style: unset in .env means the variable
+      # reaches the container *absent* rather than empty, so the Caddyfile's own
+      # default applies and no proxy is trusted. Nothing in the image sets these,
+      # so listing them here takes nothing away.
+      WANDER_TRUSTED_PROXIES:
+      WANDER_CLIENT_IP_HEADER:
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       # Certificates and ACME account keys. This volume is not optional: without

@@ -20,6 +20,27 @@
 {
 	metrics
 
+	# Who is allowed to tell us the client's address, and in which header.
+	#
+	# Both default to matching nothing: 192.0.2.1 is TEST-NET-1 (RFC 5737), which
+	# is never routed, so out of the box no proxy is trusted and `{client_ip}`
+	# below is simply the peer Caddy is talking to. That is the right default for
+	# a stack that is the only thing in front of the application.
+	#
+	# Set them when something else terminates the connection first - a CDN, or a
+	# load balancer. Behind Cloudflare, for instance:
+	#
+	#   WANDER_TRUSTED_PROXIES=<the ranges from cloudflare.com/ips>
+	#   WANDER_CLIENT_IP_HEADER=Cf-Connecting-Ip
+	#
+	# This is a setting rather than a list in this file because the file ships in
+	# the image and is what every self-hoster runs, and most of them are behind no
+	# CDN at all.
+	servers {
+		trusted_proxies static {$WANDER_TRUSTED_PROXIES:192.0.2.1/32}
+		client_ip_headers {$WANDER_CLIENT_IP_HEADER:X-Forwarded-For}
+	}
+
 	# Name the metrics listener, so the series it generates can be told apart
 	# from real traffic and thrown away before they leave the machine.
 	#
@@ -107,12 +128,17 @@
 			# X-Forwarded-For arrived, so a request sent here with a forged
 			# `X-Forwarded-For: 1.2.3.4` reaches the app as `1.2.3.4, <real
 			# client>`. The app runs with `server.forward-headers-strategy:
-			# framework`, whose ForwardedHeaderFilter takes the *first* entry —
+			# framework`, whose ForwardedHeaderFilter takes the *first* entry -
 			# so without this, getRemoteAddr() is whatever the caller says it
 			# is, and LoginThrottle's per-address counter can be evaded by
 			# rotating a header. Binding 8080 to loopback does not help: that
 			# stops somebody going around this proxy, and this goes through it.
-			header_up X-Forwarded-For {remote_host}
+			#
+			# `{client_ip}` rather than `{remote_host}`: they are the same thing
+			# until a trusted proxy is configured above, and when one is, this is
+			# the visitor instead of the CDN. Writing `{remote_host}` here would
+			# be correct only for a stack with nothing in front of it.
+			header_up X-Forwarded-For {client_ip}
 		}
 	}
 
