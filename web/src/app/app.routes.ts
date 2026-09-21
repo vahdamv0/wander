@@ -3,6 +3,12 @@ import { adminGuard } from './core/admin.guard';
 import { authGuard } from './core/auth.guard';
 import { AppShell } from './shell/app-shell';
 
+// NOTE: the deployed proxy allowlists these paths by name. A route added here
+// and not to the `@known` matcher in the Caddyfile 404s behind Caddy, and it
+// fails in the nastiest way available: navigating to it in the app works,
+// because routing is client-side and asks the server for nothing, and so do
+// `ng serve` and the browser suite, which do not run behind that proxy. It
+// breaks only on a reload, a bookmark or a shared link, only in production.
 export const routes: Routes = [
   {
     path: 'login',

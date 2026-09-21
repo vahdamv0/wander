@@ -43,27 +43,83 @@
 }
 
 {$WANDER_SITE_ADDRESS::80} {
-	# WebSockets need no configuration here: Caddy passes an Upgrade request
-	# through reverse_proxy untouched, which is what live sync rides on. It is
-	# the reason this is Caddy and not nginx, where forgetting the Upgrade and
-	# Connection headers leaves an app that looks fine and silently stops syncing.
+	# An allowlist: a path this file does not name is a 404 and never reaches
+	# the application.
 	#
-	# X-Forwarded-Proto is set automatically, and the app already trusts it
-	# (`server.forward-headers-strategy: framework`), so it knows the request
-	# arrived over HTTPS even though it is served plain HTTP inside the network.
-	reverse_proxy wander:8080 {
-		# Overwrite rather than append, and this line is load-bearing.
+	# THIS IS A SECOND COPY OF web/src/app/app.routes.ts. Adding a route there and
+	# not here 404s the new page, and it does so in the nastiest way available:
+	# navigating to it in the app works, because Angular routes client-side and
+	# asks the server for nothing; `ng serve` works; the browser suite passes,
+	# because it does not run behind this proxy. It breaks only on a reload, a
+	# bookmark or a shared link, only in production. There is a pointer back to
+	# this file beside the route table.
+	#
+	# /.well-known has to stay reachable whatever else goes: ACME's HTTP-01
+	# challenge lives there, and that is the whole of automatic HTTPS.
+	@known {
+		# Client routes, in the order app.routes.ts declares them. Each parent is
+		# named twice because `/trips/*` does not match `/trips`.
+		path /
+		path /login
+		path /forgot
+		path /reset/*
+		path /trips /trips/*
+		path /invite/*
+		path /account
+		path /admin
+
+		# The API, which does its own default-deny in SecurityConfig, and the
+		# WebSocket live sync rides on (/api/ws/trips/*).
+		path /api/*
+
+		# Certificate issuance.
+		path /.well-known/*
+
+		# The Angular build and the files in web/public.
+		path /index.html
+		path /*.js /*.mjs /*.css
+		path /media/*
+		path /manifest.webmanifest
+		path /favicon.ico /favicon.svg /icon.svg
+		path /icon-192.png /icon-512.png /icon-maskable-512.png
+		path /apple-touch-icon.png
+		path /robots.txt
+
+		# The service worker's own manifest. Requested as
+		# /ngsw.json?ngsw-cache-bust=... and a query string does not affect a path
+		# matcher. ngsw-worker.js and safety-worker.js are matched by /*.js above.
+		path /ngsw.json
+	}
+
+	handle @known {
+		# WebSockets need no configuration here: Caddy passes an Upgrade request
+		# through reverse_proxy untouched, which is what live sync rides on. It is
+		# the reason this is Caddy and not nginx, where forgetting the Upgrade and
+		# Connection headers leaves an app that looks fine and silently stops syncing.
 		#
-		# Caddy's default is to *add* the real client to whatever
-		# X-Forwarded-For arrived, so a request sent here with a forged
-		# `X-Forwarded-For: 1.2.3.4` reaches the app as `1.2.3.4, <real
-		# client>`. The app runs with `server.forward-headers-strategy:
-		# framework`, whose ForwardedHeaderFilter takes the *first* entry —
-		# so without this, getRemoteAddr() is whatever the caller says it
-		# is, and LoginThrottle's per-address counter can be evaded by
-		# rotating a header. Binding 8080 to loopback does not help: that
-		# stops somebody going around this proxy, and this goes through it.
-		header_up X-Forwarded-For {remote_host}
+		# X-Forwarded-Proto is set automatically, and the app already trusts it
+		# (`server.forward-headers-strategy: framework`), so it knows the request
+		# arrived over HTTPS even though it is served plain HTTP inside the network.
+		reverse_proxy wander:8080 {
+			# Overwrite rather than append, and this line is load-bearing.
+			#
+			# Caddy's default is to *add* the real client to whatever
+			# X-Forwarded-For arrived, so a request sent here with a forged
+			# `X-Forwarded-For: 1.2.3.4` reaches the app as `1.2.3.4, <real
+			# client>`. The app runs with `server.forward-headers-strategy:
+			# framework`, whose ForwardedHeaderFilter takes the *first* entry —
+			# so without this, getRemoteAddr() is whatever the caller says it
+			# is, and LoginThrottle's per-address counter can be evaded by
+			# rotating a header. Binding 8080 to loopback does not help: that
+			# stops somebody going around this proxy, and this goes through it.
+			header_up X-Forwarded-For {remote_host}
+		}
+	}
+
+	# Everything else. Logged rather than skipped: being scanned is worth seeing,
+	# and it is the burst rather than the individual line that says anything.
+	handle {
+		respond 404
 	}
 
 	# The jar serves pre-compressed assets, but the JSON API is not compressed
@@ -128,4 +184,3 @@
 	# ships to Grafana Cloud.
 	log_skip
 }
-
