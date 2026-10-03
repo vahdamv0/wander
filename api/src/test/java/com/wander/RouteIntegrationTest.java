@@ -66,6 +66,37 @@ class RouteIntegrationTest extends IntegrationTestBase {
     }
 
     @Test
+    void estimatesTravelLegsInThePlannedOrderForViewers() {
+        Session alice = register("alice");
+        Session bob = register("bob");
+        Trip trip = threeStops(alice);
+        assertThat(post(alice, "/api/trips/" + trip.id + "/members", """
+                {"email":"%s","role":"VIEWER"}
+                """.formatted(bob.email())).getStatusCode().value()).isEqualTo(201);
+        when(routeClient.table(any(), any())).thenReturn(reversing());
+
+        Map<String, Object> estimates = asMap(post(bob,
+                "/api/trips/" + trip.id + "/days/" + trip.day + "/route/legs?profile=WALKING", "")
+                .getBody());
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> legs = (List<Map<String, Object>>) estimates.get("legs");
+        assertThat(legs).hasSize(2);
+        assertThat(((Number) legs.get(0).get("fromPlaceId")).longValue()).isEqualTo(trip.nijo);
+        assertThat(((Number) legs.get(0).get("toPlaceId")).longValue()).isEqualTo(trip.gion);
+        assertThat(legs.get(0))
+                .containsEntry("seconds", 900)
+                .containsEntry("metres", 9000);
+        assertThat(((Number) legs.get(1).get("fromPlaceId")).longValue()).isEqualTo(trip.gion);
+        assertThat(((Number) legs.get(1).get("toPlaceId")).longValue()).isEqualTo(trip.kiyomizu);
+        assertThat(legs.get(1))
+                .containsEntry("seconds", 900)
+                .containsEntry("metres", 9000);
+        verify(routeClient).table(eq(RouteProfile.WALKING), any());
+        assertThat(planned(alice, trip)).containsExactly("Nijo", "Gion", "Kiyomizu");
+    }
+
+    @Test
     void applyingAProposalReordersTheDay() {
         Session alice = register("alice");
         Trip trip = threeStops(alice);
