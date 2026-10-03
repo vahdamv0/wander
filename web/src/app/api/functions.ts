@@ -105,6 +105,8 @@ export type { RevokeInvite$Params as RevokeInvite$Params } from './fn/trip-invit
 export { revokeInvite as revokeInvite } from './fn/trip-invite-controller/revoke-invite';
 export type { PreviewDayRoute$Params as PreviewDayRoute$Params } from './fn/route-controller/preview-day-route';
 export { previewDayRoute as previewDayRoute } from './fn/route-controller/preview-day-route';
+export type { EstimateDayRouteLegs$Params as EstimateDayRouteLegs$Params } from './fn/route-controller/estimate-day-route-legs';
+export { estimateDayRouteLegs as estimateDayRouteLegs } from './fn/route-controller/estimate-day-route-legs';
 export type { PreviewReset$Params as PreviewReset$Params } from './fn/password-reset-controller/preview-reset';
 export { previewReset as previewReset } from './fn/password-reset-controller/preview-reset';
 export type { RedeemReset$Params as RedeemReset$Params } from './fn/password-reset-controller/redeem-reset';
