@@ -1,5 +1,12 @@
 import { Injectable, inject, signal } from '@angular/core';
-import { Api, DayRoutePreview, PreviewDayRoute$Params, previewDayRoute } from '../api';
+import {
+  Api,
+  DayRouteLegsView,
+  DayRoutePreview,
+  PreviewDayRoute$Params,
+  estimateDayRouteLegs,
+  previewDayRoute,
+} from '../api';
 
 /** The three profiles, taken from the generated parameter rather than retyped. */
 export type RouteProfile = NonNullable<PreviewDayRoute$Params['profile']>;
@@ -25,10 +32,17 @@ export class RouteRepo {
   private readonly api = inject(Api);
 
   private readonly _preview = signal<DayRoutePreview | null>(null);
+  private readonly _legs = signal<DayRouteLegsView | null>(null);
+  private readonly _estimating = signal<string | null>(null);
+  private readonly _estimateError = signal(false);
+  private requestId = 0;
   /** Not `saving`: this writes nothing, and the page's controls stay live. */
   private readonly _previewing = signal<string | null>(null);
 
   readonly preview = this._preview.asReadonly();
+  readonly legs = this._legs.asReadonly();
+  readonly estimating = this._estimating.asReadonly();
+  readonly estimateError = this._estimateError.asReadonly();
   readonly previewing = this._previewing.asReadonly();
 
   /**
@@ -46,8 +60,38 @@ export class RouteRepo {
     }
   }
 
-  /** Dismissing a proposal, and what applying one calls when it is done. */
+  /** Travel estimates for the current order, without asking the optimiser to reorder it. */
+  async estimate(tripId: number, date: string, profile: RouteProfile): Promise<void> {
+    const requestId = ++this.requestId;
+    this._legs.set(null);
+    this._estimateError.set(false);
+    this._estimating.set(date);
+    try {
+      const legs = await this.api.invoke(estimateDayRouteLegs, { tripId, date, profile });
+      if (requestId === this.requestId) {
+        this._legs.set(legs);
+      }
+    } catch {
+      if (requestId === this.requestId) {
+        this._estimateError.set(true);
+      }
+    } finally {
+      if (requestId === this.requestId) {
+        this._estimating.set(null);
+      }
+    }
+  }
+
+  clearEstimates(): void {
+    this.requestId++;
+    this._legs.set(null);
+    this._estimating.set(null);
+    this._estimateError.set(false);
+  }
+
+  /** Dismissing proposals and stale estimates. */
   clear(): void {
     this._preview.set(null);
+    this.clearEstimates();
   }
 }

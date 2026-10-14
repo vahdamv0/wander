@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.wander.common.UpstreamQuota;
 import com.wander.route.dto.DayRoutePreview;
+import com.wander.route.dto.DayRouteLegsView;
 import com.wander.security.WanderUser;
 
 /**
@@ -51,5 +52,15 @@ public class RouteController {
         // the line costs a map lookup rather than an outbound call.
         quota.route(principal.id());
         return routes.preview(principal.id(), tripId, date, profile);
+    }
+
+    /** Travel estimates in the current order, without proposing or applying a reorder. */
+    @PostMapping("/legs")
+    public DayRouteLegsView estimateDayRouteLegs(@AuthenticationPrincipal WanderUser principal,
+            @PathVariable Long tripId,
+            @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam(defaultValue = "WALKING") RouteProfile profile) {
+        quota.route(principal.id());
+        return routes.estimateLegs(principal.id(), tripId, date, profile);
     }
 }

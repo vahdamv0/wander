@@ -1410,6 +1410,31 @@ three profiles — and the finished order handed to Google Maps.
   there is no hover, and an `sr-only` name in a row once broke six browser tests
   at once.
 
+## Today view
+
+The trip page has two views: **Today** (the default while this device's local
+date falls inside the trip) and **Plan** (the full itinerary). Today combines
+that day's places with reservations whose start date in their own zone is
+today; bookings keep their stored zones, while places only have a wall-clock
+`TIME` and are interpreted in the device's local zone. The clock refreshes
+every 30 seconds.
+
+- **The completion marks are local, not shared.** They are keyed in localStorage
+  by user, trip and date. A person checking off breakfast should not change
+  everybody else's page or the shared itinerary.
+- **Running late is a preview, not a write.** It shifts upcoming place times in
+  Today only; bookings remain fixed commitments. It resets when the local date
+  changes and is never sent to `PlaceRepo`.
+- **Travel time uses `/route/legs`, not the auto-sort preview.** That endpoint
+  returns adjacent legs in the current order from one `/table` call, is
+  available to viewers, and spends `UpstreamQuota.route`. The client requests it
+  only when Today is open and the instance has routing enabled. Do not reuse
+  `/route/preview`: it is editor-only and exists to propose a different order.
+- The date comes from the device, not the trip's destination — trips do not
+  store a timezone. Reservations are selected by date in their own zones and
+  retain their actual instants for countdowns. Do not turn a place's
+  `starts_at` into a globally meaningful instant.
+
 ## The forecast on a day card
 
 A fifth upstream, behind the same shape as the others: `WeatherClient` is the seam
@@ -1651,7 +1676,7 @@ or **one day at a time** from that day's own card.
 ## Unit tests in the client
 
 `cd web && npm run test` (vitest, via `@angular/build:unit-test`). The specs all
-sit in `core/` — `money`, `zones`, `errors` and `gpx` — and that is the shape to
+sit in `core/` — `money`, `zones`, `errors`, `gpx` and `today` — and that is the shape to
 keep: the client is tested through the browser suite, except where a pure
 function deserves better than that. They qualify for one reason. Money parsing
 does because "12.345" quietly becoming 12.34 is invisible from the outside;

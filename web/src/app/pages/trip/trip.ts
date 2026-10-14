@@ -8,36 +8,39 @@ import {
 } from '@angular/cdk/drag-drop';
 import {
   Component,
-  DestroyRef,
-  ElementRef,
   computed,
+  DestroyRef,
   effect,
+  ElementRef,
   inject,
   input,
   signal,
   untracked,
   viewChild,
 } from '@angular/core';
-import { FormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
-import { PlaceSuggestion, PlaceView, TripDay } from '../../api';
-import { InstanceConfigStore } from '../../core/instance-config.store';
-import { ageLabel, messageOf } from '../../core/errors';
-import { buildDayGpx, buildGpx } from '../../core/gpx';
-import { formatMoney } from '../../core/money';
-import { SessionStore } from '../../core/session.store';
-import { TripChange, TripSyncService } from '../../core/trip-sync';
-import { PhotoLoad } from '../../core/photo-load';
-import { GeoRepo } from '../../repo/geo.repo';
-import { InviteRepo } from '../../repo/invite.repo';
-import { MemberRepo } from '../../repo/member.repo';
-import { RouteProfile, RouteRepo } from '../../repo/route.repo';
-import { TripRepo } from '../../repo/trip.repo';
-import { WeatherRepo } from '../../repo/weather.repo';
-import { PlaceRepo } from '../../repo/place.repo';
-import { PlaceDetail } from './place-detail';
-import { TripMap } from './trip-map';
-import { TripMembers } from './trip-members';
+import {FormsModule} from '@angular/forms';
+import {Router, RouterLink} from '@angular/router';
+import {PlaceSuggestion, PlaceView, ReservationView, TripDay} from '../../api';
+import {InstanceConfigStore} from '../../core/instance-config.store';
+import {ageLabel, messageOf} from '../../core/errors';
+import {buildDayGpx, buildGpx} from '../../core/gpx';
+import {formatMoney} from '../../core/money';
+import {SessionStore} from '../../core/session.store';
+import {TripChange, TripSyncService} from '../../core/trip-sync';
+import {localDateKey, todayActivities, TodayActivity} from '../../core/today';
+import {browserZone, isoDayInZone, zoneAbbreviation} from '../../core/zones';
+import {PhotoLoad} from '../../core/photo-load';
+import {GeoRepo} from '../../repo/geo.repo';
+import {InviteRepo} from '../../repo/invite.repo';
+import {MemberRepo} from '../../repo/member.repo';
+import {RouteProfile, RouteRepo} from '../../repo/route.repo';
+import {ReservationRepo} from '../../repo/reservation.repo';
+import {TripRepo} from '../../repo/trip.repo';
+import {WeatherRepo} from '../../repo/weather.repo';
+import {PlaceRepo} from '../../repo/place.repo';
+import {PlaceDetail} from './place-detail';
+import {TripMap} from './trip-map';
+import {TripMembers} from './trip-members';
 
 /** Offered in the trip's edit form. The server accepts any three-letter code. */
 const CURRENCIES = ['EUR', 'USD', 'GBP', 'CHF', 'SEK', 'NOK', 'DKK', 'PLN', 'CZK',
@@ -107,6 +110,7 @@ export class TripPage {
   private readonly trips = inject(TripRepo);
   private readonly weather = inject(WeatherRepo);
   private readonly routes = inject(RouteRepo);
+  private readonly reservations = inject(ReservationRepo);
   private readonly destroyRef = inject(DestroyRef);
 
   /** Bound from the route, as a string — coerced once here. */
@@ -123,9 +127,64 @@ export class TripPage {
 
   protected readonly trip = this.repo.trip;
   protected readonly days = this.repo.days;
+  protected readonly bookings = this.reservations.reservations;
   protected readonly loading = this.repo.loading;
   protected readonly saving = this.repo.saving;
   protected readonly canEdit = this.repo.canEdit;
+
+  private readonly now = signal(new Date());
+  protected readonly todayDate = computed(() => localDateKey(this.now()));
+  protected readonly todayDay = computed(
+    () => this.days().find((day) => day.date === this.todayDate()) ?? null,
+  );
+  private readonly viewModeChoice = signal<'today' | 'plan' | null>(null);
+  protected readonly todayMode = computed(
+    () => {
+      const choice = this.viewModeChoice();
+      return choice === null ? this.todayDay() !== null : choice === 'today';
+    },
+  );
+  protected readonly mapDays = computed(() => {
+    const day = this.todayDay();
+    return this.todayMode() && day ? [day] : this.days();
+  });
+  protected readonly lateByMinutes = signal(0);
+  private readonly completedKeys = signal<Set<string>>(new Set());
+  private readonly completionStorageKey = signal('');
+
+  protected readonly todayTimeline = computed(() => {
+    const day = this.todayDay();
+    return day
+      ? todayActivities(
+          day,
+          this.bookings(),
+          this.todayDate(),
+          this.now(),
+          this.lateByMinutes(),
+          this.completedKeys(),
+        )
+      : [];
+  });
+  protected readonly nextActivity = computed(() =>
+    this.todayTimeline().find((activity) =>
+      !activity.completed && activity.startsAt != null && activity.startsAt >= this.now().getTime(),
+    ) ?? null,
+  );
+  protected readonly nextBooking = computed(() => {
+    const now = this.now().getTime();
+    return this.bookings()
+      .filter((booking) =>
+        isoDayInZone(booking.startsAt, booking.startZone) === this.todayDate()
+        && new Date(booking.startsAt).getTime() >= now
+        && !this.completedKeys().has(`booking:${booking.id}`),
+      )
+      .sort((left, right) =>
+        new Date(left.startsAt).getTime() - new Date(right.startsAt).getTime(),
+      )[0] ?? null;
+  });
+  protected readonly estimatedLegs = this.routes.legs;
+  protected readonly estimatingLegs = this.routes.estimating;
+  protected readonly routeEstimateError = this.routes.estimateError;
 
   /** Null until the instance has said where tiles come from; the map waits. */
   protected readonly mapConfig = computed(() =>
@@ -145,6 +204,20 @@ export class TripPage {
         (total, day) => total + day.places.filter((place) => place.latitude != null).length,
         0,
       ),
+  );
+  protected readonly mapPlaceCount = computed(
+    () => this.mapDays().reduce((total, day) => total + day.places.length, 0),
+  );
+  protected readonly mapMappedCount = computed(
+    () => this.mapDays().reduce(
+      (total, day) => total + day.places.filter((place) => place.latitude != null).length,
+      0,
+    ),
+  );
+  protected readonly todayLocatedCount = computed(
+    () => this.todayDay()?.places.filter(
+      (place) => place.latitude != null && place.longitude != null,
+    ).length ?? 0,
   );
 
   /**
@@ -265,6 +338,46 @@ export class TripPage {
     // input() is set before the first render, so reading it here is safe.
     queueMicrotask(() => void this.reload());
     queueMicrotask(() => this.sync.watch(this.id()));
+
+    const clock = setInterval(() => this.now.set(new Date()), 30_000);
+    this.destroyRef.onDestroy(() => clearInterval(clock));
+
+    effect(() => {
+      const key = this.completionKey();
+      untracked(() => {
+        this.completionStorageKey.set(key);
+        this.completedKeys.set(readCompleted(key));
+      });
+    });
+    effect(() => {
+      this.todayDate();
+      untracked(() => this.lateByMinutes.set(0));
+    });
+    effect(() => {
+      const key = this.completionStorageKey();
+      const values = this.completedKeys();
+      if (key) {
+        saveCompleted(key, values);
+      }
+    });
+
+    // A single matrix call gives the estimates between consecutive stops in
+    // the existing order. It is separate from auto-sort, so viewers can use it
+    // and Today never suggests a different plan as a side effect.
+    effect(() => {
+      const active = this.todayMode();
+      const day = this.todayDay();
+      const enabled = this.routingEnabled();
+      const profile = this.routeProfile();
+      const located = day?.places.filter(
+        (place) => place.latitude != null && place.longitude != null,
+      ) ?? [];
+      if (!active || !day || !enabled || located.length < 2) {
+        untracked(() => this.routes.clearEstimates());
+      } else {
+        untracked(() => void this.routes.estimate(this.numericTripId(), day.date, profile));
+      }
+    });
 
     // Somebody else changed something. The service only reports; deciding what
     // to re-read is this page's job, because it is what knows which repos are on
@@ -391,7 +504,7 @@ export class TripPage {
               await this.invites.refreshIfLoaded(this.id());
               this.wantMembers = false;
             }
-            await this.repo.load(this.id());
+            await Promise.all([this.repo.load(this.id()), this.reservations.load(this.id())]);
             this.error.set(null);
             break;
           } catch {
@@ -410,6 +523,73 @@ export class TripPage {
 
   private id(): number {
     return Number(this.tripId());
+  }
+
+  private readonly completionKey = computed(() => {
+    const userId = this.session.user()?.id;
+    return userId == null
+      ? ''
+      : `wander.today.completed.${userId}.${this.numericTripId()}.${this.todayDate()}`;
+  });
+
+  protected chooseView(mode: 'today' | 'plan'): void {
+    this.viewModeChoice.set(mode);
+  }
+
+  protected setLateBy(minutes: number): void {
+    this.lateByMinutes.set(minutes);
+  }
+
+  protected retryEstimates(day: TripDay): void {
+    void this.routes.estimate(this.numericTripId(), day.date, this.routeProfile());
+  }
+
+  protected toggleCompleted(activity: TodayActivity): void {
+    this.completedKeys.update((current) => {
+      const next = new Set(current);
+      if (next.has(activity.key)) {
+        next.delete(activity.key);
+      } else {
+        next.add(activity.key);
+      }
+      return next;
+    });
+  }
+
+  protected nowLabel(): string {
+    return this.now().toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  }
+
+  protected countdown(target: number | string): string {
+    const instant = typeof target === 'string' ? new Date(target).getTime() : target;
+    const minutes = Math.max(0, Math.ceil((instant - this.now().getTime()) / 60_000));
+    if (!minutes) {
+      return 'now';
+    }
+    return minutes < 60
+      ? `in ${minutes} min`
+      : `in ${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, '0')}`;
+  }
+
+  protected bookingZone(booking: ReservationView): string | null {
+    return booking.startZone === browserZone()
+      ? null
+      : zoneAbbreviation(booking.startsAt, booking.startZone);
+  }
+
+  protected travelFor(placeId: number) {
+    return this.estimatedLegs()?.legs.find((leg) => leg.toPlaceId === placeId) ?? null;
+  }
+
+  protected travelFromName(placeId: number): string | null {
+    const leg = this.travelFor(placeId);
+    return leg
+      ? this.todayDay()?.places.find((place) => place.id === leg.fromPlaceId)?.name ?? null
+      : null;
+  }
+
+  protected distanceLabel(metres: number): string {
+    return metres < 1000 ? `${metres} m` : `${(metres / 1000).toFixed(1)} km`;
   }
 
   /**
@@ -481,7 +661,7 @@ export class TripPage {
 
   private async reload(): Promise<void> {
     try {
-      await this.repo.load(this.id());
+      await Promise.all([this.repo.load(this.id()), this.reservations.load(this.id())]);
     } catch {
       this.error.set('Could not load this trip.');
     }
@@ -1037,4 +1217,26 @@ function exportSummary(result: ReturnType<typeof buildGpx>, oneDay = false): str
       + ` no location and could not be included (${named}${rest}).`;
   }
   return summary;
+}
+
+function readCompleted(key: string): Set<string> {
+  if (!key) {
+    return new Set();
+  }
+  try {
+    const saved: unknown = JSON.parse(localStorage.getItem(key) ?? '[]');
+    return Array.isArray(saved) && saved.every((item) => typeof item === 'string')
+      ? new Set(saved)
+      : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function saveCompleted(key: string, values: Set<string>): void {
+  try {
+    localStorage.setItem(key, JSON.stringify([...values]));
+  } catch {
+    // Completion markers are a convenience; the shared itinerary remains intact.
+  }
 }

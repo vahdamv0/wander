@@ -12,6 +12,8 @@ import com.wander.config.WanderProperties;
 import com.wander.place.Place;
 import com.wander.place.PlaceRepository;
 import com.wander.route.dto.DayRoutePreview;
+import com.wander.route.dto.DayRouteLegsView;
+import com.wander.route.dto.RouteLegView;
 import com.wander.route.dto.RouteStopView;
 import com.wander.trip.TripAccessService;
 import com.wander.trip.TripRole;
@@ -109,6 +111,44 @@ public class RouteService {
         return new DayRoutePreview(dayDate, profile.name(), stops(day, located, order),
                 current, proposed, metres, changed(order), config.attribution(),
                 config.attributionUrl());
+    }
+
+    /**
+     * Estimate travel between the located stops without proposing a new order.
+     *
+     * The Today view is useful to every trip member, including viewers, and
+     * must describe the order they already planned rather than an optimised
+     * alternative. A single table request supplies each consecutive leg.
+     */
+    @Transactional(readOnly = true)
+    public DayRouteLegsView estimateLegs(Long userId, Long tripId, LocalDate dayDate,
+            RouteProfile profile) {
+        access.requireMember(tripId, userId);
+        if (!config.enabled()) {
+            throw new FeatureDisabledException("Route estimates are switched off on this instance");
+        }
+
+        List<Place> day = places.findByTripIdAndDayDateOrderBySortOrderAsc(tripId, dayDate);
+        if (day.size() > config.maxStops()) {
+            throw new IllegalArgumentException("A day can be estimated with at most "
+                    + config.maxStops() + " places on it; this one has " + day.size() + ".");
+        }
+        List<Place> located = day.stream().filter(RouteService::isLocated).toList();
+        if (located.size() < 2) {
+            return new DayRouteLegsView(dayDate, profile.name(), List.of(),
+                    config.attribution(), config.attributionUrl());
+        }
+
+        RouteClient.Matrix matrix = routes.table(profile, located.stream()
+                .map(place -> new RouteClient.Point(place.getLatitude(), place.getLongitude()))
+                .toList());
+        List<RouteLegView> legs = new ArrayList<>(located.size() - 1);
+        for (int i = 1; i < located.size(); i++) {
+            legs.add(new RouteLegView(located.get(i - 1).getId(), located.get(i).getId(),
+                    matrix.seconds()[i - 1][i], matrix.metres()[i - 1][i]));
+        }
+        return new DayRouteLegsView(dayDate, profile.name(), List.copyOf(legs),
+                config.attribution(), config.attributionUrl());
     }
 
     /**

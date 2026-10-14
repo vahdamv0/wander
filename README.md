@@ -39,6 +39,9 @@ Visit **[meridianx.co.in](https://meridianx.co.in)** to learn more about Wander 
 - Places on a day: add, rename, annotate and **drag into order** - within a day
   or into another one, with buttons as the equal keyboard path
 - A note on each day, **what the day cost**, and the forecast when there is one
+- A **Today view** with the live clock, next activity and booking countdown,
+  routed travel estimates, weather, map, completion marks and a temporary
+  running-late adjustment
 - **Place search over Nominatim**, proxied and cached, so a place keeps the
   coordinates of the candidate you actually picked
 - A **vector map** beside the itinerary, so a place abroad is labelled in your
